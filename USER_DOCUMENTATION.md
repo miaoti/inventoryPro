@@ -125,7 +125,7 @@ Smart Inventory Pro is a modern, web-based inventory management system designed 
 ## Contact Information
 For any questions or support needs, please contact:
 - Email: miaotingshuo@gmail.com
-- Support Hours: Monday to Friday, 9:00 AM - 5:00 PM PST
+- Support Hours: Monday to Friday, 9:00 AM - 5:00 PM CST
 
 ## Version Information
 - Current Version: 1.0.0
