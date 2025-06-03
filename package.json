@@ -1,0 +1,9 @@
+{
+  "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.0",
+    "@mui/x-data-grid": "^8.5.0",
+    "@types/js-cookie": "^3.0.6",
+    "js-cookie": "^3.0.5"
+  }
+}

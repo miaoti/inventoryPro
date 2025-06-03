@@ -1,0 +1,3 @@
+-- Migration to add missing user fields
+ALTER TABLE users ADD COLUMN enabled BOOLEAN DEFAULT TRUE NOT NULL;
+ALTER TABLE users ADD COLUMN role VARCHAR(20) DEFAULT 'USER' NOT NULL; 

@@ -1,0 +1,942 @@
+'use client';
+
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
+import { setAlerts, resolveAlert as resolveAlertAction, markAlertAsRead as markAlertAsReadAction, updateAlertCounts } from '../../store/slices/alertsSlice';
+import type { RootState } from '../../store';
+import {
+  Box,
+  Paper,
+  Typography,
+  Button,
+  Alert as MuiAlert,
+  Card,
+  CardContent,
+  Chip,
+  IconButton,
+  Tab,
+  Tabs,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  InputAdornment,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Tooltip,
+  Fab,
+  Fade,
+  Divider,
+  LinearProgress,
+  Badge,
+} from '@mui/material';
+import {
+  CheckCircle as ResolveIcon,
+  Warning as WarningIcon,
+  Info as InfoIcon,
+  Close as CloseIcon,
+  Search as SearchIcon,
+  FilterList as FilterIcon,
+  Refresh as RefreshIcon,
+  Timeline as TrendIcon,
+  Inventory as InventoryIcon,
+  Email as EmailIcon,
+  GetApp as ExportIcon,
+} from '@mui/icons-material';
+import { DataGrid, GridColDef, GridRowParams } from '@mui/x-data-grid';
+import { alertsAPI } from '../../services/api';
+
+interface Alert {
+  id: number;
+  item: {
+    id: number;
+    name: string;
+    code: string;
+    barcode: string;
+    location?: string;
+  };
+  alertType: string;
+  message: string;
+  currentInventory: number;
+  pendingPO: number;
+  usedInventory: number;
+  safetyStockThreshold: number;
+  resolved: boolean;
+  read: boolean;
+  createdAt: string;
+  resolvedAt?: string;
+  readAt?: string;
+  // Computed fields
+  itemName?: string;
+  itemCode?: string;
+  itemId?: number;
+  formattedCreatedAt?: string;
+  effectiveInventory: number;
+  urgencyLevel: 'critical' | 'warning';
+  daysOld: number;
+}
+
+type AlertFilter = 'all' | 'critical' | 'warning';
+type SortField = 'createdAt' | 'urgencyLevel' | 'itemName' | 'effectiveInventory';
+
+export default function AlertsPage() {
+  // Redux state
+  const dispatch = useDispatch();
+  const { alerts: reduxAlerts, unreadAlerts, activeAlerts } = useSelector((state: RootState) => state.alerts);
+
+  // Local state
+  const [alerts, setAlertsLocal] = useState<Alert[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [tabValue, setTabValue] = useState(0);
+  const [selectedAlert, setSelectedAlert] = useState<Alert | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [alertFilter, setAlertFilter] = useState<AlertFilter>('all');
+  const [sortField, setSortField] = useState<SortField>('createdAt');
+  const [autoRefresh, setAutoRefresh] = useState(true);
+
+  // Computed values using useMemo for performance
+  const processedAlerts = useMemo(() => {
+    return alerts.map((alert: any) => {
+      const effectiveInventory = alert.currentInventory + alert.pendingPO;
+      const daysOld = Math.floor((new Date().getTime() - new Date(alert.createdAt).getTime()) / (1000 * 60 * 60 * 24));
+      
+      // Determine urgency level (only critical or warning)
+      let urgencyLevel: 'critical' | 'warning' = 'warning';
+      const stockRatio = effectiveInventory / alert.safetyStockThreshold;
+      
+      if (stockRatio < 0.2) urgencyLevel = 'critical';
+
+      return {
+        ...alert,
+        itemName: alert.item?.name || 'N/A',
+        itemCode: alert.item?.code || 'N/A',
+        itemId: alert.item?.id || null,
+        formattedCreatedAt: new Date(alert.createdAt).toLocaleString(),
+        effectiveInventory,
+        urgencyLevel,
+        daysOld,
+      };
+    });
+  }, [alerts]);
+
+  const filteredAlerts = useMemo(() => {
+    let filtered = processedAlerts;
+
+    // Search filter
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      filtered = filtered.filter(alert => 
+        alert.itemName?.toLowerCase().includes(term) ||
+        alert.itemCode?.toLowerCase().includes(term) ||
+        alert.message.toLowerCase().includes(term)
+      );
+    }
+
+    // Urgency filter
+    if (alertFilter !== 'all') {
+      filtered = filtered.filter(alert => alert.urgencyLevel === alertFilter);
+    }
+
+    // Sort
+    filtered.sort((a, b) => {
+      switch (sortField) {
+        case 'urgencyLevel':
+          const urgencyOrder: { [key: string]: number } = { critical: 0, warning: 1 };
+          return urgencyOrder[a.urgencyLevel] - urgencyOrder[b.urgencyLevel];
+        case 'itemName':
+          return (a.itemName || '').localeCompare(b.itemName || '');
+        case 'effectiveInventory':
+          return a.effectiveInventory - b.effectiveInventory;
+        case 'createdAt':
+        default:
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      }
+    });
+
+    return filtered;
+  }, [processedAlerts, searchTerm, alertFilter, sortField]);
+
+  const filteredAlertsComputed = useMemo(() => filteredAlerts.filter(alert => !alert.resolved), [filteredAlerts]);
+  const resolvedAlertsComputed = useMemo(() => filteredAlerts.filter(alert => alert.resolved), [filteredAlerts]);
+
+  // Statistics
+  const alertStats = useMemo(() => {
+    const critical = filteredAlertsComputed.filter(a => a.urgencyLevel === 'critical').length;
+    const warning = filteredAlertsComputed.filter(a => a.urgencyLevel === 'warning').length;
+    const avgDaysOld = filteredAlertsComputed.length > 0 
+      ? Math.round(filteredAlertsComputed.reduce((sum, a) => sum + a.daysOld, 0) / filteredAlertsComputed.length)
+      : 0;
+    
+    return {
+      total: filteredAlertsComputed.length,
+      critical,
+      warning,
+      avgDaysOld,
+      resolved: resolvedAlertsComputed.length,
+    };
+  }, [filteredAlertsComputed, resolvedAlertsComputed]);
+
+  // Fetch alerts with optimized loading states
+  const fetchAlerts = useCallback(async (isRefresh = false) => {
+    try {
+      if (isRefresh) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
+
+      const response = await alertsAPI.getAll();
+      const alertsData = response.data;
+      
+      setAlertsLocal(alertsData);
+      dispatch(setAlerts(alertsData));
+    } catch (error) {
+      console.error('Error fetching alerts:', error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [dispatch]);
+
+  // Auto-refresh alerts every 30 seconds
+  useEffect(() => {
+    fetchAlerts();
+    
+    if (autoRefresh) {
+      const interval = setInterval(() => {
+        fetchAlerts(true);
+      }, 30000);
+      
+      return () => clearInterval(interval);
+    }
+  }, [fetchAlerts, autoRefresh]);
+
+  // Optimized resolve alert with optimistic updates
+  const resolveAlert = useCallback(async (alertId: number) => {
+    try {
+      // Call API first to ensure backend is updated
+      await alertsAPI.resolve(alertId);
+      
+      // Then update local state and Redux
+      dispatch(resolveAlertAction(alertId));
+      setAlertsLocal(prev => prev.map(alert => 
+        alert.id === alertId 
+          ? { ...alert, resolved: true, resolvedAt: new Date().toISOString() }
+          : alert
+      ));
+      
+      setDialogOpen(false);
+      
+      // Immediately refresh alert counts to update sidebar badge
+      try {
+        const countsResponse = await alertsAPI.getCounts();
+        dispatch(updateAlertCounts({
+          unreadAlerts: countsResponse.data.unreadAlerts,
+          activeAlerts: countsResponse.data.activeAlerts
+        }));
+      } catch (countError) {
+        console.error('Error fetching updated alert counts:', countError);
+      }
+      
+      // Fetch fresh data to ensure consistency
+      setTimeout(() => {
+        fetchAlerts(true);
+      }, 500);
+      
+    } catch (error) {
+      console.error('Error resolving alert:', error);
+      // Fetch fresh data on error to ensure consistency
+      fetchAlerts(true);
+    }
+  }, [dispatch, fetchAlerts]);
+
+  // Mark alert as read
+  const markAsRead = useCallback(async (alertId: number) => {
+    try {
+      const alert = alerts.find(a => a.id === alertId);
+      if (alert && !alert.read && !alert.resolved) {
+        await alertsAPI.markAsRead(alertId);
+        dispatch(markAlertAsReadAction(alertId));
+        setAlertsLocal(prev => prev.map(a => 
+          a.id === alertId 
+            ? { ...a, read: true, readAt: new Date().toISOString() }
+            : a
+        ));
+        
+        // Immediately refresh alert counts to update sidebar badge
+        try {
+          const countsResponse = await alertsAPI.getCounts();
+          dispatch(updateAlertCounts({
+            unreadAlerts: countsResponse.data.unreadAlerts,
+            activeAlerts: countsResponse.data.activeAlerts
+          }));
+        } catch (countError) {
+          console.error('Error fetching updated alert counts:', countError);
+        }
+      }
+    } catch (error) {
+      console.error('Error marking alert as read:', error);
+    }
+  }, [alerts, dispatch]);
+
+  const openAlertDialog = useCallback((alert: Alert) => {
+    setSelectedAlert(alert);
+    setDialogOpen(true);
+    
+    // Mark alert as read when opened
+    if (!alert.read && !alert.resolved) {
+      markAsRead(alert.id);
+    }
+  }, [markAsRead]);
+
+  const handleExportToExcel = async () => {
+    try {
+      const response = await fetch('http://localhost:8080/api/alerts/export/excel', {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Authorization': `Bearer ${document.cookie.split(';').find(c => c.trim().startsWith('token='))?.split('=')[1] || ''}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to export alerts');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `alerts_report_${new Date().toISOString().split('T')[0]}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('Error exporting alerts:', error);
+      // You might want to show a toast or alert here
+    }
+  };
+
+  const getUrgencyColor = (urgency: string) => {
+    switch (urgency) {
+      case 'critical': return 'error';
+      case 'warning': return 'warning';
+      default: return 'warning'; // default to warning for safety
+    }
+  };
+
+  const getUrgencyIcon = (urgency: string) => {
+    switch (urgency) {
+      case 'critical': return '🚨';
+      case 'warning': return '⚠️';
+      default: return '⚠️'; // default to warning for safety
+    }
+  };
+
+  // Enhanced DataGrid columns with better formatting
+  const columns: GridColDef[] = [
+    {
+      field: 'urgencyLevel',
+      headerName: 'Priority',
+      width: 100,
+      renderCell: (params) => (
+        <Tooltip title={`${params.value} priority`}>
+          <Chip
+            icon={<span>{getUrgencyIcon(params.value)}</span>}
+            label={params.value}
+            color={getUrgencyColor(params.value) as any}
+            size="small"
+            variant="filled"
+          />
+        </Tooltip>
+      ),
+    },
+    {
+      field: 'itemName',
+      headerName: 'Item',
+      flex: 1,
+      minWidth: 200,
+      renderCell: (params) => (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          {/* Read/Unread status icon */}
+          {!params.row.read && (
+            <Box
+              sx={{
+                width: 6,
+                height: 6,
+                borderRadius: '50%',
+                backgroundColor: 'primary.main',
+                flexShrink: 0
+              }}
+            />
+          )}
+          <Box>
+            <Typography variant="body2" sx={{ fontWeight: params.row.read ? 'normal' : 'medium' }}>
+              {params.value}
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              {params.row.itemCode}
+            </Typography>
+          </Box>
+        </Box>
+      ),
+    },
+    {
+      field: 'effectiveInventory',
+      headerName: 'Stock Level',
+      width: 140,
+      renderCell: (params) => {
+        const isLow = params.value < params.row.safetyStockThreshold;
+        const percentage = (params.value / params.row.safetyStockThreshold) * 100;
+        
+        return (
+          <Box sx={{ width: '100%' }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+              <Typography variant="body2" color={isLow ? 'error' : 'inherit'}>
+                {params.value}
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                /{params.row.safetyStockThreshold}
+              </Typography>
+            </Box>
+            <LinearProgress
+              variant="determinate"
+              value={Math.min(percentage, 100)}
+              color={isLow ? 'error' : 'success'}
+              sx={{ height: 4, borderRadius: 2 }}
+            />
+          </Box>
+        );
+      },
+    },
+    {
+      field: 'daysOld',
+      headerName: 'Age',
+      width: 80,
+      renderCell: (params) => (
+        <Chip
+          label={`${params.value}d`}
+          size="small"
+          color={params.value > 7 ? 'error' : params.value > 3 ? 'warning' : 'default'}
+        />
+      ),
+    },
+    {
+      field: 'formattedCreatedAt',
+      headerName: 'Created',
+      width: 160,
+      renderCell: (params) => (
+        <Typography variant="body2" color="text.secondary">
+          {params.value}
+        </Typography>
+      ),
+    },
+    {
+      field: 'actions',
+      headerName: 'Actions',
+      width: 150,
+      sortable: false,
+      renderCell: (params) => (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+          {/* Read/Unread indicator */}
+          <Tooltip title={params.row.read ? 'Read' : 'Unread'}>
+            <Box
+              sx={{
+                width: 8,
+                height: 8,
+                borderRadius: '50%',
+                backgroundColor: params.row.read ? 'grey.400' : 'primary.main',
+                mr: 1
+              }}
+            />
+          </Tooltip>
+          
+          <Tooltip title="View Details">
+            <IconButton onClick={() => openAlertDialog(params.row as Alert)} size="small">
+              <InfoIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+          {!params.row.resolved && (
+            <Tooltip title="Mark as Resolved">
+              <IconButton 
+                onClick={() => resolveAlert(params.row.id)} 
+                size="small"
+                color="success"
+              >
+                <ResolveIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          )}
+        </Box>
+      ),
+    },
+  ];
+
+  return (
+    <Box sx={{ p: 3 }}>
+      {/* Header with actions */}
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+        <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
+          <WarningIcon sx={{ mr: 2, verticalAlign: 'middle' }} />
+          Inventory Alerts
+        </Typography>
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <Tooltip title="Refresh Data">
+            <IconButton onClick={() => fetchAlerts(true)} disabled={refreshing}>
+              <RefreshIcon />
+            </IconButton>
+          </Tooltip>
+          <Button
+            variant="outlined"
+            startIcon={<ExportIcon />}
+            onClick={handleExportToExcel}
+          >
+            Export
+          </Button>
+        </Box>
+      </Box>
+
+      {refreshing && <LinearProgress sx={{ mb: 2 }} />}
+
+      {/* Enhanced Alert Statistics */}
+      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 2, mb: 3 }}>
+        <Card sx={{ bgcolor: 'info.light', color: 'info.contrastText' }}>
+          <CardContent sx={{ p: 2 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Box>
+                <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
+                  {unreadAlerts}
+                </Typography>
+                <Typography variant="body2">Unread Alerts</Typography>
+                {filteredAlertsComputed.length > 0 && (
+                  <Typography variant="caption" sx={{ opacity: 0.8 }}>
+                    {Math.round((unreadAlerts / filteredAlertsComputed.length) * 100)}% of active
+                  </Typography>
+                )}
+              </Box>
+              <Box sx={{ fontSize: 40 }}>
+                {unreadAlerts > 0 ? '🔔' : '✅'}
+              </Box>
+            </Box>
+          </CardContent>
+        </Card>
+
+        <Card sx={{ bgcolor: 'error.light', color: 'error.contrastText' }}>
+          <CardContent sx={{ p: 2 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Box>
+                <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
+                  {alertStats.critical}
+                </Typography>
+                <Typography variant="body2">Critical Alerts</Typography>
+              </Box>
+              <Box sx={{ fontSize: 40 }}>🚨</Box>
+            </Box>
+          </CardContent>
+        </Card>
+
+        <Card sx={{ bgcolor: 'warning.light', color: 'warning.contrastText' }}>
+          <CardContent sx={{ p: 2 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Box>
+                <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
+                  {alertStats.warning}
+                </Typography>
+                <Typography variant="body2">Warning Alerts</Typography>
+              </Box>
+              <Box sx={{ fontSize: 40 }}>⚠️</Box>
+            </Box>
+          </CardContent>
+        </Card>
+
+        <Card sx={{ bgcolor: 'success.light', color: 'success.contrastText' }}>
+          <CardContent sx={{ p: 2 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Box>
+                <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
+                  {alertStats.resolved}
+                </Typography>
+                <Typography variant="body2">Resolved</Typography>
+              </Box>
+              <Box sx={{ fontSize: 40 }}>✅</Box>
+            </Box>
+          </CardContent>
+        </Card>
+      </Box>
+
+      {/* Advanced Filters */}
+      <Paper sx={{ p: 2, mb: 3 }}>
+        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+          <TextField
+            size="small"
+            placeholder="Search alerts..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon />
+                </InputAdornment>
+              ),
+            }}
+            sx={{ minWidth: 200 }}
+          />
+
+          <FormControl size="small" sx={{ minWidth: 140 }}>
+            <InputLabel>Priority</InputLabel>
+            <Select
+              value={alertFilter}
+              label="Priority"
+              onChange={(e) => setAlertFilter(e.target.value as AlertFilter)}
+            >
+              <MenuItem value="all">All</MenuItem>
+              <MenuItem value="critical">Critical</MenuItem>
+              <MenuItem value="warning">Warning</MenuItem>
+            </Select>
+          </FormControl>
+
+          <FormControl size="small" sx={{ minWidth: 140 }}>
+            <InputLabel>Sort By</InputLabel>
+            <Select
+              value={sortField}
+              label="Sort By"
+              onChange={(e) => setSortField(e.target.value as SortField)}
+            >
+              <MenuItem value="createdAt">Date Created</MenuItem>
+              <MenuItem value="urgencyLevel">Priority</MenuItem>
+              <MenuItem value="itemName">Item Name</MenuItem>
+              <MenuItem value="effectiveInventory">Stock Level</MenuItem>
+            </Select>
+          </FormControl>
+
+          <Divider orientation="vertical" flexItem />
+          
+          <Typography variant="body2" color="text.secondary">
+            Showing {filteredAlerts.length} of {processedAlerts.length} alerts
+          </Typography>
+        </Box>
+      </Paper>
+
+      {/* Alert Tabs with improved design */}
+      <Paper sx={{ mb: 3 }}>
+        <Tabs 
+          value={tabValue} 
+          onChange={(e, newValue) => setTabValue(newValue)}
+          sx={{ 
+            borderBottom: 1, 
+            borderColor: 'divider',
+            '& .MuiTab-root': {
+              minWidth: 240,
+              px: 4,
+              py: 2
+            }
+          }}
+        >
+          <Tab
+            label={
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, minWidth: 180 }}>
+                <Typography>Active Alerts</Typography>
+                <Badge 
+                  badgeContent={filteredAlertsComputed.length} 
+                  color="error"
+                  sx={{
+                    '& .MuiBadge-badge': {
+                      position: 'static',
+                      transform: 'none',
+                      minWidth: 24,
+                      height: 24,
+                      fontSize: '0.75rem'
+                    }
+                  }}
+                >
+                  <Box />
+                </Badge>
+              </Box>
+            } 
+          />
+          <Tab 
+            label={
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, minWidth: 180 }}>
+                <Typography>Resolved Alerts</Typography>
+                <Badge 
+                  badgeContent={resolvedAlertsComputed.length} 
+                  color="success"
+                  sx={{
+                    '& .MuiBadge-badge': {
+                      position: 'static',
+                      transform: 'none',
+                      minWidth: 24,
+                      height: 24,
+                      fontSize: '0.75rem'
+                    }
+                  }}
+                >
+                  <Box />
+                </Badge>
+              </Box>
+            } 
+          />
+        </Tabs>
+
+        <Box sx={{ p: 2 }}>
+          {loading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
+              <LinearProgress sx={{ width: '50%' }} />
+            </Box>
+          ) : (
+            <>
+              {tabValue === 0 && filteredAlertsComputed.length === 0 && (
+                <MuiAlert severity="success" sx={{ mb: 2 }}>
+                  🎉 Excellent! No active alerts. All items are above safety stock levels.
+                </MuiAlert>
+              )}
+
+              {tabValue === 0 && filteredAlertsComputed.length > 0 && (
+                <Paper sx={{ height: 500, width: '100%' }}>
+                  <DataGrid
+                    rows={filteredAlertsComputed}
+                    columns={columns}
+                    loading={loading}
+                    pageSizeOptions={[10, 25, 50]}
+                    initialState={{
+                      pagination: { paginationModel: { pageSize: 25 } },
+                    }}
+                    disableRowSelectionOnClick
+                    onRowDoubleClick={(params: GridRowParams) => openAlertDialog(params.row as Alert)}
+                    getRowClassName={(params) => 
+                      params.row.read ? 'read-alert' : 'unread-alert'
+                    }
+                    sx={{
+                      '& .MuiDataGrid-row:hover': {
+                        cursor: 'pointer',
+                      },
+                      '& .read-alert': {
+                        opacity: 0.6,
+                        backgroundColor: 'rgba(0, 0, 0, 0.02)',
+                        '& .MuiDataGrid-cell': {
+                          color: 'text.secondary',
+                        },
+                      },
+                      '& .unread-alert': {
+                        backgroundColor: 'rgba(25, 118, 210, 0.04)',
+                        fontWeight: 'medium',
+                        '& .MuiDataGrid-cell': {
+                          fontWeight: 'inherit',
+                        },
+                      },
+                    }}
+                  />
+                </Paper>
+              )}
+
+              {tabValue === 1 && (
+                <Paper sx={{ height: 500, width: '100%' }}>
+                  <DataGrid
+                    rows={resolvedAlertsComputed}
+                    columns={columns}
+                    loading={loading}
+                    pageSizeOptions={[10, 25, 50]}
+                    initialState={{
+                      pagination: { paginationModel: { pageSize: 25 } },
+                    }}
+                    disableRowSelectionOnClick
+                    onRowDoubleClick={(params: GridRowParams) => openAlertDialog(params.row as Alert)}
+                    sx={{
+                      '& .MuiDataGrid-row': {
+                        opacity: 0.7,
+                      },
+                    }}
+                  />
+                </Paper>
+              )}
+            </>
+          )}
+        </Box>
+      </Paper>
+
+      {/* Enhanced Alert Detail Dialog */}
+      <Dialog 
+        open={dialogOpen} 
+        onClose={() => setDialogOpen(false)} 
+        maxWidth="md" 
+        fullWidth
+        PaperProps={{
+          sx: { borderRadius: 3 }
+        }}
+      >
+        {selectedAlert && (
+          <>
+            <DialogTitle>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                  <Chip
+                    icon={<span>{getUrgencyIcon(selectedAlert.urgencyLevel)}</span>}
+                    label={`${selectedAlert.urgencyLevel} Priority`}
+                    color={getUrgencyColor(selectedAlert.urgencyLevel) as any}
+                    variant="filled"
+                  />
+                  <Typography variant="h6">Alert Details</Typography>
+                </Box>
+                <IconButton onClick={() => setDialogOpen(false)}>
+                  <CloseIcon />
+                </IconButton>
+              </Box>
+            </DialogTitle>
+            <DialogContent>
+              <Box sx={{ mb: 3 }}>
+                <Typography variant="h5" gutterBottom sx={{ fontWeight: 'bold' }}>
+                  {selectedAlert.item.name}
+                </Typography>
+                <Typography variant="subtitle1" color="text.secondary" gutterBottom>
+                  Code: {selectedAlert.item.code} | Barcode: {selectedAlert.item.barcode}
+                </Typography>
+                <MuiAlert severity={selectedAlert.urgencyLevel === 'critical' ? 'error' : 'warning'} sx={{ mt: 2 }}>
+                  {selectedAlert.message}
+                </MuiAlert>
+              </Box>
+
+              <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 2, mb: 3 }}>
+                <Card variant="outlined">
+                  <CardContent sx={{ textAlign: 'center' }}>
+                    <InventoryIcon sx={{ fontSize: 40, color: 'primary.main', mb: 1 }} />
+                    <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
+                      {selectedAlert.currentInventory}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Current Stock
+                    </Typography>
+                  </CardContent>
+                </Card>
+
+                <Card variant="outlined">
+                  <CardContent sx={{ textAlign: 'center' }}>
+                    <Typography variant="h4" sx={{ fontWeight: 'bold', color: 'info.main' }}>
+                      {selectedAlert.pendingPO}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Pending Orders
+                    </Typography>
+                  </CardContent>
+                </Card>
+
+                <Card variant="outlined">
+                  <CardContent sx={{ textAlign: 'center' }}>
+                    <Typography variant="h4" sx={{ fontWeight: 'bold', color: 'warning.main' }}>
+                      {selectedAlert.usedInventory}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Used/Consumed
+                    </Typography>
+                  </CardContent>
+                </Card>
+
+                <Card variant="outlined">
+                  <CardContent sx={{ textAlign: 'center' }}>
+                    <Typography variant="h4" sx={{ fontWeight: 'bold', color: 'error.main' }}>
+                      {selectedAlert.safetyStockThreshold}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Safety Threshold
+                    </Typography>
+                  </CardContent>
+                </Card>
+              </Box>
+
+              <Card 
+                variant="outlined" 
+                sx={{ 
+                  bgcolor: selectedAlert.effectiveInventory < selectedAlert.safetyStockThreshold 
+                    ? 'error.light' 
+                    : 'success.light',
+                  mb: 3
+                }}
+              >
+                <CardContent sx={{ textAlign: 'center' }}>
+                  <Typography variant="h3" sx={{ 
+                    fontWeight: 'bold',
+                    color: selectedAlert.effectiveInventory < selectedAlert.safetyStockThreshold 
+                      ? 'error.dark' 
+                      : 'success.dark'
+                  }}>
+                    {selectedAlert.effectiveInventory}
+                  </Typography>
+                  <Typography variant="h6" color="text.secondary">
+                    Effective Inventory
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    (Current + Pending - Used)
+                  </Typography>
+                  <LinearProgress
+                    variant="determinate"
+                    value={Math.min((selectedAlert.effectiveInventory / selectedAlert.safetyStockThreshold) * 100, 100)}
+                    color={selectedAlert.effectiveInventory < selectedAlert.safetyStockThreshold ? 'error' : 'success'}
+                    sx={{ mt: 2, height: 8, borderRadius: 4 }}
+                  />
+                </CardContent>
+              </Card>
+
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 }}>
+                <Box>
+                  <Typography variant="body2" color="text.secondary">
+                    📅 Created: {selectedAlert.formattedCreatedAt}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    ⏱️ Age: {selectedAlert.daysOld} days
+                  </Typography>
+                  {selectedAlert.resolved && selectedAlert.resolvedAt && (
+                    <Typography variant="body2" color="text.secondary">
+                      ✅ Resolved: {new Date(selectedAlert.resolvedAt).toLocaleString()}
+                    </Typography>
+                  )}
+                </Box>
+                {selectedAlert.item.location && (
+                  <Box>
+                    <Typography variant="body2" color="text.secondary">
+                      📍 Location: {selectedAlert.item.location}
+                    </Typography>
+                  </Box>
+                )}
+              </Box>
+            </DialogContent>
+            <DialogActions sx={{ p: 3 }}>
+              {!selectedAlert.resolved && (
+                <Button
+                  onClick={() => resolveAlert(selectedAlert.id)}
+                  variant="contained"
+                  color="success"
+                  startIcon={<ResolveIcon />}
+                  sx={{ mr: 'auto' }}
+                >
+                  Mark as Resolved
+                </Button>
+              )}
+              <Button variant="outlined" startIcon={<EmailIcon />}>
+                Notify Team
+              </Button>
+              <Button onClick={() => setDialogOpen(false)}>
+                Close
+              </Button>
+            </DialogActions>
+          </>
+        )}
+      </Dialog>
+
+      {/* Floating Action Button for quick actions */}
+      <Fade in={activeAlerts > 0}>
+        <Fab
+          color="primary"
+          sx={{ position: 'fixed', bottom: 24, right: 24 }}
+          onClick={() => fetchAlerts(true)}
+        >
+          <RefreshIcon />
+        </Fab>
+      </Fade>
+    </Box>
+  );
+} 
