@@ -51,7 +51,8 @@ public class SecurityConfig {
                 ).permitAll()
                 .requestMatchers(
                     new AntPathRequestMatcher("/user/**"),
-                    new AntPathRequestMatcher("/api/user/**")
+                    new AntPathRequestMatcher("/api/user/**"),
+                    new AntPathRequestMatcher("/stats/**")
                 ).authenticated()
                 .anyRequest().authenticated()
             )

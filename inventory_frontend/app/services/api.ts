@@ -5,9 +5,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api';
 
 const api = axios.create({
   baseURL: API_URL,
-  headers: {
-    'Content-Type': 'application/json',
-  },
+  // Don't set default Content-Type - let each request set it appropriately
 });
 
 api.interceptors.request.use(
@@ -16,6 +14,16 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    
+    // Set appropriate Content-Type based on data type
+    if (config.data instanceof FormData) {
+      // Let browser set Content-Type with boundary for FormData
+      delete config.headers['Content-Type'];
+    } else if (config.data && typeof config.data === 'object') {
+      // Set JSON Content-Type for object data
+      config.headers['Content-Type'] = 'application/json';
+    }
+    
     return config;
   },
   (error) => {
@@ -49,9 +57,29 @@ export const authAPI = {
 export const itemsAPI = {
   getAll: () => api.get('/items'),
   getById: (id: number) => api.get(`/items/${id}`),
-  create: (itemData: any) => api.post('/items', itemData),
-  update: (id: number, itemData: any) => api.put(`/items/${id}`, itemData),
+  create: (item: any) => api.post('/items', item),
+  update: (id: number, item: any) => api.put(`/items/${id}`, item),
   delete: (id: number) => api.delete(`/items/${id}`),
+  bulkDelete: (ids: number[]) => api.delete('/items/bulk', { data: ids }),
+  importCSV: (file: File) => {
+    console.log('=== FRONTEND IMPORT DEBUG ===');
+    console.log('File to import:', file);
+    console.log('File name:', file.name);
+    console.log('File size:', file.size);
+    console.log('File type:', file.type);
+    
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    console.log('FormData created');
+    console.log('FormData entries:');
+    for (const [key, value] of formData.entries()) {
+      console.log(key, value);
+    }
+    
+    return api.post('/items/import-csv', formData);
+  },
+  exportBarcodes: () => api.get('/items/export-barcodes', { responseType: 'blob' }),
   scanBarcode: (file: File) => {
     const formData = new FormData();
     formData.append('file', file);
@@ -80,6 +108,32 @@ export const userAPI = {
     enableEmailAlerts: boolean;
     enableDailyDigest: boolean;
   }) => api.put('/user/settings', settings),
+};
+
+export const barcodeAPI = {
+  scanBarcode: (barcode: string) => 
+    api.get(`/public/barcode/scan/${encodeURIComponent(barcode)}`),
+  recordUsage: (usageData: {
+    barcode: string;
+    userName: string;
+    quantityUsed: number;
+    notes?: string;
+    department?: string;
+  }) => api.post('/public/barcode/use', usageData),
+};
+
+export const adminAPI = {
+  getItemDisplaySettings: () => api.get('/admin/settings/item-display'),
+  updateItemDisplaySettings: (fields: string[]) => 
+    api.post('/admin/settings/item-display', { fields }),
+};
+
+export const statsAPI = {
+  getDailyUsage: (days: number = 7) => api.get(`/stats/daily-usage?days=${days}`),
+  getTopUsageItems: (limit: number = 5) => api.get(`/stats/top-usage?limit=${limit}`),
+  getLowStockItems: () => api.get('/stats/low-stock'),
+  getStockAlerts: () => api.get('/stats/stock-alerts'),
+  getQuickStats: () => api.get('/stats/quick-stats'),
 };
 
 export default api; 

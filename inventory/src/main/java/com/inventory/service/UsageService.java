@@ -60,7 +60,8 @@ public class UsageService {
             request.getQuantityUsed(),
             request.getNotes(),
             request.getBarcode(),
-            request.getDepartment()
+            request.getDepartment(),
+            request.getDNumber()
         );
 
         Usage savedUsage = usageRepository.save(usage);

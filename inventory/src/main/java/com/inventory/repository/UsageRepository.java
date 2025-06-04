@@ -64,4 +64,36 @@ public interface UsageRepository extends JpaRepository<Usage, Long> {
                                    @Param("userName") String userName,
                                    @Param("department") String department,
                                    @Param("barcodeOrItemCode") String barcodeOrItemCode);
+
+    // Statistics Queries for Quick Stats Dashboard
+    
+    // Get daily usage aggregated by date for the last N days
+    @Query("SELECT DATE(u.usedAt) as usageDate, SUM(u.quantityUsed) as totalUsage " +
+           "FROM Usage u " +
+           "WHERE u.usedAt >= :startDate " +
+           "GROUP BY DATE(u.usedAt) " +
+           "ORDER BY usageDate")
+    List<Object[]> getDailyUsageStats(@Param("startDate") LocalDateTime startDate);
+    
+    // Get top N most used items by total quantity used
+    @Query("SELECT u.item.id, u.item.name, u.item.code, SUM(u.quantityUsed) as totalUsage " +
+           "FROM Usage u " +
+           "GROUP BY u.item.id, u.item.name, u.item.code " +
+           "ORDER BY totalUsage DESC")
+    List<Object[]> getTopUsageItems(Pageable pageable);
+    
+    // Get usage by department for analytics
+    @Query("SELECT u.department, SUM(u.quantityUsed) as totalUsage " +
+           "FROM Usage u " +
+           "WHERE u.department IS NOT NULL " +
+           "GROUP BY u.department " +
+           "ORDER BY totalUsage DESC")
+    List<Object[]> getUsageByDepartment();
+    
+    // Get usage statistics for a specific time period
+    @Query("SELECT COUNT(u), SUM(u.quantityUsed), COUNT(DISTINCT u.item.id), COUNT(DISTINCT u.userName) " +
+           "FROM Usage u " +
+           "WHERE u.usedAt >= :startDate AND u.usedAt <= :endDate")
+    Object[] getUsageStatistics(@Param("startDate") LocalDateTime startDate, 
+                               @Param("endDate") LocalDateTime endDate);
 } 

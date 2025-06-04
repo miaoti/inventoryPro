@@ -24,6 +24,9 @@ public class Item {
 
     @Column(length = 1000)
     private String description;
+    
+    @Column(length = 500)
+    private String englishDescription;
 
     @Column(nullable = false)
     private Integer currentInventory = 0;
@@ -42,6 +45,35 @@ public class Item {
 
     @Column(nullable = true)
     private String location;
+    
+    @Column(nullable = true)
+    private String equipment;
+
+    @Column(nullable = false)
+    @Enumerated(EnumType.STRING)
+    private ABCCategory category = ABCCategory.C;
+
+    @Column(nullable = true)
+    private String status;
+
+    @Column(nullable = true)
+    private Integer estimatedConsumption;
+
+    @Column(nullable = true)
+    private String rack;
+
+    @Column(nullable = true)
+    private String floor;
+
+    @Column(nullable = true)
+    private String area;
+
+    @Column(length = 20)
+    private String bin;
+
+    // Weekly data stored as JSON to allow for dynamic weeks
+    @Column(columnDefinition = "TEXT")
+    private String weeklyData; // JSON format: {"22": 100, "23": 95, "24": 80, ...}
 
     @Column(nullable = false)
     private LocalDateTime createdAt;
@@ -62,5 +94,9 @@ public class Item {
 
     public boolean needsRestock() {
         return (currentInventory + pendingPO - usedInventory) < safetyStockThreshold;
+    }
+
+    public enum ABCCategory {
+        A, B, C
     }
 } 

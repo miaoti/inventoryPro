@@ -5,6 +5,7 @@ import com.inventory.entity.Item;
 import com.inventory.repository.ItemRepository;
 import com.inventory.service.AlertService;
 import com.inventory.service.UsageService;
+import com.inventory.service.AdminSettingsService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -28,6 +29,9 @@ public class PublicBarcodeController {
 
     @Autowired
     private UsageService usageService;
+
+    @Autowired
+    private AdminSettingsService adminSettingsService;
 
     @GetMapping("/scan/{barcode}")
     public ResponseEntity<?> scanBarcode(@PathVariable String barcode) {
@@ -56,21 +60,82 @@ public class PublicBarcodeController {
         // Calculate the actual available quantity - currentInventory already reflects usage, so just add pending PO
         int availableQuantity = Math.max(0, item.getCurrentInventory() + item.getPendingPO());
         
-        // Use HashMap to avoid Map.of() limit
-        Map<String, Object> response = new HashMap<>();
-        response.put("id", item.getId());
-        response.put("name", item.getName());
-        response.put("code", item.getCode());
-        response.put("currentInventory", item.getCurrentInventory());
-        response.put("usedInventory", item.getUsedInventory());
-        response.put("pendingPO", item.getPendingPO());
-        response.put("safetyStockThreshold", item.getSafetyStockThreshold());
-        response.put("location", item.getLocation());
-        response.put("barcode", item.getBarcode());
-        response.put("needsRestock", item.needsRestock());
-        response.put("availableQuantity", availableQuantity);
+        // Get admin-configured display fields
+        List<String> displayFields = adminSettingsService.getItemDisplayFields();
+        
+        // Build response with configurable fields
+        Map<String, Object> response = buildItemResponse(item, availableQuantity, displayFields);
         
         return ResponseEntity.ok(response);
+    }
+
+    private Map<String, Object> buildItemResponse(Item item, int availableQuantity, List<String> displayFields) {
+        Map<String, Object> response = new HashMap<>();
+        
+        // Always include essential fields for functionality
+        response.put("id", item.getId());
+        response.put("availableQuantity", availableQuantity);
+        response.put("needsRestock", item.needsRestock());
+        
+        // Add configurable display fields
+        for (String field : displayFields) {
+            switch (field) {
+                case "name":
+                    response.put("name", item.getName());
+                    break;
+                case "code":
+                    response.put("code", item.getCode());
+                    break;
+                case "description":
+                    response.put("description", item.getDescription());
+                    break;
+                case "englishDescription":
+                    response.put("englishDescription", item.getEnglishDescription());
+                    break;
+                case "location":
+                    response.put("location", item.getLocation());
+                    break;
+                case "equipment":
+                    response.put("equipment", item.getEquipment());
+                    break;
+                case "category":
+                    response.put("category", item.getCategory());
+                    break;
+                case "status":
+                    response.put("status", item.getStatus());
+                    break;
+                case "currentInventory":
+                    response.put("currentInventory", item.getCurrentInventory());
+                    break;
+                case "safetyStockThreshold":
+                    response.put("safetyStockThreshold", item.getSafetyStockThreshold());
+                    break;
+                case "estimatedConsumption":
+                    response.put("estimatedConsumption", item.getEstimatedConsumption());
+                    break;
+                case "rack":
+                    response.put("rack", item.getRack());
+                    break;
+                case "floor":
+                    response.put("floor", item.getFloor());
+                    break;
+                case "area":
+                    response.put("area", item.getArea());
+                    break;
+                case "bin":
+                    response.put("bin", item.getBin());
+                    break;
+                case "barcode":
+                    response.put("barcode", item.getBarcode());
+                    break;
+            }
+        }
+        
+        // Always include these for backward compatibility and essential functionality
+        response.put("usedInventory", item.getUsedInventory());
+        response.put("pendingPO", item.getPendingPO());
+        
+        return response;
     }
 
     @PostMapping("/use")

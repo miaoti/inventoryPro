@@ -38,6 +38,9 @@ public class Usage {
     @Column(length = 50)
     private String department;
 
+    @Column(length = 20)
+    private String dNumber;
+
     @PrePersist
     protected void onCreate() {
         usedAt = LocalDateTime.now();
@@ -58,5 +61,15 @@ public class Usage {
         this.notes = notes;
         this.barcode = barcode;
         this.department = department;
+    }
+
+    public Usage(Item item, String userName, Integer quantityUsed, String notes, String barcode, String department, String dNumber) {
+        this.item = item;
+        this.userName = userName;
+        this.quantityUsed = quantityUsed;
+        this.notes = notes;
+        this.barcode = barcode;
+        this.department = department;
+        this.dNumber = dNumber;
     }
 } 

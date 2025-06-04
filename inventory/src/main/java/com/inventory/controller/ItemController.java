@@ -5,13 +5,25 @@ import com.inventory.dto.ItemResponse;
 import com.inventory.entity.Item;
 import com.inventory.repository.ItemRepository;
 import com.inventory.service.BarcodeService;
+import com.inventory.entity.Item.ABCCategory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
-import java.util.List;
-import java.util.Optional;
+import java.io.*;
+import java.util.*;
 import java.util.stream.Collectors;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
+
+import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.apache.poi.hssf.usermodel.HSSFWorkbook;
+import com.opencsv.CSVReader;
+import com.opencsv.exceptions.CsvException;
 
 @RestController
 @RequestMapping("/items")
@@ -49,17 +61,150 @@ public class ItemController {
 
         Item item = new Item();
         item.setName(request.getName());
-        item.setCode(request.getCode().trim().toUpperCase()); // Use provided code, uppercase for consistency
+        item.setDescription(request.getDescription());
+        item.setEnglishDescription(request.getEnglishDescription());
+        item.setCode(request.getCode().trim().toUpperCase());
         item.setCurrentInventory(request.getQuantity() != null ? request.getQuantity() : 0);
         item.setSafetyStockThreshold(request.getMinQuantity() != null ? request.getMinQuantity() : 0);
         item.setLocation(request.getLocation());
-        item.setDescription(""); // Default empty description
+        item.setEquipment(request.getEquipment());
+        item.setCategory(request.getCategory() != null ? request.getCategory() : ABCCategory.C);
+        item.setStatus(request.getStatus());
+        item.setEstimatedConsumption(request.getEstimatedConsumption());
+        item.setRack(request.getRack());
+        item.setFloor(request.getFloor());
+        item.setArea(request.getArea());
+        item.setBin(request.getBin());
+        item.setWeeklyData(request.getWeeklyData());
         
         // Generate barcode based on the provided code
         item.setBarcode(generateBarcodeFromCode(request.getCode()));
         
         Item savedItem = itemRepository.save(item);
         return convertToResponse(savedItem);
+    }
+
+    @PostMapping("/import-csv")
+    public ResponseEntity<?> importItemsFromCSV(@RequestParam("file") MultipartFile file) {
+        System.out.println("=== IMPORT DEBUG START ===");
+        System.out.println("File received: " + (file != null ? "YES" : "NO"));
+        
+        if (file != null) {
+            System.out.println("File name: " + file.getOriginalFilename());
+            System.out.println("File size: " + file.getSize() + " bytes");
+            System.out.println("File content type: " + file.getContentType());
+        }
+        
+        if (file.isEmpty()) {
+            System.out.println("ERROR: File is empty");
+            return ResponseEntity.badRequest().body("File is empty");
+        }
+
+        try {
+            List<Item> itemsToSave = new ArrayList<>();
+            List<String> errors = new ArrayList<>();
+            int skippedDuplicates = 0;
+            
+            String filename = file.getOriginalFilename();
+            System.out.println("Processing file: " + filename);
+            
+            if (filename != null && (filename.endsWith(".xlsx") || filename.endsWith(".xls") || filename.endsWith(".xlsm"))) {
+                System.out.println("Processing as Excel file");
+                // Handle Excel files (including XLSM)
+                itemsToSave = parseExcelFile(file, errors);
+                System.out.println("Excel parsing completed. Items found: " + itemsToSave.size());
+            } else if (filename != null && filename.endsWith(".csv")) {
+                System.out.println("Processing as CSV file");
+                // Handle CSV files
+                itemsToSave = parseCSVFile(file, errors);
+                System.out.println("CSV parsing completed. Items found: " + itemsToSave.size());
+            } else {
+                System.out.println("ERROR: Unsupported file format: " + filename);
+                return ResponseEntity.badRequest().body("Unsupported file format. Please upload a CSV, Excel (XLSX, XLS), or Excel Macro-Enabled (XLSM) file.");
+            }
+
+            System.out.println("Parsing errors: " + errors.size());
+            if (!errors.isEmpty()) {
+                System.out.println("First few errors: " + errors.subList(0, Math.min(5, errors.size())));
+            }
+
+            // Save valid items and count duplicates
+            List<Item> savedItems = new ArrayList<>();
+            for (Item item : itemsToSave) {
+                try {
+                    // Check if item with this code already exists
+                    if (itemRepository.findByCode(item.getCode()).isPresent()) {
+                        skippedDuplicates++;
+                        continue; // Skip duplicate instead of adding to errors
+                    }
+                    
+                    item.setBarcode(generateBarcodeFromCode(item.getCode()));
+                    Item saved = itemRepository.save(item);
+                    savedItems.add(saved);
+                } catch (Exception e) {
+                    System.out.println("Error saving item " + item.getCode() + ": " + e.getMessage());
+                    errors.add("Error saving item " + item.getCode() + ": " + e.getMessage());
+                }
+            }
+
+            System.out.println("=== IMPORT RESULTS ===");
+            System.out.println("Total processed: " + (itemsToSave.size() + skippedDuplicates));
+            System.out.println("Created: " + savedItems.size());
+            System.out.println("Skipped duplicates: " + skippedDuplicates);
+            System.out.println("Errors: " + errors.size());
+            System.out.println("=== IMPORT DEBUG END ===");
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("message", "Import completed successfully");
+            response.put("totalProcessed", itemsToSave.size() + skippedDuplicates);
+            response.put("created", savedItems.size());
+            response.put("skippedDuplicates", skippedDuplicates);
+            response.put("errors", errors.size());
+            response.put("errorDetails", errors);
+            response.put("items", savedItems.stream().map(this::convertToResponse).collect(Collectors.toList()));
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            System.out.println("EXCEPTION in import: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.badRequest().body("Error processing file: " + e.getMessage());
+        }
+    }
+
+    @GetMapping("/export-barcodes")
+    public ResponseEntity<byte[]> exportAllBarcodes() {
+        try {
+            List<Item> items = itemRepository.findAll();
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            ZipOutputStream zos = new ZipOutputStream(baos);
+
+            for (Item item : items) {
+                if (item.getBarcode() != null && !item.getBarcode().isEmpty()) {
+                    // Generate barcode image as bytes
+                    byte[] barcodeImage = barcodeService.generateBarcodeImage(item.getBarcode());
+                    
+                    // Add to ZIP
+                    String filename = String.format("%s_%s.png", item.getCode(), item.getBarcode());
+                    ZipEntry entry = new ZipEntry(filename);
+                    zos.putNextEntry(entry);
+                    zos.write(barcodeImage);
+                    zos.closeEntry();
+                }
+            }
+
+            zos.close();
+            
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
+            headers.setContentDispositionFormData("attachment", "all_barcodes.zip");
+            
+            return ResponseEntity.ok()
+                    .headers(headers)
+                    .body(baos.toByteArray());
+                    
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().build();
+        }
     }
 
     @PutMapping("/{id}")
@@ -79,10 +224,21 @@ public class ItemController {
 
         Item item = optionalItem.get();
         item.setName(request.getName());
-        item.setCode(request.getCode().trim().toUpperCase()); // Use provided code
+        item.setDescription(request.getDescription());
+        item.setEnglishDescription(request.getEnglishDescription());
+        item.setCode(request.getCode().trim().toUpperCase());
         item.setCurrentInventory(request.getQuantity() != null ? request.getQuantity() : 0);
         item.setSafetyStockThreshold(request.getMinQuantity() != null ? request.getMinQuantity() : 0);
         item.setLocation(request.getLocation());
+        item.setEquipment(request.getEquipment());
+        item.setCategory(request.getCategory() != null ? request.getCategory() : ABCCategory.C);
+        item.setStatus(request.getStatus());
+        item.setEstimatedConsumption(request.getEstimatedConsumption());
+        item.setRack(request.getRack());
+        item.setFloor(request.getFloor());
+        item.setArea(request.getArea());
+        item.setBin(request.getBin());
+        item.setWeeklyData(request.getWeeklyData());
         
         // Update barcode if code changed
         if (!item.getBarcode().equals(generateBarcodeFromCode(request.getCode()))) {
@@ -98,8 +254,448 @@ public class ItemController {
         if (!itemRepository.existsById(id)) {
             return ResponseEntity.notFound().build();
         }
+        
         itemRepository.deleteById(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @DeleteMapping("/bulk")
+    public ResponseEntity<Map<String, Object>> deleteItems(@RequestBody List<Long> itemIds) {
+        Map<String, Object> response = new HashMap<>();
+        List<Long> deletedIds = new ArrayList<>();
+        List<Long> notFoundIds = new ArrayList<>();
+        
+        for (Long id : itemIds) {
+            if (itemRepository.existsById(id)) {
+                itemRepository.deleteById(id);
+                deletedIds.add(id);
+            } else {
+                notFoundIds.add(id);
+            }
+        }
+        
+        response.put("deleted", deletedIds.size());
+        response.put("notFound", notFoundIds.size());
+        response.put("deletedIds", deletedIds);
+        response.put("notFoundIds", notFoundIds);
+        
+        return ResponseEntity.ok(response);
+    }
+
+    private List<Item> parseExcelFile(MultipartFile file, List<String> errors) throws IOException {
+        List<Item> items = new ArrayList<>();
+        
+        Workbook workbook;
+        try (InputStream is = file.getInputStream()) {
+            // XLSM files are also OOXML format like XLSX, so use XSSFWorkbook for both
+            if (file.getOriginalFilename().endsWith(".xlsx") || file.getOriginalFilename().endsWith(".xlsm")) {
+                workbook = new XSSFWorkbook(is);
+            } else {
+                workbook = new HSSFWorkbook(is);
+            }
+            
+            Sheet sheet = workbook.getSheetAt(0);
+            
+            // Read header row to understand column structure
+            Row headerRow = sheet.getRow(0);
+            Map<String, Integer> columnMap = new HashMap<>();
+            
+            if (headerRow != null) {
+                for (int i = 0; i < headerRow.getLastCellNum(); i++) {
+                    Cell cell = headerRow.getCell(i);
+                    if (cell != null) {
+                        String headerName = getCellValueAsString(cell);
+                        if (headerName != null) {
+                            String normalizedHeader = headerName.trim().toLowerCase();
+                            columnMap.put(normalizedHeader, i);
+                            System.out.println("Column " + i + ": '" + headerName + "' -> normalized: '" + normalizedHeader + "'");
+                        }
+                    }
+                }
+            }
+            
+            System.out.println("Complete column map: " + columnMap);
+            
+            boolean isFirstRow = true;
+            for (Row row : sheet) {
+                if (isFirstRow) {
+                    isFirstRow = false;
+                    continue; // Skip header row
+                }
+                
+                try {
+                    Item item = parseRowToItemWithHeaders(row, columnMap, errors);
+                    if (item != null) {
+                        items.add(item);
+                    }
+                } catch (Exception e) {
+                    errors.add("Error parsing row " + (row.getRowNum() + 1) + ": " + e.getMessage());
+                }
+            }
+            
+            workbook.close();
+        }
+        
+        return items;
+    }
+
+    private List<Item> parseCSVFile(MultipartFile file, List<String> errors) throws IOException {
+        List<Item> items = new ArrayList<>();
+        
+        try (Reader reader = new InputStreamReader(file.getInputStream());
+             CSVReader csvReader = new CSVReader(reader)) {
+            
+            List<String[]> records = csvReader.readAll();
+            if (records.isEmpty()) {
+                return items;
+            }
+            
+            // Read header row to understand column structure
+            String[] headers = records.get(0);
+            Map<String, Integer> columnMap = new HashMap<>();
+            
+            for (int i = 0; i < headers.length; i++) {
+                if (headers[i] != null) {
+                    String normalizedHeader = headers[i].trim().toLowerCase();
+                    columnMap.put(normalizedHeader, i);
+                    System.out.println("CSV Column " + i + ": '" + headers[i] + "' -> normalized: '" + normalizedHeader + "'");
+                }
+            }
+            
+            System.out.println("Complete CSV column map: " + columnMap);
+            
+            for (int i = 1; i < records.size(); i++) { // Start from 1 to skip header
+                try {
+                    String[] row = records.get(i);
+                    Item item = parseArrayToItemWithHeaders(row, columnMap, errors, i + 1);
+                    if (item != null) {
+                        items.add(item);
+                    }
+                } catch (Exception e) {
+                    errors.add("Error parsing row " + (i + 1) + ": " + e.getMessage());
+                }
+            }
+        } catch (CsvException e) {
+            errors.add("CSV parsing error: " + e.getMessage());
+        }
+        
+        return items;
+    }
+
+    private Item parseRowToItemWithHeaders(Row row, Map<String, Integer> columnMap, List<String> errors) {
+        try {
+            Item item = new Item();
+            
+            // Use flexible column mapping based on headers
+            String partNumber = getValueByColumnName(row, columnMap, "part number");
+            String description = getValueByColumnName(row, columnMap, "description");
+            String englishDescription = getValueByColumnName(row, columnMap, "english description");
+            String location = getValueByColumnName(row, columnMap, "location");
+            String equipment = getValueByColumnName(row, columnMap, "equipment");
+            Integer previousInventory = getIntValueByColumnName(row, columnMap, "previous wk inventory");
+            Integer currentInventory = getIntValueByColumnName(row, columnMap, "current inventory");
+            Integer openPOnTheWay = getIntValueByColumnName(row, columnMap, "open p on the way");
+            
+            // Handle optional Safety Stock column
+            Integer safetyStock = getIntValueByColumnName(row, columnMap, "safety stock");
+
+            // Debug location specifically
+            System.out.println("Row " + row.getRowNum() + " - Description: '" + description + "', Location: '" + location + "'");
+
+            if (description == null || description.trim().isEmpty()) {
+                return null; // Skip empty rows
+            }
+
+            item.setName(description);
+            item.setDescription(description);
+            item.setEnglishDescription(englishDescription);
+            item.setCode(partNumber != null && !partNumber.trim().isEmpty() ? partNumber.trim() : generateItemCodeFromDescription(description));
+            item.setLocation(location);
+            item.setEquipment(equipment);
+            item.setCurrentInventory(currentInventory != null ? currentInventory : 0);
+            item.setPendingPO(openPOnTheWay != null ? openPOnTheWay : 0);
+            item.setSafetyStockThreshold(safetyStock != null ? safetyStock : 0);
+            item.setStatus("Active");
+            item.setEstimatedConsumption(0);
+            item.setCategory(ABCCategory.C);
+
+            // Handle weekly data columns - only parse actual week columns that exist
+            StringBuilder weeklyData = new StringBuilder("{");
+            boolean hasWeeklyData = false;
+            
+            for (Map.Entry<String, Integer> entry : columnMap.entrySet()) {
+                String columnName = entry.getKey();
+                Integer columnIndex = entry.getValue();
+                
+                // Check if this is a week column (starts with "wk" followed by numbers)
+                if (columnName.startsWith("wk") && columnName.length() > 2) {
+                    try {
+                        String weekNumberStr = columnName.substring(2);
+                        Integer weekNumber = Integer.parseInt(weekNumberStr);
+                        Integer weekValue = getCellValueAsInteger(row.getCell(columnIndex));
+                        
+                        if (weekValue != null) {
+                            if (hasWeeklyData) weeklyData.append(",");
+                            weeklyData.append("\"").append(weekNumber).append("\":").append(weekValue);
+                            hasWeeklyData = true;
+                        }
+                    } catch (NumberFormatException e) {
+                        // Skip invalid week column names
+                    }
+                }
+            }
+            weeklyData.append("}");
+            
+            if (hasWeeklyData) {
+                item.setWeeklyData(weeklyData.toString());
+            }
+
+            return item;
+        } catch (Exception e) {
+            errors.add("Error parsing row: " + e.getMessage());
+            return null;
+        }
+    }
+
+    private Item parseArrayToItemWithHeaders(String[] row, Map<String, Integer> columnMap, List<String> errors, int rowNum) {
+        try {
+            if (row.length < 2) {
+                return null; // Skip incomplete rows
+            }
+
+            Item item = new Item();
+            
+            // Use flexible column mapping based on headers
+            String partNumber = getValueByColumnName(row, columnMap, "part number");
+            String description = getValueByColumnName(row, columnMap, "description");
+            String englishDescription = getValueByColumnName(row, columnMap, "english description");
+            String location = getValueByColumnName(row, columnMap, "location");
+            String equipment = getValueByColumnName(row, columnMap, "equipment");
+            Integer previousInventory = getIntValueByColumnName(row, columnMap, "previous wk inventory");
+            Integer currentInventory = getIntValueByColumnName(row, columnMap, "current inventory");
+            Integer openPOnTheWay = getIntValueByColumnName(row, columnMap, "open p on the way");
+            
+            // Handle optional Safety Stock column
+            Integer safetyStock = getIntValueByColumnName(row, columnMap, "safety stock");
+
+            // Debug location specifically
+            System.out.println("Row " + rowNum + " - Description: '" + description + "', Location: '" + location + "'");
+
+            if (description == null || description.trim().isEmpty()) {
+                return null; // Skip empty rows
+            }
+
+            item.setName(description);
+            item.setDescription(description);
+            item.setEnglishDescription(englishDescription);
+            item.setCode(partNumber != null && !partNumber.trim().isEmpty() ? partNumber.trim() : generateItemCodeFromDescription(description));
+            item.setLocation(location);
+            item.setEquipment(equipment);
+            item.setCurrentInventory(currentInventory != null ? currentInventory : 0);
+            item.setPendingPO(openPOnTheWay != null ? openPOnTheWay : 0);
+            item.setSafetyStockThreshold(safetyStock != null ? safetyStock : 0);
+            item.setStatus("Active");
+            item.setEstimatedConsumption(0);
+            item.setCategory(ABCCategory.C);
+
+            // Handle weekly data columns - only parse actual week columns that exist
+            StringBuilder weeklyData = new StringBuilder("{");
+            boolean hasWeeklyData = false;
+            
+            for (Map.Entry<String, Integer> entry : columnMap.entrySet()) {
+                String columnName = entry.getKey();
+                Integer columnIndex = entry.getValue();
+                
+                // Check if this is a week column (starts with "wk" followed by numbers)
+                if (columnName.startsWith("wk") && columnName.length() > 2) {
+                    try {
+                        String weekNumberStr = columnName.substring(2);
+                        Integer weekNumber = Integer.parseInt(weekNumberStr);
+                        
+                        if (columnIndex < row.length) {
+                            Integer weekValue = parseInteger(row[columnIndex]);
+                            if (weekValue != null) {
+                                if (hasWeeklyData) weeklyData.append(",");
+                                weeklyData.append("\"").append(weekNumber).append("\":").append(weekValue);
+                                hasWeeklyData = true;
+                            }
+                        }
+                    } catch (NumberFormatException e) {
+                        // Skip invalid week column names
+                    }
+                }
+            }
+            weeklyData.append("}");
+            
+            if (hasWeeklyData) {
+                item.setWeeklyData(weeklyData.toString());
+            }
+
+            return item;
+        } catch (Exception e) {
+            errors.add("Error parsing row " + rowNum + ": " + e.getMessage());
+            return null;
+        }
+    }
+
+    private String getCellValueAsString(Cell cell) {
+        if (cell == null) return null;
+        
+        switch (cell.getCellType()) {
+            case STRING:
+                return cell.getStringCellValue();
+            case NUMERIC:
+                return String.valueOf((long) cell.getNumericCellValue());
+            case BOOLEAN:
+                return String.valueOf(cell.getBooleanCellValue());
+            case FORMULA:
+                // Handle formulas by getting the evaluated result
+                try {
+                    switch (cell.getCachedFormulaResultType()) {
+                        case STRING:
+                            return cell.getStringCellValue();
+                        case NUMERIC:
+                            return String.valueOf((long) cell.getNumericCellValue());
+                        case BOOLEAN:
+                            return String.valueOf(cell.getBooleanCellValue());
+                        default:
+                            return null;
+                    }
+                } catch (Exception e) {
+                    System.out.println("Error evaluating formula in cell: " + e.getMessage());
+                    return null;
+                }
+            default:
+                return null;
+        }
+    }
+
+    private Integer getCellValueAsInteger(Cell cell) {
+        if (cell == null) return null;
+        
+        switch (cell.getCellType()) {
+            case NUMERIC:
+                return (int) cell.getNumericCellValue();
+            case STRING:
+                try {
+                    return Integer.parseInt(cell.getStringCellValue());
+                } catch (NumberFormatException e) {
+                    return null;
+                }
+            case FORMULA:
+                // Handle formulas by getting the evaluated result
+                try {
+                    switch (cell.getCachedFormulaResultType()) {
+                        case NUMERIC:
+                            return (int) cell.getNumericCellValue();
+                        case STRING:
+                            try {
+                                return Integer.parseInt(cell.getStringCellValue());
+                            } catch (NumberFormatException e) {
+                                return null;
+                            }
+                        default:
+                            return null;
+                    }
+                } catch (Exception e) {
+                    System.out.println("Error evaluating formula for integer: " + e.getMessage());
+                    return null;
+                }
+            default:
+                return null;
+        }
+    }
+
+    private Integer parseInteger(String value) {
+        if (value == null || value.trim().isEmpty()) {
+            return null;
+        }
+        try {
+            return Integer.parseInt(value.trim());
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    // Helper methods for column-based parsing
+    private String getValueByColumnName(Row row, Map<String, Integer> columnMap, String columnName) {
+        Integer columnIndex = findColumnIndex(columnMap, columnName);
+        if (columnIndex != null && columnIndex < row.getLastCellNum()) {
+            String value = getCellValueAsString(row.getCell(columnIndex));
+            System.out.println("Getting '" + columnName + "' from column " + columnIndex + ": '" + value + "'");
+            return value;
+        }
+        System.out.println("Column '" + columnName + "' not found in: " + columnMap.keySet());
+        return null;
+    }
+
+    private String getValueByColumnName(String[] row, Map<String, Integer> columnMap, String columnName) {
+        Integer columnIndex = findColumnIndex(columnMap, columnName);
+        if (columnIndex != null && columnIndex < row.length) {
+            String value = row[columnIndex];
+            System.out.println("Getting '" + columnName + "' from column " + columnIndex + ": '" + value + "'");
+            return value;
+        }
+        System.out.println("Column '" + columnName + "' not found in: " + columnMap.keySet());
+        return null;
+    }
+
+    private Integer getIntValueByColumnName(Row row, Map<String, Integer> columnMap, String columnName) {
+        Integer columnIndex = findColumnIndex(columnMap, columnName);
+        if (columnIndex != null && columnIndex < row.getLastCellNum()) {
+            return getCellValueAsInteger(row.getCell(columnIndex));
+        }
+        return null;
+    }
+
+    private Integer getIntValueByColumnName(String[] row, Map<String, Integer> columnMap, String columnName) {
+        Integer columnIndex = findColumnIndex(columnMap, columnName);
+        if (columnIndex != null && columnIndex < row.length) {
+            return parseInteger(row[columnIndex]);
+        }
+        return null;
+    }
+
+    private Integer findColumnIndex(Map<String, Integer> columnMap, String targetColumn) {
+        String normalized = targetColumn.toLowerCase();
+        
+        // Direct match first
+        if (columnMap.containsKey(normalized)) {
+            return columnMap.get(normalized);
+        }
+        
+        // Try common variations
+        for (Map.Entry<String, Integer> entry : columnMap.entrySet()) {
+            String columnName = entry.getKey();
+            
+            // Handle variations like spaces, punctuation
+            if (columnName.replaceAll("[\\s_-]", "").equals(normalized.replaceAll("[\\s_-]", ""))) {
+                return entry.getValue();
+            }
+            
+            // Handle partial matches for common field names
+            if (normalized.equals("location") && columnName.contains("location")) {
+                return entry.getValue();
+            }
+            if (normalized.equals("description") && columnName.contains("description") && !columnName.contains("english")) {
+                return entry.getValue();
+            }
+            if (normalized.equals("english description") && columnName.contains("english") && columnName.contains("description")) {
+                return entry.getValue();
+            }
+        }
+        
+        return null;
+    }
+
+    private String generateItemCodeFromDescription(String description) {
+        if (description == null || description.trim().isEmpty()) {
+            return "ITEM_" + System.currentTimeMillis();
+        }
+        // Create a code from description - take first few characters and add timestamp
+        String cleanDescription = description.replaceAll("[^a-zA-Z0-9]", "").toUpperCase();
+        String prefix = cleanDescription.length() > 6 ? cleanDescription.substring(0, 6) : cleanDescription;
+        return prefix + "_" + (System.currentTimeMillis() % 10000);
     }
 
     private String generateBarcodeFromCode(String code) {
@@ -148,10 +744,21 @@ public class ItemController {
         ItemResponse response = new ItemResponse();
         response.setId(item.getId());
         response.setName(item.getName());
+        response.setDescription(item.getDescription());
+        response.setEnglishDescription(item.getEnglishDescription());
         response.setCode(item.getCode());
         response.setQuantity(currentInventory);
         response.setMinQuantity(safetyStock);
         response.setLocation(item.getLocation());
+        response.setEquipment(item.getEquipment());
+        response.setCategory(item.getCategory());
+        response.setStatus(item.getStatus());
+        response.setEstimatedConsumption(item.getEstimatedConsumption());
+        response.setRack(item.getRack());
+        response.setFloor(item.getFloor());
+        response.setArea(item.getArea());
+        response.setBin(item.getBin());
+        response.setWeeklyData(item.getWeeklyData());
         response.setBarcode(item.getBarcode());
         response.setUsedInventory(usedInventory);
         response.setPendingPO(pendingPO);

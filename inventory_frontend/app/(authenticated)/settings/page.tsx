@@ -17,6 +17,9 @@ import {
   Switch,
   FormControlLabel,
   CircularProgress,
+  FormControl,
+  FormGroup,
+  Checkbox,
 } from '@mui/material';
 import {
   Settings as SettingsIcon,
@@ -24,13 +27,20 @@ import {
   Notifications as NotificationsIcon,
   Save as SaveIcon,
   Person as PersonIcon,
+  DisplaySettings as DisplayIcon,
 } from '@mui/icons-material';
 import { userAPI } from '../../services/api';
+import { adminAPI } from '../../services/api';
 
 interface UserSettings {
   alertEmail: string;
   enableEmailAlerts: boolean;
   enableDailyDigest: boolean;
+}
+
+interface AdminDisplaySettings {
+  selectedFields: string[];
+  availableFields: { [key: string]: string };
 }
 
 export default function SettingsPage() {
@@ -40,23 +50,34 @@ export default function SettingsPage() {
     enableEmailAlerts: true,
     enableDailyDigest: false,
   });
+  const [adminDisplaySettings, setAdminDisplaySettings] = useState<AdminDisplaySettings | null>(null);
+  const [selectedFields, setSelectedFields] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  const [adminLoading, setAdminLoading] = useState(false);
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
+  const [adminSuccess, setAdminSuccess] = useState('');
+  const [adminError, setAdminError] = useState('');
+
+  // Check if user is admin
+  const isAdmin = user?.role === 'ADMIN' || user?.username?.toLowerCase() === 'admin';
 
   // Load user settings on component mount
   useEffect(() => {
     if (user) {
-      // Initialize with user's email as default
       setSettings(prev => ({
         ...prev,
         alertEmail: user.email,
       }));
       
-      // TODO: Load actual user settings from backend
       loadUserSettings();
+      
+      // Load admin settings if user is admin
+      if (isAdmin) {
+        loadAdminDisplaySettings();
+      }
     }
-  }, [user]);
+  }, [user, isAdmin]);
 
   const loadUserSettings = async () => {
     try {
@@ -72,6 +93,17 @@ export default function SettingsPage() {
     }
   };
 
+  const loadAdminDisplaySettings = async () => {
+    try {
+      const response = await adminAPI.getItemDisplaySettings();
+      setAdminDisplaySettings(response.data);
+      setSelectedFields(response.data.selectedFields || []);
+    } catch (err) {
+      console.error('Failed to load admin display settings:', err);
+      setAdminError('Failed to load display settings.');
+    }
+  };
+
   const handleInputChange = (field: keyof UserSettings) => (
     event: React.ChangeEvent<HTMLInputElement>
   ) => {
@@ -80,6 +112,14 @@ export default function SettingsPage() {
       ...prev,
       [field]: value,
     }));
+  };
+
+  const handleFieldChange = (field: string, checked: boolean) => {
+    if (checked) {
+      setSelectedFields([...selectedFields, field]);
+    } else {
+      setSelectedFields(selectedFields.filter(f => f !== field));
+    }
   };
 
   const handleSave = async () => {
@@ -97,6 +137,38 @@ export default function SettingsPage() {
       setTimeout(() => setError(''), 5000);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSaveAdminSettings = async () => {
+    if (selectedFields.length === 0) {
+      setAdminError('Please select at least one field to display');
+      return;
+    }
+
+    try {
+      setAdminLoading(true);
+      setAdminError('');
+      setAdminSuccess('');
+      
+      await adminAPI.updateItemDisplaySettings(selectedFields);
+      setAdminSuccess('Display settings saved successfully!');
+      
+      // Update local state
+      if (adminDisplaySettings) {
+        setAdminDisplaySettings({
+          ...adminDisplaySettings,
+          selectedFields
+        });
+      }
+      
+      setTimeout(() => setAdminSuccess(''), 3000);
+    } catch (error) {
+      console.error('Error saving admin settings:', error);
+      setAdminError('Failed to save display settings. Please try again.');
+      setTimeout(() => setAdminError(''), 5000);
+    } finally {
+      setAdminLoading(false);
     }
   };
 
@@ -132,6 +204,16 @@ export default function SettingsPage() {
       {error && (
         <Alert severity="error" sx={{ mb: 3 }}>
           {error}
+        </Alert>
+      )}
+      {adminSuccess && (
+        <Alert severity="success" sx={{ mb: 3 }}>
+          {adminSuccess}
+        </Alert>
+      )}
+      {adminError && (
+        <Alert severity="error" sx={{ mb: 3 }}>
+          {adminError}
         </Alert>
       )}
 
@@ -260,6 +342,102 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
         </Grid>
+
+        {/* Admin Display Settings */}
+        {isAdmin && (
+          <Grid item xs={12}>
+            <Card>
+              <CardContent sx={{ p: 3 }}>
+                <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 2, display: 'flex', alignItems: 'center' }}>
+                  <DisplayIcon sx={{ mr: 1 }} />
+                  Item Display Configuration
+                </Typography>
+                
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                  Select which item fields should be displayed in the Record Item Usage page when staff scan items. 
+                  This customizes what information is shown during the usage recording process.
+                </Typography>
+
+                <Grid container spacing={3}>
+                  <Grid item xs={12} md={8}>
+                    <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 'bold' }}>
+                      Available Fields
+                    </Typography>
+                    
+                    {adminDisplaySettings && (
+                      <FormControl component="fieldset">
+                        <FormGroup>
+                          <Grid container spacing={1}>
+                            {Object.entries(adminDisplaySettings.availableFields).map(([field, label]) => (
+                              <Grid item xs={12} sm={6} md={4} key={field}>
+                                <FormControlLabel
+                                  control={
+                                    <Checkbox
+                                      checked={selectedFields.includes(field)}
+                                      onChange={(e) => handleFieldChange(field, e.target.checked)}
+                                      name={field}
+                                    />
+                                  }
+                                  label={label}
+                                />
+                              </Grid>
+                            ))}
+                          </Grid>
+                        </FormGroup>
+                      </FormControl>
+                    )}
+                  </Grid>
+
+                  <Grid item xs={12} md={4}>
+                    <Paper sx={{ p: 2, bgcolor: 'grey.50' }}>
+                      <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 'bold' }}>
+                        Selected Fields Preview
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                        These fields will be shown when scanning items:
+                      </Typography>
+                      
+                      {selectedFields.length > 0 ? (
+                        <Box component="ul" sx={{ pl: 2, m: 0 }}>
+                          {selectedFields.map(field => (
+                            <Typography component="li" variant="body2" key={field} sx={{ py: 0.5 }}>
+                              {adminDisplaySettings?.availableFields[field] || field}
+                            </Typography>
+                          ))}
+                        </Box>
+                      ) : (
+                        <Alert severity="warning" variant="outlined" size="small">
+                          No fields selected
+                        </Alert>
+                      )}
+                      
+                      <Typography variant="caption" color="text.secondary" sx={{ mt: 2, display: 'block' }}>
+                        Note: Essential fields (ID, Available Quantity) are always included.
+                      </Typography>
+                    </Paper>
+                  </Grid>
+                </Grid>
+                
+                <Divider sx={{ my: 3 }} />
+                
+                <Button
+                  variant="contained"
+                  onClick={handleSaveAdminSettings}
+                  disabled={adminLoading || selectedFields.length === 0}
+                  startIcon={adminLoading ? <CircularProgress size={20} /> : <SaveIcon />}
+                  sx={{
+                    bgcolor: 'primary.main',
+                    '&:hover': { bgcolor: 'primary.dark' },
+                    px: 3,
+                    py: 1.5,
+                  }}
+                >
+                  {adminLoading ? 'Saving...' : 'Save Display Settings'}
+                </Button>
+              </CardContent>
+            </Card>
+          </Grid>
+        )}
       </Grid>
     </Box>
   );

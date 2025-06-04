@@ -32,6 +32,7 @@ import {
   Warning as AlertIcon,
   Assessment as ReportsIcon,
   Settings as SettingsIcon,
+  Analytics as AnalyticsIcon,
 } from '@mui/icons-material';
 import Cookies from 'js-cookie';
 import { alertsAPI } from '../services/api';
@@ -86,7 +87,7 @@ export default function Layout({ children }: LayoutProps) {
       if (!authenticated && typeof window !== 'undefined') {
         const currentPath = window.location.pathname;
         const publicPaths = ['/', '/login', '/register', '/scanner', '/barcode-scanner'];
-        const protectedPaths = ['/dashboard', '/items', '/alerts', '/usage-reports', '/settings'];
+        const protectedPaths = ['/dashboard', '/quick-stats', '/items', '/alerts', '/usage-reports', '/settings'];
         
         // Only redirect if user is trying to access a protected page
         if (protectedPaths.some(path => currentPath.startsWith(path))) {
@@ -152,6 +153,12 @@ export default function Layout({ children }: LayoutProps) {
             <DashboardIcon />
           </ListItemIcon>
           <ListItemText primary="Dashboard" />
+        </ListItem>
+        <ListItem button onClick={() => handleNavigation('/quick-stats')}>
+          <ListItemIcon>
+            <AnalyticsIcon />
+          </ListItemIcon>
+          <ListItemText primary="Quick Stats" />
         </ListItem>
         <ListItem button onClick={() => handleNavigation('/items')}>
           <ListItemIcon>

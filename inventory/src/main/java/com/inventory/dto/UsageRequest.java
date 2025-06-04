@@ -9,4 +9,5 @@ public class UsageRequest {
     private Integer quantityUsed;
     private String notes;
     private String department;
+    private String dNumber;
 } 

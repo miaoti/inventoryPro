@@ -59,6 +59,9 @@ dependencies {
     implementation 'org.apache.poi:poi:5.2.4'
     implementation 'org.apache.poi:poi-ooxml:5.2.4'
 
+    // CSV Processing
+    implementation 'com.opencsv:opencsv:5.9'
+
     // Lombok
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'

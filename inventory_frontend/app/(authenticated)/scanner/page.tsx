@@ -18,6 +18,11 @@ import {
   IconButton,
   Tabs,
   Tab,
+  Grid,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel,
 } from '@mui/material';
 import {
   QrCodeScanner as ScannerIcon,
@@ -29,20 +34,30 @@ import {
   Stop as StopIcon,
 } from '@mui/icons-material';
 import { BrowserMultiFormatReader, BarcodeFormat, DecodeHintType } from '@zxing/library';
-import axios from 'axios';
+import { barcodeAPI, itemsAPI } from '../../services/api';
 
 interface ScannedItem {
   id: number;
-  name: string;
-  code: string;
-  currentInventory: number;
-  usedInventory: number;
-  pendingPO: number;
-  location: string;
-  barcode: string;
-  needsRestock: boolean;
+  name?: string;
+  code?: string;
+  description?: string;
+  englishDescription?: string;
+  currentInventory?: number;
+  usedInventory?: number;
+  pendingPO?: number;
+  location?: string;
+  equipment?: string;
+  category?: 'A' | 'B' | 'C';
+  status?: string;
+  barcode?: string;
+  needsRestock?: boolean;
   availableQuantity: number;
   safetyStockThreshold?: number;
+  estimatedConsumption?: number;
+  rack?: string;
+  floor?: string;
+  area?: string;
+  bin?: string;
 }
 
 interface UsageRecord {
@@ -64,6 +79,7 @@ export default function BarcodeScanner() {
   const [quantityToUse, setQuantityToUse] = useState(1);
   const [notes, setNotes] = useState('');
   const [department, setDepartment] = useState('');
+  const [dNumber, setDNumber] = useState('');
   const [showUsageDialog, setShowUsageDialog] = useState(false);
   const [usageHistory, setUsageHistory] = useState<UsageRecord[]>([]);
   const [tabValue, setTabValue] = useState(0);
@@ -74,21 +90,13 @@ export default function BarcodeScanner() {
   
   const codeReaderRef = useRef<BrowserMultiFormatReader | null>(null);
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api';
-
   useEffect(() => {
-    // Load saved user name from localStorage
-    const savedUserName = localStorage.getItem('scannerUserName');
-    if (savedUserName) {
-      setUserName(savedUserName);
-    }
-
     // Check if user is admin (you might want to get this from auth context or JWT token)
     const token = document.cookie.split(';').find(c => c.trim().startsWith('token='));
     if (token) {
       try {
         // Simple check - in a real app, decode the JWT properly
-        const isAdminUser = userName.toLowerCase() === 'admin' || savedUserName?.toLowerCase() === 'admin';
+        const isAdminUser = userName.toLowerCase() === 'admin';
         setIsAdmin(isAdminUser);
       } catch (error) {
         console.log('Error checking admin status:', error);
@@ -110,9 +118,6 @@ export default function BarcodeScanner() {
       setError('');
       setCameraError('');
       setIsScanning(true);
-
-      // Save user name for future sessions
-      localStorage.setItem('scannerUserName', userName);
 
       // Initialize the code reader with proper settings
       const codeReader = new BrowserMultiFormatReader();
@@ -190,23 +195,24 @@ export default function BarcodeScanner() {
       setError('');
       setSuccess('');
       
-      const response = await axios.get(`${API_URL}/public/barcode/scan/${barcode}`);
-      
-      // Calculate available quantity from the response - currentInventory already reflects usage, so just add pending PO
+      const response = await barcodeAPI.scanBarcode(barcode);
       const itemData = response.data;
-      const availableQuantity = (itemData.currentInventory || 0) + (itemData.pendingPO || 0);
       
-      setScannedItem({
-        ...itemData,
-        availableQuantity: Math.max(0, availableQuantity)
-      });
+      setScannedItem(itemData);
       setShowUsageDialog(true);
       
       // Fetch usage history for this item
-      fetchUsageHistory(itemData.id);
-    } catch (err) {
-      setError('Item not found. Please check the barcode or item code and try again.');
-      console.error('Scan error:', err);
+      if (itemData.id) {
+        await fetchUsageHistory(itemData.id);
+      }
+      
+    } catch (error: any) {
+      console.error('Error scanning barcode:', error);
+      if (error.response?.status === 404) {
+        setError(`No item found with barcode/code: ${barcode}`);
+      } else {
+        setError('Error scanning barcode. Please try again.');
+      }
     }
   };
 
@@ -220,16 +226,18 @@ export default function BarcodeScanner() {
 
   const fetchUsageHistory = async (itemId: number) => {
     try {
-      const response = await axios.get(`${API_URL}/usage/item/${itemId}`);
-      setUsageHistory(response.data.slice(0, 10)); // Show last 10 records
+      // For now, we'll skip usage history since it's not implemented in the API
+      // In a real implementation, you'd have an endpoint like /api/usage/item/{itemId}
+      setUsageHistory([]);
     } catch (err) {
       console.error('Error fetching usage history:', err);
+      setUsageHistory([]);
     }
   };
 
   const recordUsage = async () => {
-    if (!scannedItem || !userName.trim() || !department.trim()) {
-      setError('Missing required information');
+    if (!scannedItem || !userName.trim() || !department.trim() || !dNumber.trim()) {
+      setError('Missing required information (name, department, and D number)');
       return;
     }
 
@@ -246,38 +254,29 @@ export default function BarcodeScanner() {
 
     try {
       const usageData = {
-        barcode: scannedItem.barcode,
+        barcode: scannedItem.barcode || '',
         userName: userName.trim(),
         quantityUsed: quantityToUse,
         notes: notes.trim(),
-        department: department.trim()
+        department: department.trim(),
+        dNumber: dNumber.trim() // Include D number as separate field
       };
 
-      const response = await axios.post(`${API_URL}/public/barcode/use`, usageData);
+      const response = await barcodeAPI.recordUsage(usageData);
       
-      setSuccess(`Successfully recorded usage: ${quantityToUse} units used by ${userName}`);
-      
-      // Update scanned item with new data from response
-      if (response.data.item) {
-        const updatedItem = response.data.item;
-        setScannedItem({
-          ...scannedItem,
-          currentInventory: updatedItem.currentInventory,
-          usedInventory: updatedItem.usedInventory,
-          availableQuantity: updatedItem.availableQuantity
-        });
-      }
+      setSuccess(`Successfully recorded usage: ${quantityToUse} units used by ${userName} (${department} - ${dNumber})`);
       
       // Reset form but keep dialog open to show updated quantities
       setQuantityToUse(1);
       setNotes('');
       setDepartment('');
+      setDNumber('');
       setError(''); // Clear any previous errors
       
       // Refresh usage history
       fetchUsageHistory(scannedItem.id);
     } catch (err: any) {
-      const errorMsg = err.response?.data?.error || 'Error recording usage';
+      const errorMsg = err.message || 'Error recording usage';
       setError(errorMsg);
     }
   };
@@ -293,19 +292,22 @@ export default function BarcodeScanner() {
     }
 
     try {
-      const newQuantity = scannedItem.currentInventory + quantityToAdd;
-      const response = await axios.put(`${API_URL}/items/${scannedItem.id}`, {
-        name: scannedItem.name,
-        code: scannedItem.code,
+      const currentInventory = scannedItem.currentInventory || 0;
+      const newQuantity = currentInventory + quantityToAdd;
+      const response = await itemsAPI.update(scannedItem.id, {
+        name: scannedItem.name || '',
+        code: scannedItem.code || '',
+        description: scannedItem.description || '',
+        location: scannedItem.location || '',
         quantity: newQuantity,
         minQuantity: scannedItem.safetyStockThreshold || 0,
-        location: scannedItem.location,
+        category: scannedItem.category || 'C',
       });
 
       setSuccess(`Successfully added ${quantityToAdd} units to ${scannedItem.name}`);
       setQuantityToAdd(0);
       
-      // Update scanned item data with new quantities - currentInventory already reflects usage, so just add pending PO
+      // Update scanned item data with new quantities
       const newAvailableQuantity = newQuantity + (scannedItem.pendingPO || 0);
       setScannedItem({
         ...scannedItem,
@@ -341,6 +343,16 @@ export default function BarcodeScanner() {
               sx={{ flexGrow: 1 }}
               required
             />
+            <Button
+              variant="outlined"
+              size="small"
+              onClick={() => {
+                setUserName('');
+              }}
+              disabled={!userName}
+            >
+              Clear
+            </Button>
           </Box>
           <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
             Your name will be recorded with each item usage for tracking purposes.
@@ -473,18 +485,115 @@ export default function BarcodeScanner() {
             <Box>
               <Card sx={{ mb: 3 }}>
                 <CardContent>
-                  <Typography variant="h6">{scannedItem.name}</Typography>
-                  <Typography color="text.secondary">Code: {scannedItem.code}</Typography>
-                  <Typography color="text.secondary">Location: {scannedItem.location}</Typography>
+                  <Typography variant="h6">{scannedItem.name || 'Unknown Item'}</Typography>
+                  <Grid container spacing={2} sx={{ mt: 1 }}>
+                    {/* 
+                      Display fields are controlled by Admin Settings -> Item Display Configuration
+                      The backend only returns fields that are configured to be shown.
+                      These conditional renders ensure we only show fields that exist in the response.
+                    */}
+                    {scannedItem.code && (
+                      <Grid item xs={12} sm={6}>
+                        <Typography variant="body2" color="text.secondary">
+                          <strong>Code:</strong> {scannedItem.code}
+                        </Typography>
+                      </Grid>
+                    )}
+                    {scannedItem.location && (
+                      <Grid item xs={12} sm={6}>
+                        <Typography variant="body2" color="text.secondary">
+                          <strong>Location:</strong> {scannedItem.location}
+                        </Typography>
+                      </Grid>
+                    )}
+                    {scannedItem.description && (
+                      <Grid item xs={12}>
+                        <Typography variant="body2" color="text.secondary">
+                          <strong>Description:</strong> {scannedItem.description}
+                        </Typography>
+                      </Grid>
+                    )}
+                    {scannedItem.englishDescription && (
+                      <Grid item xs={12}>
+                        <Typography variant="body2" color="text.secondary">
+                          <strong>English Description:</strong> {scannedItem.englishDescription}
+                        </Typography>
+                      </Grid>
+                    )}
+                    {scannedItem.equipment && (
+                      <Grid item xs={12} sm={6}>
+                        <Typography variant="body2" color="text.secondary">
+                          <strong>Equipment:</strong> {scannedItem.equipment}
+                        </Typography>
+                      </Grid>
+                    )}
+                    {scannedItem.category && (
+                      <Grid item xs={12} sm={6}>
+                        <Typography variant="body2" color="text.secondary">
+                          <strong>Category:</strong> 
+                          <Chip 
+                            label={scannedItem.category} 
+                            size="small"
+                            color={scannedItem.category === 'A' ? 'error' : 
+                                   scannedItem.category === 'B' ? 'warning' : 'success'}
+                            sx={{ ml: 1 }}
+                          />
+                        </Typography>
+                      </Grid>
+                    )}
+                    {scannedItem.status && (
+                      <Grid item xs={12} sm={6}>
+                        <Typography variant="body2" color="text.secondary">
+                          <strong>Status:</strong> {scannedItem.status}
+                        </Typography>
+                      </Grid>
+                    )}
+                    {scannedItem.currentInventory !== undefined && (
+                      <Grid item xs={12} sm={6}>
+                        <Typography variant="body2" color="text.secondary">
+                          <strong>Current Inventory:</strong> {scannedItem.currentInventory}
+                        </Typography>
+                      </Grid>
+                    )}
+                    {scannedItem.safetyStockThreshold !== undefined && (
+                      <Grid item xs={12} sm={6}>
+                        <Typography variant="body2" color="text.secondary">
+                          <strong>Safety Stock:</strong> {scannedItem.safetyStockThreshold}
+                        </Typography>
+                      </Grid>
+                    )}
+                    {scannedItem.estimatedConsumption !== undefined && (
+                      <Grid item xs={12} sm={6}>
+                        <Typography variant="body2" color="text.secondary">
+                          <strong>Estimated Consumption:</strong> {scannedItem.estimatedConsumption}
+                        </Typography>
+                      </Grid>
+                    )}
+                    {(scannedItem.rack || scannedItem.floor || scannedItem.area || scannedItem.bin) && (
+                      <Grid item xs={12}>
+                        <Typography variant="body2" color="text.secondary">
+                          <strong>Location Details:</strong> 
+                          {scannedItem.rack && ` Rack: ${scannedItem.rack}`}
+                          {scannedItem.floor && ` Floor: ${scannedItem.floor}`}
+                          {scannedItem.area && ` Area: ${scannedItem.area}`}
+                          {scannedItem.bin && ` Bin: ${scannedItem.bin}`}
+                        </Typography>
+                      </Grid>
+                    )}
+                    {scannedItem.barcode && (
+                      <Grid item xs={12}>
+                        <Typography variant="body2" color="text.secondary">
+                          <strong>Barcode:</strong> {scannedItem.barcode}
+                        </Typography>
+                      </Grid>
+                    )}
+                  </Grid>
+                  
                   <Box sx={{ display: 'flex', gap: 2, mt: 2 }}>
                     <Chip 
                       icon={<InventoryIcon />}
                       label={`Available: ${scannedItem.availableQuantity}`}
                       color={scannedItem.availableQuantity > 0 ? 'success' : 'error'}
-                    />
-                    <Chip 
-                      label={`Used: ${scannedItem.usedInventory}`}
-                      variant="outlined"
                     />
                   </Box>
                 </CardContent>
@@ -500,10 +609,26 @@ export default function BarcodeScanner() {
                   size="small"
                 />
                 
+                <FormControl size="small" required>
+                  <InputLabel>Department</InputLabel>
+                  <Select
+                    value={department}
+                    onChange={(e) => setDepartment(e.target.value)}
+                    label="Department"
+                  >
+                    <MenuItem value="Equipment">Equipment</MenuItem>
+                    <MenuItem value="Production">Production</MenuItem>
+                    <MenuItem value="Process">Process</MenuItem>
+                    <MenuItem value="Quality">Quality</MenuItem>
+                    <MenuItem value="Facility">Facility</MenuItem>
+                    <MenuItem value="Other">Other</MenuItem>
+                  </Select>
+                </FormControl>
+                
                 <TextField
-                  label="Department (D number)"
-                  value={department}
-                  onChange={(e) => setDepartment(e.target.value)}
+                  label="D Number"
+                  value={dNumber}
+                  onChange={(e) => setDNumber(e.target.value)}
                   placeholder="e.g., D001, D123"
                   size="small"
                   required
@@ -585,7 +710,7 @@ export default function BarcodeScanner() {
           <Button 
             onClick={recordUsage} 
             variant="contained"
-            disabled={!userName.trim() || !department.trim() || quantityToUse <= 0 || (scannedItem ? quantityToUse > scannedItem.availableQuantity : false)}
+            disabled={!userName.trim() || !department.trim() || !dNumber.trim() || quantityToUse <= 0 || (scannedItem ? quantityToUse > scannedItem.availableQuantity : false)}
           >
             Record Usage
           </Button>
