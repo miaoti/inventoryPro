@@ -29,8 +29,8 @@ const initialState: AuthState = {
 export const login = createAsyncThunk(
   'auth/login',
   async (credentials: { username: string; password: string }) => {
-    const response = await authAPI.login(credentials);
-    const { token, user } = response; // response is now the data directly due to interceptor
+    const response: any = await authAPI.login(credentials);
+    const { token, user } = response; // response already contains the data due to interceptor
     // Set cookie with token
     Cookies.set('token', token, { expires: 7 }); // Expires in 7 days
     return { token, user };
@@ -45,8 +45,8 @@ export const register = createAsyncThunk(
     email: string;
     fullName: string;
   }) => {
-    const response = await authAPI.register(userData);
-    const { token, user } = response; // response is now the data directly due to interceptor
+    const response: any = await authAPI.register(userData);
+    const { token, user } = response; // response already contains the data due to interceptor
     // Set cookie with token
     Cookies.set('token', token, { expires: 7 }); // Expires in 7 days
     return { token, user };

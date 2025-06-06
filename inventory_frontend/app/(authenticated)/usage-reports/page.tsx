@@ -418,7 +418,12 @@ export default function UsageReportsPage() {
         mb: 3,
         gap: 2
       }}>
-        <Typography variant={{ xs: "h5", md: "h4" }}>
+        <Typography 
+          variant="h4"
+          sx={{ 
+            fontSize: { xs: '1.5rem', md: '2.125rem' }
+          }}
+        >
           Usage Reports & Analytics
         </Typography>
         <Button

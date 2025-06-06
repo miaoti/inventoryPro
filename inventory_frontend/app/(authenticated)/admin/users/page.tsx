@@ -262,9 +262,14 @@ export default function UserManagementPage() {
         mb: 3,
         gap: 2
       }}>
-        <Typography variant={{ xs: "h5", md: "h4" }}>
-        User Management
-      </Typography>
+        <Typography 
+          variant="h4"
+          sx={{ 
+            fontSize: { xs: '1.5rem', md: '2.125rem' }
+          }}
+        >
+          User Management
+        </Typography>
         <Button
           variant="contained"
           startIcon={<AddIcon />}

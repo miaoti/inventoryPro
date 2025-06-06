@@ -126,9 +126,9 @@ export const itemsAPI = {
     
     console.log('FormData created');
     console.log('FormData entries:');
-    for (const [key, value] of formData.entries()) {
+    Array.from(formData.entries()).forEach(([key, value]) => {
       console.log(key, value);
-    }
+    });
     
     return api.post('/items/import-csv', formData);
   },

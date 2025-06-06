@@ -328,7 +328,15 @@ export default function SettingsPage() {
             <SettingsIcon />
           </Avatar>
           <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography variant={{ xs: "h5", md: "h4" }} component="h1" sx={{ fontWeight: 'bold', mb: 0.5 }}>
+            <Typography 
+              variant="h4" 
+              component="h1" 
+              sx={{ 
+                fontWeight: 'bold', 
+                mb: 0.5,
+                fontSize: { xs: '1.5rem', md: '2.125rem' }
+              }}
+            >
               Settings
             </Typography>
             <Typography variant="body1" color="text.secondary" sx={{ display: { xs: 'none', sm: 'block' } }}>

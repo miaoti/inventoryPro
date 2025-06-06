@@ -327,7 +327,16 @@ export default function QuickStats() {
       maxWidth: '100vw',
       overflow: 'hidden'
     }}>
-      <Typography variant={{ xs: "h5", md: "h4" }} gutterBottom sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap' }}>
+      <Typography 
+        variant="h4" 
+        gutterBottom 
+        sx={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          flexWrap: 'wrap',
+          fontSize: { xs: '1.5rem', md: '2.125rem' }
+        }}
+      >
         <AnalyticsIcon sx={{ mr: 1 }} />
         Quick Stats Dashboard
       </Typography>
@@ -354,7 +363,13 @@ export default function QuickStats() {
               <Badge badgeContent={getActiveFiltersCount()} color="primary">
                 <FilterIcon color="primary" />
               </Badge>
-              <Typography variant={{ xs: "subtitle1", md: "h6" }} color="primary">
+              <Typography 
+                variant="h6" 
+                color="primary"
+                sx={{ 
+                  fontSize: { xs: '1rem', md: '1.25rem' }
+                }}
+              >
                 Time Range Filters
               </Typography>
               {isFiltered && (

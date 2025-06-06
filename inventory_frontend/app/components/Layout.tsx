@@ -116,10 +116,10 @@ export default function Layout({ children }: LayoutProps) {
     const fetchAlertCounts = async () => {
       if (isAuthenticated) {
         try {
-          const response = await alertsAPI.getCounts();
+          const response: any = await alertsAPI.getCounts();
           dispatch(updateAlertCounts({
-            unreadAlerts: response.unreadAlerts,
-            activeAlerts: response.activeAlerts
+            unreadAlerts: response.unreadAlerts || 0,
+            activeAlerts: response.activeAlerts || 0
           }));
         } catch (error) {
           console.error('Error fetching alert counts:', error);
