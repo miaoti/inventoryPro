@@ -2,6 +2,7 @@ package com.inventory.service;
 
 import com.inventory.dto.UserResponse;
 import com.inventory.dto.UserUpdateRequest;
+import com.inventory.dto.ProfileUpdateRequest;
 import com.inventory.entity.User;
 import com.inventory.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -69,6 +70,52 @@ public class UserManagementService {
         }
         
         userRepository.delete(user);
+    }
+
+    @Transactional
+    public UserResponse updateProfile(String username, ProfileUpdateRequest request) {
+        User user = userRepository.findByUsername(username);
+        if (user == null) {
+            throw new RuntimeException("User not found");
+        }
+
+        // Update basic profile information
+        if (request.getName() != null && !request.getName().trim().isEmpty()) {
+            user.setName(request.getName().trim());
+        }
+        
+        if (request.getEmail() != null && !request.getEmail().trim().isEmpty()) {
+            // Check if email is already taken by another user
+            User existingUser = userRepository.findByEmail(request.getEmail());
+            if (existingUser != null && !existingUser.getId().equals(user.getId())) {
+                throw new RuntimeException("Email is already taken");
+            }
+            user.setEmail(request.getEmail().trim());
+        }
+        
+        // Update alert settings
+        if (request.getAlertEmail() != null) {
+            user.setAlertEmail(request.getAlertEmail().trim().isEmpty() ? null : request.getAlertEmail().trim());
+        }
+        
+        if (request.getEnableEmailAlerts() != null) {
+            user.setEnableEmailAlerts(request.getEnableEmailAlerts());
+        }
+        
+        if (request.getEnableDailyDigest() != null) {
+            user.setEnableDailyDigest(request.getEnableDailyDigest());
+        }
+        
+        // Update password if both current and new passwords are provided
+        if (request.getCurrentPassword() != null && request.getNewPassword() != null) {
+            if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPassword())) {
+                throw new RuntimeException("Current password is incorrect");
+            }
+            user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        }
+
+        User savedUser = userRepository.save(user);
+        return convertToResponse(savedUser);
     }
 
     private UserResponse convertToResponse(User user) {
