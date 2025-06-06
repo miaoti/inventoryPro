@@ -8,8 +8,8 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  BACKEND_IMAGE_NAME: ${{ github.repository }}/inventory-backend
-  FRONTEND_IMAGE_NAME: ${{ github.repository }}/inventory-frontend
+  BACKEND_IMAGE_NAME: ${{ github.repository_owner }}/inventorypro/inventory-backend
+  FRONTEND_IMAGE_NAME: ${{ github.repository_owner }}/inventorypro/inventory-frontend
 
 jobs:
   test:
@@ -169,15 +169,15 @@ jobs:
         echo $GITHUB_TOKEN | docker login ghcr.io -u $GITHUB_ACTOR --password-stdin
         
         # Pull latest images
-        docker pull ghcr.io/$GITHUB_REPOSITORY/inventory-backend:latest
-        docker pull ghcr.io/$GITHUB_REPOSITORY/inventory-frontend:latest
+        docker pull ghcr.io/$GITHUB_REPOSITORY_OWNER/inventorypro/inventory-backend:latest
+        docker pull ghcr.io/$GITHUB_REPOSITORY_OWNER/inventorypro/inventory-frontend:latest
         
         # Update docker-compose to use registry images
         sed -i 's|build:|#build:|g' docker-compose.prod.yml
         sed -i 's|context: ./inventory|#context: ./inventory|g' docker-compose.prod.yml
         sed -i 's|dockerfile: Dockerfile|#dockerfile: Dockerfile|g' docker-compose.prod.yml
         sed -i 's|context: ./inventory_frontend|#context: ./inventory_frontend|g' docker-compose.prod.yml
-        sed -i 's|#|  image: ghcr.io/$GITHUB_REPOSITORY/inventory-backend:latest\n    #|' docker-compose.prod.yml
+        sed -i 's|#|  image: ghcr.io/$GITHUB_REPOSITORY_OWNER/inventorypro/inventory-backend:latest\n    #|' docker-compose.prod.yml
         
         # Stop existing containers
         docker-compose -f docker-compose.prod.yml down || true
@@ -201,7 +201,7 @@ jobs:
           MAIL_PASSWORD='$MAIL_PASSWORD' \
           GITHUB_TOKEN='${{ secrets.GITHUB_TOKEN }}' \
           GITHUB_ACTOR='${{ github.actor }}' \
-          GITHUB_REPOSITORY='${{ github.repository }}' \
+          GITHUB_REPOSITORY_OWNER='${{ github.repository_owner }}' \
           ~/deploy.sh"
 
     - name: Health Check
