@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
+import java.time.LocalDateTime;
 
 @Data
 @NoArgsConstructor
@@ -34,6 +35,12 @@ public class User {
     @Column(name = "enabled")
     private Boolean enabled = true;
 
+    @Column(nullable = false)
+    private LocalDateTime createdAt;
+
+    @Column(nullable = false)
+    private LocalDateTime updatedAt;
+
     @Column(name = "alert_email")
     private String alertEmail;
     
@@ -44,6 +51,7 @@ public class User {
     private Boolean enableDailyDigest = false;
 
     public enum UserRole {
+        OWNER,
         ADMIN,
         USER
     }
@@ -77,5 +85,25 @@ public class User {
      */
     public String getEffectiveAlertEmail() {
         return (alertEmail != null && !alertEmail.trim().isEmpty()) ? alertEmail : email;
+    }
+
+    // Convenience methods for fullName as name (for backward compatibility)
+    public String getName() {
+        return fullName;
+    }
+
+    public void setName(String name) {
+        this.fullName = name;
+    }
+
+    @PrePersist
+    protected void onCreate() {
+        createdAt = LocalDateTime.now();
+        updatedAt = LocalDateTime.now();
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        updatedAt = LocalDateTime.now();
     }
 } 

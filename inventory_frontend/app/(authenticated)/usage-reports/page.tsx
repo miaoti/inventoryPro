@@ -13,6 +13,17 @@ import {
   Button,
   Chip,
   Grid,
+  Collapse,
+  IconButton,
+  Divider,
+  InputAdornment,
+  Tooltip,
+  Stack,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Badge,
 } from '@mui/material';
 import {
   TrendingUp as TrendingUpIcon,
@@ -20,6 +31,14 @@ import {
   Inventory as InventoryIcon,
   DateRange as DateRangeIcon,
   GetApp as ExportIcon,
+  FilterList as FilterIcon,
+  Clear as ClearIcon,
+  Search as SearchIcon,
+  ExpandMore as ExpandMoreIcon,
+  ExpandLess as ExpandLessIcon,
+  CalendarToday as CalendarIcon,
+  Business as DepartmentIcon,
+  QrCode as BarcodeIcon,
 } from '@mui/icons-material';
 import { DataGrid, GridColDef } from '@mui/x-data-grid';
 import axios from 'axios';
@@ -35,6 +54,8 @@ interface UsageRecord {
     location: string;
   };
   userName: string;
+  department: string;
+  dNumber?: string;
   quantityUsed: number;
   usedAt: string;
   notes?: string;
@@ -72,6 +93,8 @@ export default function UsageReportsPage() {
   const [selectedBarcodeOrItem, setSelectedBarcodeOrItem] = useState('');
   const [filteredData, setFilteredData] = useState<UsageRecord[]>([]);
   const [isFiltered, setIsFiltered] = useState(false);
+  const [filtersExpanded, setFiltersExpanded] = useState(false);
+  const [quickFilterMode, setQuickFilterMode] = useState('');
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api';
 
@@ -97,10 +120,11 @@ export default function UsageReportsPage() {
   const fetchUsageRecords = async () => {
     try {
       const response = await api.get('/usage');
-      console.log('Fetched usage records:', response.data); // Debug log
+      const responseData = (response as any)?.data || response || [];
+      console.log('Fetched usage records:', responseData); // Debug log
       
       // Flatten the data structure for better DataGrid compatibility
-      const flattenedRecords = response.data.map((record: any) => ({
+      const flattenedRecords = responseData.map((record: any) => ({
         ...record,
         itemName: record.item?.name || 'N/A',
         itemCode: record.item?.code || 'N/A',
@@ -117,7 +141,8 @@ export default function UsageReportsPage() {
   const fetchItemSummary = async () => {
     try {
       const response = await api.get('/usage/summary/items');
-      setItemSummary(response.data);
+      const responseData = (response as any)?.data || response || [];
+      setItemSummary(responseData);
     } catch (error) {
       console.error('Error fetching item summary:', error);
     }
@@ -126,7 +151,8 @@ export default function UsageReportsPage() {
   const fetchUserSummary = async () => {
     try {
       const response = await api.get('/usage/summary/users');
-      setUserSummary(response.data);
+      const responseData = (response as any)?.data || response || [];
+      setUserSummary(responseData);
     } catch (error) {
       console.error('Error fetching user summary:', error);
     }
@@ -140,6 +166,7 @@ export default function UsageReportsPage() {
     setSelectedBarcodeOrItem('');
     setIsFiltered(false);
     setFilteredData([]);
+    setQuickFilterMode('');
     fetchUsageRecords();
   };
 
@@ -155,9 +182,10 @@ export default function UsageReportsPage() {
       if (selectedBarcodeOrItem.trim()) params.append('barcodeOrItemCode', selectedBarcodeOrItem.trim());
 
       const response = await api.get(`/usage/filtered?${params.toString()}`);
+      const responseData = (response as any)?.data || response || [];
       
       // Flatten the data structure for better DataGrid compatibility
-      const flattenedRecords = response.data.map((record: any) => ({
+      const flattenedRecords = responseData.map((record: any) => ({
         ...record,
         itemName: record.item?.name || 'N/A',
         itemCode: record.item?.code || 'N/A',
@@ -221,8 +249,45 @@ export default function UsageReportsPage() {
     }
   };
 
-  // Determine which data to display
   const displayData = isFiltered ? filteredData : usageRecords;
+
+  // Calculate active filters count
+  const getActiveFiltersCount = () => {
+    let count = 0;
+    if (startDate) count++;
+    if (endDate) count++;
+    if (selectedUser.trim()) count++;
+    if (selectedDepartment.trim()) count++;
+    if (selectedBarcodeOrItem.trim()) count++;
+    return count;
+  };
+
+  // Quick filter presets
+  const applyQuickFilter = (mode: string) => {
+    const now = new Date();
+    const today = now.toISOString().split('T')[0];
+    
+    resetFilters();
+    
+    switch (mode) {
+      case 'today':
+        setStartDate(today);
+        setEndDate(today);
+        break;
+      case 'week':
+        const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        setStartDate(weekAgo.toISOString().split('T')[0]);
+        setEndDate(today);
+        break;
+      case 'month':
+        const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        setStartDate(monthAgo.toISOString().split('T')[0]);
+        setEndDate(today);
+        break;
+    }
+    setQuickFilterMode(mode);
+    setTimeout(() => applyAdvancedFilter(), 100);
+  };
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleString();
@@ -297,6 +362,11 @@ export default function UsageReportsPage() {
       width: 120
     },
     { 
+      field: 'dNumber', 
+      headerName: 'D Number', 
+      width: 120
+    },
+    { 
       field: 'itemName', 
       headerName: 'Item Name', 
       flex: 1
@@ -334,9 +404,21 @@ export default function UsageReportsPage() {
   ];
 
   return (
-    <Box sx={{ p: 3 }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h4">
+    <Box sx={{ 
+      p: { xs: 1, sm: 2, md: 3 }, 
+      width: '100%',
+      maxWidth: '100vw',
+      overflow: 'hidden'
+    }}>
+      <Box sx={{ 
+        display: 'flex', 
+        flexDirection: { xs: 'column', sm: 'row' },
+        justifyContent: 'space-between', 
+        alignItems: { xs: 'stretch', sm: 'center' }, 
+        mb: 3,
+        gap: 2
+      }}>
+        <Typography variant={{ xs: "h5", md: "h4" }}>
           Usage Reports & Analytics
         </Typography>
         <Button
@@ -403,100 +485,258 @@ export default function UsageReportsPage() {
         </Grid>
       </Grid>
 
-      {/* Filters */}
-      <Paper sx={{ p: 3, mb: 3 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-          <Typography variant="h6">
-            Advanced Filters
-          </Typography>
-          {isFiltered && (
-            <Chip 
-              label={`Filtered Results: ${filteredData.length} records`} 
-              color="primary" 
-              variant="outlined"
-              onDelete={resetFilters}
-            />
-          )}
-        </Box>
-        
-        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center', mb: 3 }}>
-          {/* Date Range Filters */}
-          <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-            <Typography variant="subtitle2" color="text.secondary">Date Range:</Typography>
-            <TextField
-              label="Start Date"
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              size="small"
-              InputLabelProps={{ shrink: true }}
-              sx={{ minWidth: 140 }}
-            />
-            <TextField
-              label="End Date"
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              size="small"
-              InputLabelProps={{ shrink: true }}
-              sx={{ minWidth: 140 }}
-            />
+      {/* Modern Filter Section */}
+      <Card sx={{ mb: 3, overflow: 'visible' }}>
+        <CardContent sx={{ pb: 2 }}>
+          {/* Filter Header */}
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Badge badgeContent={getActiveFiltersCount()} color="primary">
+                <FilterIcon color="primary" />
+              </Badge>
+              <Typography variant="h6" color="primary">
+                Filters & Search
+              </Typography>
+              {isFiltered && (
+                <Chip 
+                  label={`${filteredData.length} results`} 
+                  color="success" 
+                  size="small"
+                  variant="outlined"
+                />
+              )}
+            </Box>
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <Tooltip title={filtersExpanded ? "Collapse Filters" : "Expand Filters"}>
+                <IconButton 
+                  onClick={() => setFiltersExpanded(!filtersExpanded)}
+                  size="small"
+                  color="primary"
+                >
+                  {filtersExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                </IconButton>
+              </Tooltip>
+              {getActiveFiltersCount() > 0 && (
+                <Tooltip title="Clear All Filters">
+                  <IconButton onClick={resetFilters} size="small" color="error">
+                    <ClearIcon />
+                  </IconButton>
+                </Tooltip>
+              )}
+            </Box>
           </Box>
-        </Box>
 
-        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center', mb: 3 }}>
-          {/* Text-based Filters */}
-          <TextField
-            label="Username"
-            value={selectedUser}
-            onChange={(e) => setSelectedUser(e.target.value)}
-            size="small"
-            placeholder="Enter username"
-            sx={{ minWidth: 150 }}
-          />
-          <TextField
-            label="Department"
-            value={selectedDepartment}
-            onChange={(e) => setSelectedDepartment(e.target.value)}
-            size="small"
-            placeholder="e.g., D001, D123"
-            sx={{ minWidth: 150 }}
-          />
-          <TextField
-            label="Barcode or Item Code"
-            value={selectedBarcodeOrItem}
-            onChange={(e) => setSelectedBarcodeOrItem(e.target.value)}
-            size="small"
-            placeholder="Enter barcode, item code, or name"
-            sx={{ minWidth: 200 }}
-          />
-        </Box>
+          {/* Quick Filter Buttons */}
+          <Box sx={{ mb: 3 }}>
+            <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+              Quick Filters
+            </Typography>
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+              <Button
+                variant={quickFilterMode === 'today' ? 'contained' : 'outlined'}
+                size="small"
+                onClick={() => applyQuickFilter('today')}
+                startIcon={<CalendarIcon />}
+              >
+                Today
+              </Button>
+              <Button
+                variant={quickFilterMode === 'week' ? 'contained' : 'outlined'}
+                size="small"
+                onClick={() => applyQuickFilter('week')}
+                startIcon={<DateRangeIcon />}
+              >
+                Last 7 Days
+              </Button>
+              <Button
+                variant={quickFilterMode === 'month' ? 'contained' : 'outlined'}
+                size="small"
+                onClick={() => applyQuickFilter('month')}
+                startIcon={<DateRangeIcon />}
+              >
+                Last 30 Days
+              </Button>
+              <Button
+                variant="outlined"
+                size="small"
+                onClick={() => setFiltersExpanded(true)}
+                startIcon={<SearchIcon />}
+              >
+                Custom Search
+              </Button>
+            </Stack>
+          </Box>
 
-        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-          <Button 
-            variant="contained" 
-            onClick={applyAdvancedFilter}
-            disabled={loading}
-          >
-            Apply Filters
-          </Button>
-          <Button 
-            variant="outlined" 
-            startIcon={<ExportIcon />}
-            onClick={exportFilteredData}
-            disabled={loading || (!isFiltered && displayData.length === 0)}
-          >
-            Export {isFiltered ? 'Filtered' : 'All'} Data
-          </Button>
-          <Button 
-            variant="text" 
-            onClick={resetFilters}
-            disabled={loading}
-          >
-            Clear All Filters
-          </Button>
-        </Box>
-      </Paper>
+          {/* Advanced Filters (Collapsible) */}
+          <Collapse in={filtersExpanded}>
+            <Divider sx={{ mb: 3 }} />
+            
+            {/* Date Range Section */}
+            <Box sx={{ mb: 3 }}>
+              <Typography variant="subtitle2" color="text.secondary" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <CalendarIcon fontSize="small" />
+                Date Range
+              </Typography>
+              <Grid container spacing={2}>
+                <Grid item xs={12} sm={6} md={3}>
+                  <TextField
+                    fullWidth
+                    label="Start Date"
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    size="small"
+                    InputLabelProps={{ shrink: true }}
+                    sx={{ 
+                      '& .MuiOutlinedInput-root': {
+                        backgroundColor: startDate ? 'action.selected' : 'transparent'
+                      }
+                    }}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6} md={3}>
+                  <TextField
+                    fullWidth
+                    label="End Date"
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    size="small"
+                    InputLabelProps={{ shrink: true }}
+                    sx={{ 
+                      '& .MuiOutlinedInput-root': {
+                        backgroundColor: endDate ? 'action.selected' : 'transparent'
+                      }
+                    }}
+                  />
+                </Grid>
+              </Grid>
+            </Box>
+
+            {/* Search Filters Section */}
+            <Box sx={{ mb: 3 }}>
+              <Typography variant="subtitle2" color="text.secondary" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <SearchIcon fontSize="small" />
+                Search Criteria
+              </Typography>
+              <Grid container spacing={2}>
+                <Grid item xs={12} sm={6} md={4}>
+                  <TextField
+                    fullWidth
+                    label="Username"
+                    value={selectedUser}
+                    onChange={(e) => setSelectedUser(e.target.value)}
+                    size="small"
+                    placeholder="Search by username..."
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <PersonIcon fontSize="small" color="action" />
+                        </InputAdornment>
+                      ),
+                    }}
+                    sx={{ 
+                      '& .MuiOutlinedInput-root': {
+                        backgroundColor: selectedUser ? 'action.selected' : 'transparent'
+                      }
+                    }}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6} md={4}>
+                  <TextField
+                    fullWidth
+                    label="Department"
+                    value={selectedDepartment}
+                    onChange={(e) => setSelectedDepartment(e.target.value)}
+                    size="small"
+                    placeholder="e.g., D001, D123..."
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <DepartmentIcon fontSize="small" color="action" />
+                        </InputAdornment>
+                      ),
+                    }}
+                    sx={{ 
+                      '& .MuiOutlinedInput-root': {
+                        backgroundColor: selectedDepartment ? 'action.selected' : 'transparent'
+                      }
+                    }}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={12} md={4}>
+                  <TextField
+                    fullWidth
+                    label="Item Search"
+                    value={selectedBarcodeOrItem}
+                    onChange={(e) => setSelectedBarcodeOrItem(e.target.value)}
+                    size="small"
+                    placeholder="Barcode, code, or name..."
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <BarcodeIcon fontSize="small" color="action" />
+                        </InputAdornment>
+                      ),
+                    }}
+                    sx={{ 
+                      '& .MuiOutlinedInput-root': {
+                        backgroundColor: selectedBarcodeOrItem ? 'action.selected' : 'transparent'
+                      }
+                    }}
+                  />
+                </Grid>
+              </Grid>
+            </Box>
+
+            {/* Action Buttons */}
+            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center', pt: 2, borderTop: 1, borderColor: 'divider' }}>
+              <Button 
+                variant="contained" 
+                onClick={applyAdvancedFilter}
+                disabled={loading}
+                startIcon={<SearchIcon />}
+                sx={{ minWidth: 140 }}
+              >
+                {loading ? 'Applying...' : 'Apply Filters'}
+              </Button>
+              
+              <Button 
+                variant="outlined" 
+                startIcon={<ExportIcon />}
+                onClick={exportFilteredData}
+                disabled={loading || (!isFiltered && displayData.length === 0)}
+                color="secondary"
+              >
+                Export {isFiltered ? 'Filtered' : 'All'} Data
+              </Button>
+
+              {getActiveFiltersCount() > 0 && (
+                <Button 
+                  variant="text" 
+                  startIcon={<ClearIcon />}
+                  onClick={resetFilters}
+                  disabled={loading}
+                  color="error"
+                >
+                  Clear Filters ({getActiveFiltersCount()})
+                </Button>
+              )}
+              
+              <Box sx={{ flexGrow: 1 }} />
+              
+              {isFiltered && (
+                <Chip 
+                  label={`Showing ${filteredData.length} of ${usageRecords.length} records`}
+                  color="info"
+                  variant="outlined"
+                  size="small"
+                />
+              )}
+            </Box>
+          </Collapse>
+        </CardContent>
+      </Card>
 
       {/* Tabs */}
       <Paper sx={{ mb: 3 }}>

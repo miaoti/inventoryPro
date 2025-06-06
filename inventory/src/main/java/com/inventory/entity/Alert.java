@@ -45,6 +45,9 @@ public class Alert {
     private Boolean read = false;
 
     @Column(nullable = false)
+    private Boolean ignored = false;
+
+    @Column(nullable = false)
     private LocalDateTime createdAt;
 
     @Column(nullable = true)
@@ -52,6 +55,9 @@ public class Alert {
 
     @Column(nullable = true)
     private LocalDateTime readAt;
+
+    @Column(nullable = true)
+    private LocalDateTime ignoredAt;
 
     @PrePersist
     protected void onCreate() {
@@ -66,5 +72,10 @@ public class Alert {
     public void markAsRead() {
         this.read = true;
         this.readAt = LocalDateTime.now();
+    }
+
+    public void ignore() {
+        this.ignored = true;
+        this.ignoredAt = LocalDateTime.now();
     }
 } 

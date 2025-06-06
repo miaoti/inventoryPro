@@ -32,7 +32,7 @@ public class ExcelExportService {
             // Create header row
             Row headerRow = sheet.createRow(0);
             String[] headers = {
-                "ID", "User Name", "Department", "Item Name", "Item Code", 
+                "ID", "User Name", "Department", "D Number", "Item Name", "Item Code", 
                 "Barcode", "Quantity Used", "Notes", "Used At", "Location"
             };
 
@@ -50,13 +50,14 @@ public class ExcelExportService {
                 row.createCell(0).setCellValue(usage.getId());
                 row.createCell(1).setCellValue(usage.getUserName());
                 row.createCell(2).setCellValue(usage.getDepartment() != null ? usage.getDepartment() : "");
-                row.createCell(3).setCellValue(usage.getItem().getName());
-                row.createCell(4).setCellValue(usage.getItem().getCode());
-                row.createCell(5).setCellValue(usage.getBarcode());
-                row.createCell(6).setCellValue(usage.getQuantityUsed());
-                row.createCell(7).setCellValue(usage.getNotes() != null ? usage.getNotes() : "");
-                row.createCell(8).setCellValue(usage.getUsedAt().format(DATE_FORMATTER));
-                row.createCell(9).setCellValue(usage.getItem().getLocation() != null ? usage.getItem().getLocation() : "");
+                row.createCell(3).setCellValue(usage.getDNumber() != null ? usage.getDNumber() : "");
+                row.createCell(4).setCellValue(usage.getItem().getName());
+                row.createCell(5).setCellValue(usage.getItem().getCode());
+                row.createCell(6).setCellValue(usage.getBarcode());
+                row.createCell(7).setCellValue(usage.getQuantityUsed());
+                row.createCell(8).setCellValue(usage.getNotes() != null ? usage.getNotes() : "");
+                row.createCell(9).setCellValue(usage.getUsedAt().format(DATE_FORMATTER));
+                row.createCell(10).setCellValue(usage.getItem().getLocation() != null ? usage.getItem().getLocation() : "");
             }
 
             // Auto-size columns

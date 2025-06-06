@@ -18,22 +18,36 @@ public class StockAlertDto {
         this.currentInventory = currentInventory != null ? currentInventory : 0;
         this.safetyStock = safetyStock != null ? safetyStock : 0;
         
-        // Calculate percentage and determine alert type
+        // Calculate percentage and determine alert type using hardcoded defaults
+        // This constructor is for backward compatibility
+        this.percentage = this.safetyStock > 0 ? (int) Math.round((double) this.currentInventory / this.safetyStock * 100) : 0;
+        this.alertType = determineAlertType(50, 100); // Default: 50% critical, 100% warning
+    }
+    
+    public StockAlertDto(Long id, String name, String code, Integer currentInventory, Integer safetyStock, 
+                        int criticalThresholdPercent, int warningThresholdPercent) {
+        this.id = id;
+        this.name = name;
+        this.code = code;
+        this.currentInventory = currentInventory != null ? currentInventory : 0;
+        this.safetyStock = safetyStock != null ? safetyStock : 0;
+        
+        // Calculate percentage and determine alert type using configurable thresholds
+        this.percentage = this.safetyStock > 0 ? (int) Math.round((double) this.currentInventory / this.safetyStock * 100) : 0;
+        this.alertType = determineAlertType(criticalThresholdPercent, warningThresholdPercent);
+    }
+    
+    private String determineAlertType(int criticalThresholdPercent, int warningThresholdPercent) {
         if (this.safetyStock > 0) {
-            this.percentage = (int) Math.round((double) this.currentInventory / this.safetyStock * 100);
-            
-            // Critical: 50% or less of safety stock
-            // Warning: below safety stock but above 50%
-            if (this.percentage <= 50) {
-                this.alertType = "critical";
-            } else if (this.percentage < 100) {
-                this.alertType = "warning";
+            if (this.percentage <= criticalThresholdPercent) {
+                return "critical";
+            } else if (this.percentage <= warningThresholdPercent) {
+                return "warning";
             } else {
-                this.alertType = "normal"; // Should not be included in alerts, but just in case
+                return "normal"; // Should not be included in alerts, but just in case
             }
         } else {
-            this.percentage = 0;
-            this.alertType = "critical";
+            return "critical";
         }
     }
     

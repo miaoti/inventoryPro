@@ -258,6 +258,7 @@ public class UsageController {
             itemSummary,
             usage.getUserName(),
             usage.getDepartment(),
+            usage.getDNumber(),
             usage.getQuantityUsed(),
             usage.getUsedAt(),
             usage.getNotes(),

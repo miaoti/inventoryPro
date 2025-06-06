@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
+import { useRouter } from 'next/navigation';
 import { setAlerts, resolveAlert as resolveAlertAction, markAlertAsRead as markAlertAsReadAction, updateAlertCounts } from '../../store/slices/alertsSlice';
 import type { RootState } from '../../store';
 import {
@@ -66,29 +67,38 @@ interface Alert {
   safetyStockThreshold: number;
   resolved: boolean;
   read: boolean;
+  ignored: boolean;
   createdAt: string;
   resolvedAt?: string;
   readAt?: string;
+  ignoredAt?: string;
   // Computed fields
   itemName?: string;
   itemCode?: string;
   itemId?: number;
   formattedCreatedAt?: string;
-  effectiveInventory: number;
+  formattedIgnoredAt?: string;
+  formattedResolvedAt?: string;
+  currentStockLevel: number;
   urgencyLevel: 'critical' | 'warning';
   daysOld: number;
 }
 
 type AlertFilter = 'all' | 'critical' | 'warning';
-type SortField = 'createdAt' | 'urgencyLevel' | 'itemName' | 'effectiveInventory';
+type SortField = 'createdAt' | 'urgencyLevel' | 'itemName' | 'currentInventory';
 
 export default function AlertsPage() {
+  const router = useRouter();
+  
   // Redux state
   const dispatch = useDispatch();
   const { alerts: reduxAlerts, unreadAlerts, activeAlerts } = useSelector((state: RootState) => state.alerts);
+  const { isAuthenticated, token } = useSelector((state: RootState) => state.auth);
 
   // Local state
   const [alerts, setAlertsLocal] = useState<Alert[]>([]);
+  const [ignoredAlerts, setIgnoredAlerts] = useState<Alert[]>([]);
+  const [resolvedAlerts, setResolvedAlerts] = useState<Alert[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [tabValue, setTabValue] = useState(0);
@@ -101,15 +111,20 @@ export default function AlertsPage() {
 
   // Computed values using useMemo for performance
   const processedAlerts = useMemo(() => {
+    if (!alerts || !Array.isArray(alerts)) {
+      return [];
+    }
     return alerts.map((alert: any) => {
-      const effectiveInventory = alert.currentInventory + alert.pendingPO;
+      const currentStockLevel = alert.currentInventory;
       const daysOld = Math.floor((new Date().getTime() - new Date(alert.createdAt).getTime()) / (1000 * 60 * 60 * 24));
       
-      // Determine urgency level (only critical or warning)
+      // Determine urgency level based on alert type from backend
       let urgencyLevel: 'critical' | 'warning' = 'warning';
-      const stockRatio = effectiveInventory / alert.safetyStockThreshold;
-      
-      if (stockRatio < 0.2) urgencyLevel = 'critical';
+      if (alert.alertType === 'CRITICAL_STOCK') {
+        urgencyLevel = 'critical';
+      } else if (alert.alertType === 'WARNING_STOCK') {
+        urgencyLevel = 'warning';
+      }
 
       return {
         ...alert,
@@ -117,7 +132,7 @@ export default function AlertsPage() {
         itemCode: alert.item?.code || 'N/A',
         itemId: alert.item?.id || null,
         formattedCreatedAt: new Date(alert.createdAt).toLocaleString(),
-        effectiveInventory,
+        currentStockLevel,
         urgencyLevel,
         daysOld,
       };
@@ -150,8 +165,8 @@ export default function AlertsPage() {
           return urgencyOrder[a.urgencyLevel] - urgencyOrder[b.urgencyLevel];
         case 'itemName':
           return (a.itemName || '').localeCompare(b.itemName || '');
-        case 'effectiveInventory':
-          return a.effectiveInventory - b.effectiveInventory;
+        case 'currentInventory':
+          return a.currentInventory - b.currentInventory;
         case 'createdAt':
         default:
           return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
@@ -162,7 +177,70 @@ export default function AlertsPage() {
   }, [processedAlerts, searchTerm, alertFilter, sortField]);
 
   const filteredAlertsComputed = useMemo(() => filteredAlerts.filter(alert => !alert.resolved), [filteredAlerts]);
-  const resolvedAlertsComputed = useMemo(() => filteredAlerts.filter(alert => alert.resolved), [filteredAlerts]);
+  
+  // Process ignored alerts similar to active alerts
+  const processedIgnoredAlerts = useMemo(() => {
+    if (!ignoredAlerts || !Array.isArray(ignoredAlerts)) {
+      return [];
+    }
+    return ignoredAlerts.map((alert: any) => {
+      const currentStockLevel = alert.currentInventory;
+      const daysOld = Math.floor((new Date().getTime() - new Date(alert.createdAt).getTime()) / (1000 * 60 * 60 * 24));
+      
+      // Determine urgency level based on alert type from backend
+      let urgencyLevel: 'critical' | 'warning' = 'warning';
+      if (alert.alertType === 'CRITICAL_STOCK') {
+        urgencyLevel = 'critical';
+      } else if (alert.alertType === 'WARNING_STOCK') {
+        urgencyLevel = 'warning';
+      }
+
+      return {
+        ...alert,
+        itemName: alert.item?.name || 'N/A',
+        itemCode: alert.item?.code || 'N/A',
+        itemId: alert.item?.id || null,
+        formattedCreatedAt: new Date(alert.createdAt).toLocaleString(),
+        formattedIgnoredAt: alert.ignoredAt ? new Date(alert.ignoredAt).toLocaleString() : null,
+        currentStockLevel,
+        urgencyLevel,
+        daysOld,
+      };
+    });
+  }, [ignoredAlerts]);
+
+  // Process resolved alerts similar to active alerts
+  const processedResolvedAlerts = useMemo(() => {
+    if (!resolvedAlerts || !Array.isArray(resolvedAlerts)) {
+      return [];
+    }
+    return resolvedAlerts.map((alert: any) => {
+      const currentStockLevel = alert.currentInventory;
+      const daysOld = Math.floor((new Date().getTime() - new Date(alert.createdAt).getTime()) / (1000 * 60 * 60 * 24));
+      
+      // Determine urgency level based on alert type from backend
+      let urgencyLevel: 'critical' | 'warning' = 'warning';
+      if (alert.alertType === 'CRITICAL_STOCK') {
+        urgencyLevel = 'critical';
+      } else if (alert.alertType === 'WARNING_STOCK') {
+        urgencyLevel = 'warning';
+      }
+
+      return {
+        ...alert,
+        itemName: alert.item?.name || 'N/A',
+        itemCode: alert.item?.code || 'N/A',
+        itemId: alert.item?.id || null,
+        formattedCreatedAt: new Date(alert.createdAt).toLocaleString(),
+        formattedResolvedAt: alert.resolvedAt ? new Date(alert.resolvedAt).toLocaleString() : null,
+        currentStockLevel,
+        urgencyLevel,
+        daysOld,
+      };
+    });
+  }, [resolvedAlerts]);
+
+  const resolvedAlertsComputed = useMemo(() => processedResolvedAlerts, [processedResolvedAlerts]);
 
   // Statistics
   const alertStats = useMemo(() => {
@@ -178,8 +256,9 @@ export default function AlertsPage() {
       warning,
       avgDaysOld,
       resolved: resolvedAlertsComputed.length,
+      ignored: processedIgnoredAlerts.length,
     };
-  }, [filteredAlertsComputed, resolvedAlertsComputed]);
+  }, [filteredAlertsComputed, resolvedAlertsComputed, processedIgnoredAlerts]);
 
   // Fetch alerts with optimized loading states
   const fetchAlerts = useCallback(async (isRefresh = false) => {
@@ -190,31 +269,59 @@ export default function AlertsPage() {
         setLoading(true);
       }
 
-      const response = await alertsAPI.getAll();
-      const alertsData = response.data;
+      // Fetch active, ignored, and resolved alerts
+      const [activeAlertsData, ignoredAlertsData, resolvedAlertsData] = await Promise.all([
+        alertsAPI.getActive(),
+        alertsAPI.getIgnored(),
+        alertsAPI.getResolved()
+      ]);
       
-      setAlertsLocal(alertsData);
-      dispatch(setAlerts(alertsData));
+      // Ensure we have valid array data with fallbacks
+      const validActiveAlerts = Array.isArray(activeAlertsData) ? activeAlertsData : [];
+      const validIgnoredAlerts = Array.isArray(ignoredAlertsData) ? ignoredAlertsData : [];
+      const validResolvedAlerts = Array.isArray(resolvedAlertsData) ? resolvedAlertsData : [];
+      
+      setAlertsLocal(validActiveAlerts);
+      setIgnoredAlerts(validIgnoredAlerts);
+      setResolvedAlerts(validResolvedAlerts);
+      dispatch(setAlerts(validActiveAlerts)); // Redux still uses active alerts
     } catch (error) {
       console.error('Error fetching alerts:', error);
+      // Set empty arrays on error to prevent undefined access
+      setAlertsLocal([]);
+      setIgnoredAlerts([]);
+      setResolvedAlerts([]);
+      dispatch(setAlerts([]));
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   }, [dispatch]);
 
-  // Auto-refresh alerts every 30 seconds
+  // Authentication guard and auto-refresh alerts
   useEffect(() => {
-    fetchAlerts();
-    
-    if (autoRefresh) {
-      const interval = setInterval(() => {
-        fetchAlerts(true);
-      }, 30000);
+    const checkAuth = () => {
+      const cookieToken = document.cookie.split(';').find(c => c.trim().startsWith('token='));
+      const hasToken = !!(token || cookieToken);
       
-      return () => clearInterval(interval);
-    }
-  }, [fetchAlerts, autoRefresh]);
+      if (!isAuthenticated || !hasToken) {
+        router.push('/login');
+        return;
+      }
+      
+      fetchAlerts();
+      
+      if (autoRefresh) {
+        const interval = setInterval(() => {
+          fetchAlerts(true);
+        }, 30000);
+        
+        return () => clearInterval(interval);
+      }
+    };
+
+    checkAuth();
+  }, [fetchAlerts, autoRefresh, isAuthenticated, token, router]);
 
   // Optimized resolve alert with optimistic updates
   const resolveAlert = useCallback(async (alertId: number) => {
@@ -235,9 +342,10 @@ export default function AlertsPage() {
       // Immediately refresh alert counts to update sidebar badge
       try {
         const countsResponse = await alertsAPI.getCounts();
+        const countsData = countsResponse.data || countsResponse; // Handle both cases
         dispatch(updateAlertCounts({
-          unreadAlerts: countsResponse.data.unreadAlerts,
-          activeAlerts: countsResponse.data.activeAlerts
+          unreadAlerts: countsData.unreadAlerts || 0,
+          activeAlerts: countsData.activeAlerts || 0
         }));
       } catch (countError) {
         console.error('Error fetching updated alert counts:', countError);
@@ -271,9 +379,10 @@ export default function AlertsPage() {
         // Immediately refresh alert counts to update sidebar badge
         try {
           const countsResponse = await alertsAPI.getCounts();
+          const countsData = countsResponse.data || countsResponse; // Handle both cases
           dispatch(updateAlertCounts({
-            unreadAlerts: countsResponse.data.unreadAlerts,
-            activeAlerts: countsResponse.data.activeAlerts
+            unreadAlerts: countsData.unreadAlerts || 0,
+            activeAlerts: countsData.activeAlerts || 0
           }));
         } catch (countError) {
           console.error('Error fetching updated alert counts:', countError);
@@ -388,21 +497,23 @@ export default function AlertsPage() {
       ),
     },
     {
-      field: 'effectiveInventory',
+      field: 'currentInventory',
       headerName: 'Stock Level',
       width: 140,
       renderCell: (params) => {
-        const isLow = params.value < params.row.safetyStockThreshold;
-        const percentage = (params.value / params.row.safetyStockThreshold) * 100;
+        const currentStock = params.value;
+        const safetyStock = params.row.safetyStockThreshold;
+        const isLow = currentStock < safetyStock;
+        const percentage = (currentStock / safetyStock) * 100;
         
         return (
           <Box sx={{ width: '100%' }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
               <Typography variant="body2" color={isLow ? 'error' : 'inherit'}>
-                {params.value}
+                {currentStock}
               </Typography>
               <Typography variant="caption" color="text.secondary">
-                /{params.row.safetyStockThreshold}
+                /{safetyStock}
               </Typography>
             </Box>
             <LinearProgress
@@ -478,12 +589,52 @@ export default function AlertsPage() {
     },
   ];
 
+  // Authentication guard UI
+  if (!isAuthenticated || (!token && !document.cookie.includes('token='))) {
+    return (
+      <Box sx={{ 
+        p: { xs: 1, sm: 2, md: 3 }, 
+        width: '100%',
+        maxWidth: '100vw',
+        overflow: 'hidden',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        minHeight: '50vh'
+      }}>
+        <Paper sx={{ p: 4, textAlign: 'center', maxWidth: 400 }}>
+          <Typography variant="h5" color="error" gutterBottom>
+            Access Denied
+          </Typography>
+          <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
+            You must be logged in to access this page.
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Redirecting to login...
+          </Typography>
+        </Paper>
+      </Box>
+    );
+  }
+
   return (
-    <Box sx={{ p: 3 }}>
+    <Box sx={{ 
+      p: { xs: 1, sm: 2, md: 3 }, 
+      width: '100%',
+      maxWidth: '100vw',
+      overflow: 'hidden'
+    }}>
       {/* Header with actions */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
-          <WarningIcon sx={{ mr: 2, verticalAlign: 'middle' }} />
+      <Box sx={{ 
+        display: 'flex', 
+        flexDirection: { xs: 'column', sm: 'row' },
+        justifyContent: 'space-between', 
+        alignItems: { xs: 'stretch', sm: 'center' }, 
+        mb: 3,
+        gap: 2
+      }}>
+        <Typography variant="h4" sx={{ fontWeight: 'bold', display: 'flex', alignItems: 'center', fontSize: { xs: '1.5rem', md: '2.125rem' } }}>
+          <WarningIcon sx={{ mr: 1 }} />
           Inventory Alerts
         </Typography>
         <Box sx={{ display: 'flex', gap: 1 }}>
@@ -568,6 +719,20 @@ export default function AlertsPage() {
             </Box>
           </CardContent>
         </Card>
+
+        <Card sx={{ bgcolor: 'grey.light', color: 'grey.contrastText' }}>
+          <CardContent sx={{ p: 2 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Box>
+                <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
+                  {alertStats.ignored}
+                </Typography>
+                <Typography variant="body2">Ignored</Typography>
+              </Box>
+              <Box sx={{ fontSize: 40 }}>🔕</Box>
+            </Box>
+          </CardContent>
+        </Card>
       </Box>
 
       {/* Advanced Filters */}
@@ -611,7 +776,7 @@ export default function AlertsPage() {
               <MenuItem value="createdAt">Date Created</MenuItem>
               <MenuItem value="urgencyLevel">Priority</MenuItem>
               <MenuItem value="itemName">Item Name</MenuItem>
-              <MenuItem value="effectiveInventory">Stock Level</MenuItem>
+              <MenuItem value="currentInventory">Stock Level</MenuItem>
             </Select>
           </FormControl>
 
@@ -632,15 +797,15 @@ export default function AlertsPage() {
             borderBottom: 1, 
             borderColor: 'divider',
             '& .MuiTab-root': {
-              minWidth: 240,
-              px: 4,
+              minWidth: 200,
+              px: 3,
               py: 2
             }
           }}
         >
           <Tab
             label={
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, minWidth: 180 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, minWidth: 150 }}>
                 <Typography>Active Alerts</Typography>
                 <Badge 
                   badgeContent={filteredAlertsComputed.length} 
@@ -662,7 +827,7 @@ export default function AlertsPage() {
           />
           <Tab 
             label={
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, minWidth: 180 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, minWidth: 150 }}>
                 <Typography>Resolved Alerts</Typography>
                 <Badge 
                   badgeContent={resolvedAlertsComputed.length} 
@@ -674,6 +839,30 @@ export default function AlertsPage() {
                       minWidth: 24,
                       height: 24,
                       fontSize: '0.75rem'
+                    }
+                  }}
+                >
+                  <Box />
+                </Badge>
+              </Box>
+            } 
+          />
+          <Tab 
+            label={
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, minWidth: 150 }}>
+                <Typography>Ignored Alerts</Typography>
+                <Badge 
+                  badgeContent={processedIgnoredAlerts.length} 
+                  color="default"
+                  sx={{
+                    '& .MuiBadge-badge': {
+                      position: 'static',
+                      transform: 'none',
+                      minWidth: 24,
+                      height: 24,
+                      fontSize: '0.75rem',
+                      backgroundColor: 'grey.400',
+                      color: 'white'
                     }
                   }}
                 >
@@ -739,7 +928,19 @@ export default function AlertsPage() {
                 <Paper sx={{ height: 500, width: '100%' }}>
                   <DataGrid
                     rows={resolvedAlertsComputed}
-                    columns={columns}
+                    columns={[
+                      ...columns,
+                      {
+                        field: 'formattedResolvedAt',
+                        headerName: 'Resolved At',
+                        width: 160,
+                        renderCell: (params) => (
+                          <Typography variant="body2" color="text.secondary">
+                            {params.value || 'N/A'}
+                          </Typography>
+                        ),
+                      }
+                    ]}
                     loading={loading}
                     pageSizeOptions={[10, 25, 50]}
                     initialState={{
@@ -750,10 +951,64 @@ export default function AlertsPage() {
                     sx={{
                       '& .MuiDataGrid-row': {
                         opacity: 0.7,
+                        backgroundColor: 'rgba(76, 175, 80, 0.05)',
+                      },
+                      '& .MuiDataGrid-cell': {
+                        color: 'text.secondary',
                       },
                     }}
                   />
                 </Paper>
+              )}
+
+              {tabValue === 2 && (
+                <>
+                  {processedIgnoredAlerts.length === 0 ? (
+                    <Box sx={{ p: 4, textAlign: 'center' }}>
+                      <Typography variant="h6" color="text.secondary" gutterBottom>
+                        🔕 No Ignored Alerts
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Alerts that have been superseded by newer alerts will appear here.
+                      </Typography>
+                    </Box>
+                  ) : (
+                    <Paper sx={{ height: 500, width: '100%' }}>
+                      <DataGrid
+                        rows={processedIgnoredAlerts}
+                        columns={[
+                          ...columns,
+                          {
+                            field: 'formattedIgnoredAt',
+                            headerName: 'Ignored At',
+                            width: 160,
+                            renderCell: (params) => (
+                              <Typography variant="body2" color="text.secondary">
+                                {params.value || 'N/A'}
+                              </Typography>
+                            ),
+                          }
+                        ]}
+                        loading={loading}
+                        pageSizeOptions={[10, 25, 50]}
+                        initialState={{
+                          pagination: { paginationModel: { pageSize: 25 } },
+                        }}
+                        disableRowSelectionOnClick
+                        onRowDoubleClick={(params: GridRowParams) => openAlertDialog(params.row as Alert)}
+                        sx={{
+                          '& .MuiDataGrid-row': {
+                            opacity: 0.6,
+                            backgroundColor: 'rgba(0, 0, 0, 0.02)',
+                          },
+                          '& .MuiDataGrid-cell': {
+                            color: 'text.secondary',
+                          },
+                        }}
+                      />
+                    </Paper>
+                  )}
+                </>
               )}
             </>
           )}
@@ -851,7 +1106,7 @@ export default function AlertsPage() {
               <Card 
                 variant="outlined" 
                 sx={{ 
-                  bgcolor: selectedAlert.effectiveInventory < selectedAlert.safetyStockThreshold 
+                  bgcolor: selectedAlert.currentInventory < selectedAlert.safetyStockThreshold 
                     ? 'error.light' 
                     : 'success.light',
                   mb: 3
@@ -860,22 +1115,22 @@ export default function AlertsPage() {
                 <CardContent sx={{ textAlign: 'center' }}>
                   <Typography variant="h3" sx={{ 
                     fontWeight: 'bold',
-                    color: selectedAlert.effectiveInventory < selectedAlert.safetyStockThreshold 
+                    color: selectedAlert.currentInventory < selectedAlert.safetyStockThreshold 
                       ? 'error.dark' 
                       : 'success.dark'
                   }}>
-                    {selectedAlert.effectiveInventory}
+                    {selectedAlert.currentInventory}
                   </Typography>
                   <Typography variant="h6" color="text.secondary">
-                    Effective Inventory
+                    Current Stock Level
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
-                    (Current + Pending - Used)
+                    Available for immediate use
                   </Typography>
                   <LinearProgress
                     variant="determinate"
-                    value={Math.min((selectedAlert.effectiveInventory / selectedAlert.safetyStockThreshold) * 100, 100)}
-                    color={selectedAlert.effectiveInventory < selectedAlert.safetyStockThreshold ? 'error' : 'success'}
+                    value={Math.min((selectedAlert.currentInventory / selectedAlert.safetyStockThreshold) * 100, 100)}
+                    color={selectedAlert.currentInventory < selectedAlert.safetyStockThreshold ? 'error' : 'success'}
                     sx={{ mt: 2, height: 8, borderRadius: 4 }}
                   />
                 </CardContent>
@@ -892,6 +1147,11 @@ export default function AlertsPage() {
                   {selectedAlert.resolved && selectedAlert.resolvedAt && (
                     <Typography variant="body2" color="text.secondary">
                       ✅ Resolved: {new Date(selectedAlert.resolvedAt).toLocaleString()}
+                    </Typography>
+                  )}
+                  {selectedAlert.ignored && selectedAlert.ignoredAt && (
+                    <Typography variant="body2" color="text.secondary">
+                      🔕 Ignored: {new Date(selectedAlert.ignoredAt).toLocaleString()}
                     </Typography>
                   )}
                 </Box>
@@ -916,9 +1176,9 @@ export default function AlertsPage() {
                   Mark as Resolved
                 </Button>
               )}
-              <Button variant="outlined" startIcon={<EmailIcon />}>
+              {/* <Button variant="outlined" startIcon={<EmailIcon />}>
                 Notify Team
-              </Button>
+              </Button> */}
               <Button onClick={() => setDialogOpen(false)}>
                 Close
               </Button>

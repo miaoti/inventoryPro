@@ -5,11 +5,14 @@ import com.inventory.dto.ItemResponse;
 import com.inventory.entity.Item;
 import com.inventory.repository.ItemRepository;
 import com.inventory.service.BarcodeService;
+import com.inventory.service.PurchaseOrderService;
+import com.inventory.dto.PurchaseOrderRequest;
 import com.inventory.entity.Item.ABCCategory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -34,6 +37,9 @@ public class ItemController {
     
     @Autowired
     private BarcodeService barcodeService;
+
+    @Autowired
+    private PurchaseOrderService purchaseOrderService;
 
     @GetMapping
     public List<ItemResponse> getAllItems() {
@@ -66,15 +72,10 @@ public class ItemController {
         item.setCode(request.getCode().trim().toUpperCase());
         item.setCurrentInventory(request.getQuantity() != null ? request.getQuantity() : 0);
         item.setSafetyStockThreshold(request.getMinQuantity() != null ? request.getMinQuantity() : 0);
+        item.setPendingPO(request.getPendingPO() != null ? request.getPendingPO() : 0);
         item.setLocation(request.getLocation());
         item.setEquipment(request.getEquipment());
         item.setCategory(request.getCategory() != null ? request.getCategory() : ABCCategory.C);
-        item.setStatus(request.getStatus());
-        item.setEstimatedConsumption(request.getEstimatedConsumption());
-        item.setRack(request.getRack());
-        item.setFloor(request.getFloor());
-        item.setArea(request.getArea());
-        item.setBin(request.getBin());
         item.setWeeklyData(request.getWeeklyData());
         
         // Generate barcode based on the provided code
@@ -85,7 +86,7 @@ public class ItemController {
     }
 
     @PostMapping("/import-csv")
-    public ResponseEntity<?> importItemsFromCSV(@RequestParam("file") MultipartFile file) {
+    public ResponseEntity<?> importItemsFromCSV(@RequestParam("file") MultipartFile file, Authentication authentication) {
         System.out.println("=== IMPORT DEBUG START ===");
         System.out.println("File received: " + (file != null ? "YES" : "NO"));
         
@@ -139,8 +140,30 @@ public class ItemController {
                     }
                     
                     item.setBarcode(generateBarcodeFromCode(item.getCode()));
+                    
+                    // Store the pending PO quantity before saving (since we'll reset it to 0)
+                    Integer pendingPOQuantity = item.getPendingPO();
+                    item.setPendingPO(0); // Reset to 0, will be calculated from actual POs
+                    
                     Item saved = itemRepository.save(item);
                     savedItems.add(saved);
+                    
+                    // Create PO if there was a pending PO quantity from import
+                    if (pendingPOQuantity != null && pendingPOQuantity > 0) {
+                        try {
+                            PurchaseOrderRequest poRequest = new PurchaseOrderRequest();
+                            poRequest.setItemId(saved.getId());
+                            poRequest.setQuantity(pendingPOQuantity);
+                            poRequest.setTrackingNumber("IMPORT-" + saved.getCode());
+                            
+                            String username = authentication != null ? authentication.getName() : "SYSTEM_IMPORT";
+                            purchaseOrderService.createPurchaseOrder(poRequest, username);
+                            System.out.println("Created PO for item " + saved.getCode() + " with quantity " + pendingPOQuantity);
+                        } catch (Exception poException) {
+                            System.out.println("Error creating PO for item " + saved.getCode() + ": " + poException.getMessage());
+                            errors.add("Error creating PO for item " + saved.getCode() + ": " + poException.getMessage());
+                        }
+                    }
                 } catch (Exception e) {
                     System.out.println("Error saving item " + item.getCode() + ": " + e.getMessage());
                     errors.add("Error saving item " + item.getCode() + ": " + e.getMessage());
@@ -229,15 +252,10 @@ public class ItemController {
         item.setCode(request.getCode().trim().toUpperCase());
         item.setCurrentInventory(request.getQuantity() != null ? request.getQuantity() : 0);
         item.setSafetyStockThreshold(request.getMinQuantity() != null ? request.getMinQuantity() : 0);
+        item.setPendingPO(request.getPendingPO() != null ? request.getPendingPO() : 0);
         item.setLocation(request.getLocation());
         item.setEquipment(request.getEquipment());
         item.setCategory(request.getCategory() != null ? request.getCategory() : ABCCategory.C);
-        item.setStatus(request.getStatus());
-        item.setEstimatedConsumption(request.getEstimatedConsumption());
-        item.setRack(request.getRack());
-        item.setFloor(request.getFloor());
-        item.setArea(request.getArea());
-        item.setBin(request.getBin());
         item.setWeeklyData(request.getWeeklyData());
         
         // Update barcode if code changed
@@ -415,8 +433,6 @@ public class ItemController {
             item.setCurrentInventory(currentInventory != null ? currentInventory : 0);
             item.setPendingPO(openPOnTheWay != null ? openPOnTheWay : 0);
             item.setSafetyStockThreshold(safetyStock != null ? safetyStock : 0);
-            item.setStatus("Active");
-            item.setEstimatedConsumption(0);
             item.setCategory(ABCCategory.C);
 
             // Handle weekly data columns - only parse actual week columns that exist
@@ -494,8 +510,6 @@ public class ItemController {
             item.setCurrentInventory(currentInventory != null ? currentInventory : 0);
             item.setPendingPO(openPOnTheWay != null ? openPOnTheWay : 0);
             item.setSafetyStockThreshold(safetyStock != null ? safetyStock : 0);
-            item.setStatus("Active");
-            item.setEstimatedConsumption(0);
             item.setCategory(ABCCategory.C);
 
             // Handle weekly data columns - only parse actual week columns that exist
@@ -752,13 +766,6 @@ public class ItemController {
         response.setLocation(item.getLocation());
         response.setEquipment(item.getEquipment());
         response.setCategory(item.getCategory());
-        response.setStatus(item.getStatus());
-        response.setEstimatedConsumption(item.getEstimatedConsumption());
-        response.setRack(item.getRack());
-        response.setFloor(item.getFloor());
-        response.setArea(item.getArea());
-        response.setBin(item.getBin());
-        response.setWeeklyData(item.getWeeklyData());
         response.setBarcode(item.getBarcode());
         response.setUsedInventory(usedInventory);
         response.setPendingPO(pendingPO);

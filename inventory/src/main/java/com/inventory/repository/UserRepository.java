@@ -18,4 +18,9 @@ public interface UserRepository extends JpaRepository<User, Long> {
      * Find all users who have daily digest enabled
      */
     List<User> findByEnableDailyDigestTrue();
+    
+    /**
+     * Count users by role
+     */
+    long countByRole(User.UserRole role);
 } 

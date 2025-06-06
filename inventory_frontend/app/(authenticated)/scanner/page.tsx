@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { useSelector } from 'react-redux';
+import type { RootState } from '../../store';
 import {
   Box,
   Paper,
@@ -23,6 +25,15 @@ import {
   MenuItem,
   FormControl,
   InputLabel,
+  List,
+  ListItem,
+  ListItemButton,
+  ListItemText,
+  InputAdornment,
+  Collapse,
+  Divider,
+  useTheme,
+  useMediaQuery,
 } from '@mui/material';
 import {
   QrCodeScanner as ScannerIcon,
@@ -32,9 +43,17 @@ import {
   FlashlightOn as FlashlightOnIcon,
   FlashlightOff as FlashlightOffIcon,
   Stop as StopIcon,
+  Search as SearchIcon,
+  Clear as ClearIcon,
+  ExpandMore as ExpandMoreIcon,
+  ExpandLess as ExpandLessIcon,
+  Edit as EditIcon,
+  ArrowBack as ArrowBackIcon,
 } from '@mui/icons-material';
 import { BrowserMultiFormatReader, BarcodeFormat, DecodeHintType } from '@zxing/library';
-import { barcodeAPI, itemsAPI } from '../../services/api';
+import { barcodeAPI, itemsAPI, purchaseOrderAPI } from '../../services/api';
+import { PurchaseOrder } from '../../types/purchaseOrder';
+// import { TrackingDisplay } from '../../../components/TrackingDisplay';
 
 interface ScannedItem {
   id: number;
@@ -48,16 +67,24 @@ interface ScannedItem {
   location?: string;
   equipment?: string;
   category?: 'A' | 'B' | 'C';
-  status?: string;
   barcode?: string;
   needsRestock?: boolean;
   availableQuantity: number;
   safetyStockThreshold?: number;
-  estimatedConsumption?: number;
-  rack?: string;
-  floor?: string;
-  area?: string;
-  bin?: string;
+}
+
+interface SearchResultItem {
+  id: number;
+  name: string;
+  code?: string;
+  description?: string;
+  englishDescription?: string;
+  location?: string;
+  equipment?: string;
+  category?: 'A' | 'B' | 'C';
+  barcode?: string;
+  currentInventory?: number;
+  score?: number;
 }
 
 interface UsageRecord {
@@ -69,9 +96,16 @@ interface UsageRecord {
 }
 
 export default function BarcodeScanner() {
+  const { user } = useSelector((state: RootState) => state.auth);
+  const theme = useTheme();
+  const isXsScreen = useMediaQuery(theme.breakpoints.down('sm'));
   const [isScanning, setIsScanning] = useState(false);
   const [scannedItem, setScannedItem] = useState<ScannedItem | null>(null);
   const [manualBarcode, setManualBarcode] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<SearchResultItem[]>([]);
+  const [showSearchResults, setShowSearchResults] = useState(false);
+  const [searchLoading, setSearchLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [cameraError, setCameraError] = useState('');
@@ -81,36 +115,261 @@ export default function BarcodeScanner() {
   const [department, setDepartment] = useState('');
   const [dNumber, setDNumber] = useState('');
   const [showUsageDialog, setShowUsageDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [showChoiceDialog, setShowChoiceDialog] = useState(false);
   const [usageHistory, setUsageHistory] = useState<UsageRecord[]>([]);
   const [tabValue, setTabValue] = useState(0);
   const [torchEnabled, setTorchEnabled] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [showAddQuantityOption, setShowAddQuantityOption] = useState(false);
   const [quantityToAdd, setQuantityToAdd] = useState(0);
+  const [quantityToAddToPO, setQuantityToAddToPO] = useState(0);
+  const [editCurrentQuantity, setEditCurrentQuantity] = useState(0);
+  const [editPendingPO, setEditPendingPO] = useState(0);
+  const [originalScannedCode, setOriginalScannedCode] = useState('');
+  
+  // New PO-related state
+  const [pendingPOs, setPendingPOs] = useState<PurchaseOrder[]>([]);
+  const [showPODialog, setShowPODialog] = useState(false);
+  const [showCreatePODialog, setShowCreatePODialog] = useState(false);
+  const [newPOQuantity, setNewPOQuantity] = useState(0);
+  const [newPOTrackingNumber, setNewPOTrackingNumber] = useState('');
+  
+  // New navigation state for better UX
+  const [currentView, setCurrentView] = useState<'main' | 'usage' | 'edit'>('main');
+  const [editTabValue, setEditTabValue] = useState(0);
+  
+  // PO editing state
+  const [showEditPODialog, setShowEditPODialog] = useState(false);
+  const [editingPO, setEditingPO] = useState<PurchaseOrder | null>(null);
+  const [editPOQuantity, setEditPOQuantity] = useState(0);
+  const [editPOTrackingNumber, setEditPOTrackingNumber] = useState('');
+  const [editPOOrderDate, setEditPOOrderDate] = useState('');
   
   const codeReaderRef = useRef<BrowserMultiFormatReader | null>(null);
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    // Check if user is admin (you might want to get this from auth context or JWT token)
-    const token = document.cookie.split(';').find(c => c.trim().startsWith('token='));
-    if (token) {
-      try {
-        // Simple check - in a real app, decode the JWT properly
-        const isAdminUser = userName.toLowerCase() === 'admin';
-        setIsAdmin(isAdminUser);
-      } catch (error) {
-        console.log('Error checking admin status:', error);
+    // Only use Redux store to determine admin status - no fallbacks for security
+    console.log('Checking admin/owner status for user:', userName);
+    console.log('User from Redux store:', user);
+    
+    // Only check from authenticated user in Redux store
+    if (user && user.role) {
+      const isAdminFromStore = user.role === 'ADMIN' || user.role === 'OWNER';
+      console.log('Is admin/owner from Redux store:', isAdminFromStore);
+      setIsAdmin(isAdminFromStore);
+      
+      // Auto-fill userName with user's full name
+      if (user.fullName) {
+        const fullName = `${user.fullName}`.trim();
+        console.log('Auto-filling userName with:', fullName);
+        setUserName(fullName);
+      } else if (user.email) {
+        // Fallback to email if no name is available
+        setUserName(user.email);
       }
+    } else {
+      console.log('❌ No authenticated user found in store');
+      setIsAdmin(false);
+      setUserName(''); // Clear userName if no user
     }
 
     return () => {
       stopScanning();
     };
-  }, [userName]);
+  }, [user]); // Removed userName dependency to avoid infinite loop
+
+  // Smart search with debouncing
+  useEffect(() => {
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    if (searchQuery.trim().length > 0) {
+      setSearchLoading(true);
+      searchTimeoutRef.current = setTimeout(() => {
+        performSearch(searchQuery);
+      }, 300); // 300ms debounce
+    } else {
+      setSearchResults([]);
+      setShowSearchResults(false);
+      setSearchLoading(false);
+    }
+
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, [searchQuery]);
+
+  // Smart search function
+  const performSearch = async (query: string) => {
+    try {
+      setSearchLoading(true);
+      setError('');
+      
+      // Get all items and perform client-side smart search
+      const response = await itemsAPI.getAll();
+      const items = (response as any)?.data || response || [];
+      
+      const searchResults = performSmartSearch(items, query);
+      setSearchResults(searchResults.slice(0, 10)); // Limit to top 10 results
+      setShowSearchResults(true);
+    } catch (error) {
+      console.error('Search error:', error);
+      setError('Failed to search items. Please try again.');
+      setSearchResults([]);
+    } finally {
+      setSearchLoading(false);
+    }
+  };
+
+  // Smart search algorithm (same as items page)
+  const performSmartSearch = (itemsList: any[], query: string): SearchResultItem[] => {
+    if (!query.trim()) return [];
+
+    const queryWords = query.toLowerCase().split(' ').filter(word => word.length > 0);
+    
+    const searchResults = itemsList.map(item => {
+      const searchableText = [
+        item.name || '',
+        item.description || '',
+        item.englishDescription || '',
+        item.code || '',
+        item.location || '',
+        item.equipment || '',
+        item.barcode || '',
+      ].join(' ').toLowerCase();
+
+      let score = 0;
+      let exactMatches = 0;
+      let partialMatches = 0;
+
+      queryWords.forEach(word => {
+        // Exact word match (highest priority)
+        if (searchableText.includes(` ${word} `) || searchableText.startsWith(`${word} `) || searchableText.endsWith(` ${word}`) || searchableText === word) {
+          score += 100;
+          exactMatches++;
+        }
+        // Partial word match (medium priority)
+        else if (searchableText.includes(word)) {
+          score += 50;
+          partialMatches++;
+        }
+        // Fuzzy match for single character differences (low priority)
+        else {
+          const words = searchableText.split(' ');
+          for (const textWord of words) {
+            if (calculateLevenshteinDistance(word, textWord) <= 1 && Math.min(word.length, textWord.length) > 2) {
+              score += 20;
+              partialMatches++;
+              break;
+            }
+          }
+        }
+      });
+
+      // Bonus for exact name matches
+      if (item.name?.toLowerCase().includes(query.toLowerCase())) {
+        score += 200;
+      }
+
+      // Bonus for code matches
+      if (item.code?.toLowerCase().includes(query.toLowerCase())) {
+        score += 150;
+      }
+
+      return { 
+        ...item,
+        score, 
+        exactMatches, 
+        partialMatches 
+      };
+    });
+
+    // Filter out items with no matches and sort by score
+    return searchResults
+      .filter(result => result.score > 0)
+      .sort((a, b) => {
+        // First by exact matches, then by score, then by name
+        if (a.exactMatches !== b.exactMatches) {
+          return b.exactMatches - a.exactMatches;
+        }
+        if (a.score !== b.score) {
+          return b.score - a.score;
+        }
+        return (a.name || '').localeCompare(b.name || '');
+      });
+  };
+
+  // Calculate Levenshtein distance for fuzzy matching
+  const calculateLevenshteinDistance = (str1: string, str2: string): number => {
+    const matrix = Array(str2.length + 1).fill(null).map(() => Array(str1.length + 1).fill(null));
+
+    for (let i = 0; i <= str1.length; i++) matrix[0][i] = i;
+    for (let j = 0; j <= str2.length; j++) matrix[j][0] = j;
+
+    for (let j = 1; j <= str2.length; j++) {
+      for (let i = 1; i <= str1.length; i++) {
+        const indicator = str1[i - 1] === str2[j - 1] ? 0 : 1;
+        matrix[j][i] = Math.min(
+          matrix[j][i - 1] + 1, // deletion
+          matrix[j - 1][i] + 1, // insertion
+          matrix[j - 1][i - 1] + indicator // substitution
+        );
+      }
+    }
+
+    return matrix[str2.length][str1.length];
+  };
+
+  const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchQuery(event.target.value);
+  };
+
+  const clearSearch = () => {
+    setSearchQuery('');
+    setSearchResults([]);
+    setShowSearchResults(false);
+  };
+
+  const handleSearchResultClick = async (item: SearchResultItem) => {
+    try {
+      setError('');
+      setSuccess('');
+      
+      // Use the barcode to get full item details like when scanning
+      const response = await barcodeAPI.scanBarcode(item.barcode || item.code || item.id.toString());
+      const itemData = (response as any)?.data || response;
+      
+      setScannedItem(itemData);
+      setOriginalScannedCode(item.barcode || item.code || item.id.toString());
+      
+      // Fetch usage history for this item
+      if (itemData.id) {
+        await fetchUsageHistory(itemData.id);
+      }
+      
+      // Show choice dialog for admin, usage dialog for regular users
+      if (isAdmin) {
+        setShowChoiceDialog(true);
+      } else {
+        setShowUsageDialog(true);
+      }
+      
+      // Clear search
+      clearSearch();
+    } catch (error: any) {
+      console.error('Error getting item details:', error);
+      setError(error.response?.data?.message || 'Item not found or barcode not configured');
+    }
+  };
 
   const startScanning = async () => {
     if (!userName.trim()) {
-      setError('Please enter your name before scanning');
+      setError('User name not loaded. Please refresh the page.');
       return;
     }
 
@@ -196,14 +455,25 @@ export default function BarcodeScanner() {
       setSuccess('');
       
       const response = await barcodeAPI.scanBarcode(barcode);
-      const itemData = response.data;
+      const itemData = (response as any)?.data || response;
       
       setScannedItem(itemData);
-      setShowUsageDialog(true);
+      setOriginalScannedCode(barcode);
       
       // Fetch usage history for this item
       if (itemData.id) {
         await fetchUsageHistory(itemData.id);
+        // Also fetch pending POs for admin users
+        if (isAdmin) {
+          await fetchPendingPOs(itemData.id);
+        }
+      }
+      
+      // Show choice dialog for admin, usage dialog for regular users
+      if (isAdmin) {
+        setShowChoiceDialog(true);
+      } else {
+        setShowUsageDialog(true);
       }
       
     } catch (error: any) {
@@ -213,6 +483,8 @@ export default function BarcodeScanner() {
       } else {
         setError('Error scanning barcode. Please try again.');
       }
+      // Clear the original scanned code on error
+      setOriginalScannedCode('');
     }
   };
 
@@ -236,14 +508,23 @@ export default function BarcodeScanner() {
   };
 
   const recordUsage = async () => {
+    // Add debug logging for validation
+    console.log('=== VALIDATION DEBUG ===');
+    console.log('dNumber state before validation:', dNumber);
+    console.log('dNumber.trim() result:', dNumber.trim());
+    console.log('dNumber.trim() length:', dNumber.trim().length);
+    console.log('!dNumber.trim():', !dNumber.trim());
+    console.log('========================');
+    
     if (!scannedItem || !userName.trim() || !department.trim() || !dNumber.trim()) {
       setError('Missing required information (name, department, and D number)');
       return;
     }
 
-    // Validate that quantity to use doesn't exceed available quantity
-    if (quantityToUse > scannedItem.availableQuantity) {
-      setError(`Cannot use ${quantityToUse} units. Only ${scannedItem.availableQuantity} units are available.`);
+    // Validate that quantity to use doesn't exceed current inventory (not available quantity)
+    const currentInventory = scannedItem.currentInventory || 0;
+    if (quantityToUse > currentInventory) {
+      setError(`Cannot use ${quantityToUse} units. Only ${currentInventory} units are currently available in inventory. (Note: Pending PO quantities cannot be used until received)`);
       return;
     }
 
@@ -254,13 +535,25 @@ export default function BarcodeScanner() {
 
     try {
       const usageData = {
-        barcode: scannedItem.barcode || '',
+        barcode: originalScannedCode,
         userName: userName.trim(),
         quantityUsed: quantityToUse,
         notes: notes.trim(),
         department: department.trim(),
         dNumber: dNumber.trim() // Include D number as separate field
       };
+
+      // Add detailed frontend debug logging
+      console.log('=== FRONTEND USAGE DATA DEBUG ===');
+      console.log('dNumber state value:', dNumber);
+      console.log('dNumber after trim:', dNumber.trim());
+      console.log('dNumber type:', typeof dNumber);
+      console.log('dNumber === null:', dNumber === null);
+      console.log('dNumber === "null":', dNumber === 'null');
+      console.log('dNumber length:', dNumber.length);
+      console.log('Complete usageData object:', usageData);
+      console.log('JSON.stringify(usageData):', JSON.stringify(usageData));
+      console.log('================================');
 
       const response = await barcodeAPI.recordUsage(usageData);
       
@@ -273,10 +566,25 @@ export default function BarcodeScanner() {
       setDNumber('');
       setError(''); // Clear any previous errors
       
-      // Refresh usage history
-      fetchUsageHistory(scannedItem.id);
+      // Refresh the item data to show updated quantities and check for alerts
+      try {
+        const refreshResponse = await barcodeAPI.scanBarcode(originalScannedCode);
+        const refreshData = (refreshResponse as any)?.data || refreshResponse;
+        setScannedItem(refreshData);
+      } catch (refreshError) {
+        console.error('Error refreshing item data:', refreshError);
+      }
+      
     } catch (err: any) {
-      const errorMsg = err.message || 'Error recording usage';
+      // Extract error message from the response
+      let errorMsg = 'Error recording usage';
+      if (err.response?.data?.error) {
+        errorMsg = err.response.data.error;
+      } else if (err.response?.data?.message) {
+        errorMsg = err.response.data.message;
+      } else if (err.message) {
+        errorMsg = err.message;
+      }
       setError(errorMsg);
     }
   };
@@ -287,39 +595,293 @@ export default function BarcodeScanner() {
 
   const addQuantityToItem = async () => {
     if (!scannedItem || quantityToAdd <= 0) {
-      setError('Please enter a valid quantity to add');
+      setError('Please enter a valid quantity');
       return;
     }
 
     try {
-      const currentInventory = scannedItem.currentInventory || 0;
-      const newQuantity = currentInventory + quantityToAdd;
-      const response = await itemsAPI.update(scannedItem.id, {
+      const newQuantity = (scannedItem.currentInventory || 0) + quantityToAdd;
+      
+      await itemsAPI.update(scannedItem.id, {
         name: scannedItem.name || '',
-        code: scannedItem.code || '',
         description: scannedItem.description || '',
-        location: scannedItem.location || '',
+        englishDescription: scannedItem.englishDescription || '',
+        code: scannedItem.code || '',
         quantity: newQuantity,
         minQuantity: scannedItem.safetyStockThreshold || 0,
+        pendingPO: scannedItem.pendingPO || 0,
+        location: scannedItem.location || '',
+        equipment: scannedItem.equipment || '',
         category: scannedItem.category || 'C',
+        weeklyData: '',
       });
 
-      setSuccess(`Successfully added ${quantityToAdd} units to ${scannedItem.name}`);
-      setQuantityToAdd(0);
+      setSuccess(`Added ${quantityToAdd} units to ${scannedItem.name}. New quantity: ${newQuantity}`);
       
-      // Update scanned item data with new quantities
-      const newAvailableQuantity = newQuantity + (scannedItem.pendingPO || 0);
+      // Update the scanned item state
       setScannedItem({
         ...scannedItem,
         currentInventory: newQuantity,
-        availableQuantity: Math.max(0, newAvailableQuantity)
+        availableQuantity: newQuantity,
       });
       
-      // Clear the error if there was one
-      setError('');
+      setQuantityToAdd(0);
+      setShowAddQuantityOption(false);
     } catch (error) {
       console.error('Error adding quantity:', error);
-      setError('Error adding quantity to item');
+      setError('Failed to add quantity. Please try again.');
+    }
+  };
+
+  // Fetch pending POs for an item
+  const fetchPendingPOs = async (itemId: number) => {
+    try {
+      const response = await purchaseOrderAPI.getPendingByItem(itemId);
+      const responseData = (response as any)?.data || response || [];
+      setPendingPOs(Array.isArray(responseData) ? responseData : []);
+    } catch (error) {
+      console.error('Error fetching pending POs:', error);
+      setPendingPOs([]);
+    }
+  };
+
+  // Create a new purchase order
+  const createPurchaseOrder = async () => {
+    if (!scannedItem || newPOQuantity <= 0) {
+      setError('Please enter a valid PO quantity');
+      return;
+    }
+
+    try {
+      const response = await barcodeAPI.createPurchaseOrder(scannedItem.barcode || '', {
+        quantity: newPOQuantity,
+        trackingNumber: newPOTrackingNumber || undefined,
+      });
+
+      setSuccess(`Created Purchase Order for ${newPOQuantity} units of ${scannedItem.name}`);
+      
+      // Update the scanned item state with new pending PO total
+      const responseData = (response as any)?.data || response || {};
+      if (responseData.item) {
+        setScannedItem({
+          ...scannedItem,
+          pendingPO: responseData.item.pendingPO,
+        });
+      }
+      
+      // Refresh pending POs list
+      await fetchPendingPOs(scannedItem.id);
+      
+      setNewPOQuantity(0);
+      setNewPOTrackingNumber('');
+    } catch (error) {
+      console.error('Error creating PO:', error);
+      setError('Failed to create Purchase Order. Please try again.');
+    }
+  };
+
+  const handleEditPO = (po: PurchaseOrder) => {
+    setEditingPO(po);
+    setEditPOQuantity(po.quantity);
+    setEditPOTrackingNumber(po.trackingNumber || '');
+    setEditPOOrderDate(po.orderDate.split('T')[0]); // Format for date input
+    setShowEditPODialog(true);
+  };
+
+  const updatePurchaseOrder = async () => {
+    if (!editingPO || !scannedItem) return;
+
+    try {
+      await purchaseOrderAPI.update(scannedItem.id, editingPO.id, {
+        quantity: editPOQuantity,
+        trackingNumber: editPOTrackingNumber,
+        orderDate: editPOOrderDate ? `${editPOOrderDate}T00:00:00` : undefined,
+      });
+
+      await fetchPendingPOs(scannedItem.id);
+      setSuccess('Purchase order updated successfully!');
+      setShowEditPODialog(false);
+      setEditingPO(null);
+      // Reset form
+      setEditPOQuantity(0);
+      setEditPOTrackingNumber('');
+      setEditPOOrderDate('');
+    } catch (error) {
+      console.error('Error updating purchase order:', error);
+      setError('Failed to update purchase order');
+    }
+  };
+
+  // Mark a purchase order as arrived
+  const markPOAsArrived = async (purchaseOrderId: number) => {
+    try {
+      const response = await barcodeAPI.markPurchaseOrderAsArrived(purchaseOrderId);
+      const responseData = (response as any)?.data || response || {};
+      
+      setSuccess(`Purchase Order marked as arrived. Added ${responseData.arrivedQuantity || 0} units to inventory.`);
+      
+      // Update the scanned item state
+      if (responseData.item && scannedItem) {
+        setScannedItem({
+          ...scannedItem,
+          currentInventory: responseData.item.currentInventory,
+          pendingPO: responseData.item.pendingPO,
+          availableQuantity: responseData.item.currentInventory,
+        });
+      }
+      
+      // Refresh pending POs list
+      await fetchPendingPOs(scannedItem!.id);
+    } catch (error) {
+      console.error('Error marking PO as arrived:', error);
+      setError('Failed to mark Purchase Order as arrived. Please try again.');
+    }
+  };
+
+  // Legacy function for backward compatibility
+  const addQuantityToPO = async () => {
+    if (!scannedItem || quantityToAddToPO <= 0) {
+      setError('Please enter a valid PO quantity');
+      return;
+    }
+
+    try {
+      const response = await barcodeAPI.createPurchaseOrder(scannedItem.barcode || '', {
+        quantity: quantityToAddToPO,
+      });
+
+      setSuccess(`Created Purchase Order for ${quantityToAddToPO} units of ${scannedItem.name}`);
+      
+      // Update the scanned item state
+      const responseData = (response as any)?.data || response || {};
+      if (responseData.item) {
+      setScannedItem({
+        ...scannedItem,
+          pendingPO: responseData.item.pendingPO,
+      });
+      }
+      
+      setQuantityToAddToPO(0);
+      setShowAddQuantityOption(false);
+    } catch (error) {
+      console.error('Error adding PO quantity:', error);
+      setError('Failed to add PO quantity. Please try again.');
+    }
+  };
+
+  const closeUsageDialog = () => {
+    setShowUsageDialog(false);
+    setShowEditDialog(false);
+    setShowChoiceDialog(false);
+    setShowPODialog(false);
+    setShowCreatePODialog(false);
+    setScannedItem(null);
+    setOriginalScannedCode('');
+    setQuantityToUse(1);
+    setNotes('');
+    setDepartment('');
+    setDNumber('');
+    setError('');
+    setSuccess('');
+    setUsageHistory([]);
+    setQuantityToAdd(0);
+    setQuantityToAddToPO(0);
+    setEditCurrentQuantity(0);
+    setEditPendingPO(0);
+    setPendingPOs([]);
+    setNewPOQuantity(0);
+    setNewPOTrackingNumber('');
+  };
+
+  const handleChoiceUsage = () => {
+    setShowChoiceDialog(false);
+    setCurrentView('usage');
+    setShowUsageDialog(true);
+  };
+
+  const handleChoiceEdit = () => {
+    setShowChoiceDialog(false);
+    setCurrentView('edit');
+    openEditDialog();
+  };
+
+  const handleGoBack = () => {
+    if (currentView === 'usage' || currentView === 'edit') {
+      // Go back to the item card view
+      setCurrentView('main');
+      setShowUsageDialog(false);
+      setShowEditDialog(false);
+      setShowPODialog(false);
+      setShowCreatePODialog(false);
+      setEditTabValue(0);
+      setError('');
+      setSuccess('');
+      // Keep the scannedItem and show the choice dialog again
+      if (scannedItem) {
+        setShowChoiceDialog(true);
+      }
+    } else {
+      // Close everything and go back to scanner
+      closeUsageDialog();
+    }
+  };
+
+  const openEditDialog = () => {
+    if (scannedItem) {
+      setEditCurrentQuantity(scannedItem.currentInventory || 0);
+      setEditPendingPO(scannedItem.pendingPO || 0);
+      fetchPendingPOs(scannedItem.id);
+      setShowUsageDialog(false);
+      setShowEditDialog(true);
+    }
+  };
+
+  const closeEditDialog = () => {
+    setShowEditDialog(false);
+    setEditCurrentQuantity(0);
+    setEditPendingPO(0);
+    setEditTabValue(0);
+    setNewPOQuantity(0);
+    setNewPOTrackingNumber('');
+    setError('');
+    setSuccess('');
+  };
+
+  const saveItemEdits = async () => {
+    if (!scannedItem) {
+      setError('No item selected for editing');
+      return;
+    }
+
+    try {
+      await itemsAPI.update(scannedItem.id, {
+        name: scannedItem.name || '',
+        description: scannedItem.description || '',
+        englishDescription: scannedItem.englishDescription || '',
+        code: scannedItem.code || '',
+        quantity: editCurrentQuantity,
+        minQuantity: scannedItem.safetyStockThreshold || 0,
+        pendingPO: editPendingPO,
+        location: scannedItem.location || '',
+        equipment: scannedItem.equipment || '',
+        category: scannedItem.category || 'C',
+        weeklyData: '',
+      });
+
+      setSuccess(`Successfully updated ${scannedItem.name}. Current: ${editCurrentQuantity}, PO: ${editPendingPO}`);
+      
+      // Update the scanned item state
+      setScannedItem({
+        ...scannedItem,
+        currentInventory: editCurrentQuantity,
+        pendingPO: editPendingPO,
+        availableQuantity: editCurrentQuantity + editPendingPO,
+      });
+      
+      closeEditDialog();
+    } catch (error) {
+      console.error('Error updating item:', error);
+      setError('Failed to update item. Please try again.');
     }
   };
 
@@ -329,33 +891,165 @@ export default function BarcodeScanner() {
         Barcode Scanner - Item Usage Tracker
       </Typography>
 
-      {/* User Name Input */}
+      {/* User Name Display (Auto-filled from Account) */}
       <Card sx={{ mb: 3 }}>
         <CardContent>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
             <PersonIcon color="primary" />
             <TextField
-              label="Your Name"
+              label="Logged in as"
               value={userName}
-              onChange={(e) => setUserName(e.target.value)}
-              placeholder="Enter your name to track usage"
+              placeholder="Loading user name..."
               size="small"
-              sx={{ flexGrow: 1 }}
-              required
-            />
-            <Button
-              variant="outlined"
-              size="small"
-              onClick={() => {
-                setUserName('');
+              sx={{ 
+                flexGrow: 1,
+                '& .MuiInputBase-input': {
+                  color: 'text.primary',
+                  fontWeight: 500
+                }
               }}
-              disabled={!userName}
-            >
-              Clear
-            </Button>
+              InputProps={{
+                readOnly: true,
+              }}
+              variant="filled"
+            />
+            {isAdmin && (
+              <Chip 
+                label="ADMIN" 
+                color="error" 
+                size="small" 
+                sx={{ fontWeight: 'bold' }}
+              />
+            )}
           </Box>
           <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-            Your name will be recorded with each item usage for tracking purposes.
+            Your name is automatically set from your account and will be recorded with each item usage for tracking purposes.
+            {isAdmin && (
+              <span style={{ color: '#d32f2f', fontWeight: 'bold' }}> (Admin privileges active)</span>
+            )}
+          </Typography>
+        </CardContent>
+      </Card>
+
+      {/* Smart Search */}
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+            <SearchIcon color="primary" />
+            <Typography variant="h6">Search Items</Typography>
+          </Box>
+          
+          <TextField
+            fullWidth
+            variant="outlined"
+            placeholder="Search items by name, code, description... (e.g., 'white belt', 'B001')"
+            value={searchQuery}
+            onChange={handleSearchChange}
+            size="small"
+            disabled={!userName.trim()}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon color="action" />
+                </InputAdornment>
+              ),
+              endAdornment: searchQuery && (
+                <InputAdornment position="end">
+                  <IconButton onClick={clearSearch} size="small" edge="end">
+                    <ClearIcon />
+                  </IconButton>
+                </InputAdornment>
+              ),
+            }}
+            sx={{ mb: 1 }}
+          />
+
+          {searchQuery && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+              <Typography variant="body2" color="text.secondary">
+                {searchLoading ? 'Searching...' : `Found ${searchResults.length} result${searchResults.length !== 1 ? 's' : ''}`}
+              </Typography>
+              <IconButton 
+                size="small" 
+                onClick={() => setShowSearchResults(!showSearchResults)}
+                disabled={searchResults.length === 0}
+              >
+                {showSearchResults ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+              </IconButton>
+            </Box>
+          )}
+
+          <Collapse in={showSearchResults && searchResults.length > 0}>
+            <Paper variant="outlined" sx={{ maxHeight: 300, overflow: 'auto' }}>
+              <List dense>
+                {searchResults.map((item, index) => (
+                  <Box key={item.id}>
+                    <ListItemButton
+                      onClick={() => handleSearchResultClick(item)}
+                      sx={{
+                        py: 1,
+                        '&:hover': {
+                          backgroundColor: 'primary.light',
+                          color: 'white',
+                        }
+                      }}
+                    >
+                      <ListItemText
+                        primary={
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Typography variant="subtitle2" component="span">
+                              {item.name}
+                            </Typography>
+                            {item.code && (
+                              <Chip 
+                                label={item.code} 
+                                size="small" 
+                                variant="outlined"
+                                sx={{ fontSize: '0.7rem' }}
+                              />
+                            )}
+                            {item.category && (
+                              <Chip 
+                                label={`Cat ${item.category}`}
+                                size="small"
+                                color={item.category === 'A' ? 'error' : item.category === 'B' ? 'warning' : 'success'}
+                                sx={{ fontSize: '0.7rem' }}
+                              />
+                            )}
+                          </Box>
+                        }
+                        secondary={
+                          <Box>
+                            {item.description && (
+                              <Typography variant="body2" color="text.secondary" noWrap>
+                                {item.description}
+                              </Typography>
+                            )}
+                            <Box sx={{ display: 'flex', gap: 2, mt: 0.5 }}>
+                              {item.location && (
+                                <Typography variant="caption" color="text.secondary">
+                                  📍 {item.location}
+                                </Typography>
+                              )}
+                              {item.currentInventory !== undefined && (
+                                <Typography variant="caption" color="text.secondary">
+                                  📦 Stock: {item.currentInventory}
+                                </Typography>
+                              )}
+                            </Box>
+                          </Box>
+                        }
+                      />
+                    </ListItemButton>
+                    {index < searchResults.length - 1 && <Divider />}
+                  </Box>
+                ))}
+              </List>
+            </Paper>
+          </Collapse>
+
+          <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+            Click on any search result to view item details and record usage, just like scanning a barcode.
           </Typography>
         </CardContent>
       </Card>
@@ -405,7 +1099,7 @@ export default function BarcodeScanner() {
             )}
           </Box>
 
-          {/* Manual Entry */}
+          {/* Manual Entry
           <Box>
             <Typography variant="h6" gutterBottom>
               Manual Entry
@@ -430,7 +1124,7 @@ export default function BarcodeScanner() {
                 Scan
               </Button>
             </Box>
-          </Box>
+          </Box> */}
         </Box>
       </Paper>
 
@@ -456,18 +1150,31 @@ export default function BarcodeScanner() {
       {/* Usage Dialog */}
       <Dialog 
         open={showUsageDialog} 
-        onClose={() => { 
-          setShowUsageDialog(false); 
-          setSuccess(''); 
-          setError(''); 
-        }} 
+        onClose={closeUsageDialog} 
         maxWidth="md" 
         fullWidth
+        fullScreen={isXsScreen} // Full screen on mobile
+        PaperProps={{
+          sx: {
+            margin: { xs: 1, sm: 2 }, // Reduced margin on mobile
+            maxHeight: { xs: '95vh', sm: '90vh' }, // Better height management
+          }
+        }}
       >
         <DialogTitle>
-          Record Item Usage
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1 }}>
+            <Typography variant="h6" sx={{ fontSize: { xs: '1.1rem', sm: '1.25rem' } }}>Record Item Usage</Typography>
+            <Button 
+              variant="outlined" 
+              size="small" 
+              onClick={handleGoBack}
+              sx={{ minWidth: 'auto', fontSize: { xs: '0.8rem', sm: '0.875rem' } }}
+            >
+              ← Back
+            </Button>
+          </Box>
         </DialogTitle>
-        <DialogContent>
+        <DialogContent sx={{ px: { xs: 1, sm: 3 } }}>
           {/* Dialog-specific Success Message */}
           {success && (
             <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess('')}>
@@ -484,9 +1191,17 @@ export default function BarcodeScanner() {
           {scannedItem && (
             <Box>
               <Card sx={{ mb: 3 }}>
-                <CardContent>
-                  <Typography variant="h6">{scannedItem.name || 'Unknown Item'}</Typography>
-                  <Grid container spacing={2} sx={{ mt: 1 }}>
+                <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
+                  <Typography variant="h6" sx={{ 
+                    fontSize: { xs: '1.1rem', sm: '1.25rem' },
+                    mb: 2,
+                    wordBreak: 'break-word'
+                  }}>
+                    {scannedItem.name || 'Unknown Item'}
+                  </Typography>
+                  
+                  {/* Mobile-first responsive grid */}
+                  <Grid container spacing={{ xs: 1, sm: 2 }} sx={{ mt: 1 }}>
                     {/* 
                       Display fields are controlled by Admin Settings -> Item Display Configuration
                       The backend only returns fields that are configured to be shown.
@@ -494,108 +1209,107 @@ export default function BarcodeScanner() {
                     */}
                     {scannedItem.code && (
                       <Grid item xs={12} sm={6}>
-                        <Typography variant="body2" color="text.secondary">
+                        <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' } }}>
                           <strong>Code:</strong> {scannedItem.code}
                         </Typography>
                       </Grid>
                     )}
                     {scannedItem.location && (
                       <Grid item xs={12} sm={6}>
-                        <Typography variant="body2" color="text.secondary">
+                        <Typography variant="body2" color="text.secondary" sx={{ 
+                          fontSize: { xs: '0.8rem', sm: '0.875rem' },
+                          wordBreak: 'break-word'
+                        }}>
                           <strong>Location:</strong> {scannedItem.location}
                         </Typography>
                       </Grid>
                     )}
                     {scannedItem.description && (
                       <Grid item xs={12}>
-                        <Typography variant="body2" color="text.secondary">
+                        <Typography variant="body2" color="text.secondary" sx={{ 
+                          fontSize: { xs: '0.8rem', sm: '0.875rem' },
+                          wordBreak: 'break-word'
+                        }}>
                           <strong>Description:</strong> {scannedItem.description}
                         </Typography>
                       </Grid>
                     )}
                     {scannedItem.englishDescription && (
                       <Grid item xs={12}>
-                        <Typography variant="body2" color="text.secondary">
+                        <Typography variant="body2" color="text.secondary" sx={{ 
+                          fontSize: { xs: '0.8rem', sm: '0.875rem' },
+                          wordBreak: 'break-word'
+                        }}>
                           <strong>English Description:</strong> {scannedItem.englishDescription}
                         </Typography>
                       </Grid>
                     )}
                     {scannedItem.equipment && (
                       <Grid item xs={12} sm={6}>
-                        <Typography variant="body2" color="text.secondary">
+                        <Typography variant="body2" color="text.secondary" sx={{ 
+                          fontSize: { xs: '0.8rem', sm: '0.875rem' },
+                          wordBreak: 'break-word'
+                        }}>
                           <strong>Equipment:</strong> {scannedItem.equipment}
                         </Typography>
                       </Grid>
                     )}
                     {scannedItem.category && (
                       <Grid item xs={12} sm={6}>
-                        <Typography variant="body2" color="text.secondary">
-                          <strong>Category:</strong> 
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                          <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' } }}>
+                            <strong>Category:</strong>
+                          </Typography>
                           <Chip 
                             label={scannedItem.category} 
                             size="small"
                             color={scannedItem.category === 'A' ? 'error' : 
                                    scannedItem.category === 'B' ? 'warning' : 'success'}
-                            sx={{ ml: 1 }}
+                            sx={{ fontSize: { xs: '0.7rem', sm: '0.75rem' } }}
                           />
-                        </Typography>
-                      </Grid>
-                    )}
-                    {scannedItem.status && (
-                      <Grid item xs={12} sm={6}>
-                        <Typography variant="body2" color="text.secondary">
-                          <strong>Status:</strong> {scannedItem.status}
-                        </Typography>
+                        </Box>
                       </Grid>
                     )}
                     {scannedItem.currentInventory !== undefined && (
                       <Grid item xs={12} sm={6}>
-                        <Typography variant="body2" color="text.secondary">
+                        <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' } }}>
                           <strong>Current Inventory:</strong> {scannedItem.currentInventory}
                         </Typography>
                       </Grid>
                     )}
                     {scannedItem.safetyStockThreshold !== undefined && (
                       <Grid item xs={12} sm={6}>
-                        <Typography variant="body2" color="text.secondary">
+                        <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' } }}>
                           <strong>Safety Stock:</strong> {scannedItem.safetyStockThreshold}
                         </Typography>
                       </Grid>
                     )}
-                    {scannedItem.estimatedConsumption !== undefined && (
+                    {scannedItem.pendingPO !== undefined && (
                       <Grid item xs={12} sm={6}>
-                        <Typography variant="body2" color="text.secondary">
-                          <strong>Estimated Consumption:</strong> {scannedItem.estimatedConsumption}
-                        </Typography>
-                      </Grid>
-                    )}
-                    {(scannedItem.rack || scannedItem.floor || scannedItem.area || scannedItem.bin) && (
-                      <Grid item xs={12}>
-                        <Typography variant="body2" color="text.secondary">
-                          <strong>Location Details:</strong> 
-                          {scannedItem.rack && ` Rack: ${scannedItem.rack}`}
-                          {scannedItem.floor && ` Floor: ${scannedItem.floor}`}
-                          {scannedItem.area && ` Area: ${scannedItem.area}`}
-                          {scannedItem.bin && ` Bin: ${scannedItem.bin}`}
+                        <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' } }}>
+                          <strong>Pending PO:</strong> {scannedItem.pendingPO}
                         </Typography>
                       </Grid>
                     )}
                     {scannedItem.barcode && (
                       <Grid item xs={12}>
-                        <Typography variant="body2" color="text.secondary">
+                        <Typography variant="body2" color="text.secondary" sx={{ 
+                          fontSize: { xs: '0.8rem', sm: '0.875rem' },
+                          wordBreak: 'break-all' // Force break for long barcodes
+                        }}>
                           <strong>Barcode:</strong> {scannedItem.barcode}
                         </Typography>
                       </Grid>
                     )}
                   </Grid>
                   
-                  <Box sx={{ display: 'flex', gap: 2, mt: 2 }}>
+                  {/* <Box sx={{ display: 'flex', gap: 2, mt: 2 }}>
                     <Chip 
                       icon={<InventoryIcon />}
-                      label={`Available: ${scannedItem.availableQuantity}`}
+                      label={`Available: ${scannedItem.currentInventory}`}
                       color={scannedItem.availableQuantity > 0 ? 'success' : 'error'}
                     />
-                  </Box>
+                  </Box> */}
                 </CardContent>
               </Card>
 
@@ -605,11 +1319,12 @@ export default function BarcodeScanner() {
                   type="number"
                   value={quantityToUse}
                   onChange={(e) => setQuantityToUse(Math.max(1, parseInt(e.target.value) || 1))}
-                  inputProps={{ min: 1, max: scannedItem.availableQuantity }}
+                  inputProps={{ min: 1, max: scannedItem.currentInventory }}
                   size="small"
+                  fullWidth
                 />
                 
-                <FormControl size="small" required>
+                <FormControl size="small" required fullWidth>
                   <InputLabel>Department</InputLabel>
                   <Select
                     value={department}
@@ -632,6 +1347,7 @@ export default function BarcodeScanner() {
                   placeholder="e.g., D001, D123"
                   size="small"
                   required
+                  fullWidth
                 />
                 
                 <TextField
@@ -641,91 +1357,881 @@ export default function BarcodeScanner() {
                   multiline
                   rows={2}
                   size="small"
+                  fullWidth
                 />
-
-                {/* Admin-only Add Quantity Section */}
-                {isAdmin && (
-                  <Paper sx={{ p: 2, bgcolor: 'success.light', borderRadius: 1 }}>
-                    <Typography variant="subtitle2" gutterBottom color="success.dark">
-                      Admin: Add Inventory Quantity
-                    </Typography>
-                    <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-                      <TextField
-                        label="Quantity to Add"
-                        type="number"
-                        value={quantityToAdd}
-                        onChange={(e) => setQuantityToAdd(Math.max(0, parseInt(e.target.value) || 0))}
-                        inputProps={{ min: 0 }}
-                        size="small"
-                        sx={{ flexGrow: 1 }}
-                      />
-                      <Button 
-                        variant="contained" 
-                        color="success" 
-                        onClick={addQuantityToItem}
-                        disabled={quantityToAdd <= 0}
-                      >
-                        Add Stock
-                      </Button>
-                    </Box>
-                  </Paper>
-                )}
-
-                {/* Usage History */}
-                <Paper sx={{ p: 2 }}>
-                  <Typography variant="subtitle2" gutterBottom>
-                    <HistoryIcon sx={{ verticalAlign: 'middle', mr: 1 }} />
-                    Recent Usage History
-                  </Typography>
-                  {usageHistory.length > 0 ? (
-                    <Box sx={{ maxHeight: 200, overflow: 'auto' }}>
-                      {usageHistory.map((usage) => (
-                        <Box key={usage.id} sx={{ display: 'flex', justifyContent: 'space-between', py: 1, borderBottom: '1px solid #eee' }}>
-                          <Box>
-                            <Typography variant="body2">{usage.userName}</Typography>
-                            <Typography variant="caption" color="text.secondary">
-                              {formatDate(usage.usedAt)}
-                            </Typography>
-                          </Box>
-                          <Typography variant="body2">
-                            {usage.quantityUsed} units
-                          </Typography>
-                        </Box>
-                      ))}
-                    </Box>
-                  ) : (
-                    <Typography variant="body2" color="text.secondary">
-                      No recent usage records
-                    </Typography>
-                  )}
-                </Paper>
               </Box>
             </Box>
           )}
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setShowUsageDialog(false)}>
+        <DialogActions sx={{ p: { xs: 2, sm: 3 }, flexDirection: { xs: 'column', sm: 'row' }, gap: 1 }}>
+          <Button onClick={closeUsageDialog} fullWidth sx={{ order: { xs: 2, sm: 1 } }}>
             Close
           </Button>
           <Button 
             onClick={recordUsage} 
             variant="contained"
-            disabled={!userName.trim() || !department.trim() || !dNumber.trim() || quantityToUse <= 0 || (scannedItem ? quantityToUse > scannedItem.availableQuantity : false)}
+            disabled={!userName.trim() || !department.trim() || !dNumber.trim() || quantityToUse <= 0 || (scannedItem ? quantityToUse > (scannedItem.currentInventory || 0) : false)}
+            fullWidth
+            sx={{ order: { xs: 1, sm: 2 } }}
           >
             Record Usage
           </Button>
-          {isAdmin && (
-            <Button 
-              onClick={addQuantityToItem}
-              variant="contained"
-              color="success"
-              disabled={quantityToAdd <= 0}
-            >
-              Add Stock
-            </Button>
-          )}
         </DialogActions>
       </Dialog>
+
+      {/* Admin Choice Dialog */}
+      <Dialog 
+        open={showChoiceDialog} 
+        onClose={closeUsageDialog} 
+        maxWidth="sm" 
+        fullWidth
+        fullScreen={isXsScreen} // Full screen on mobile
+        PaperProps={{
+          sx: {
+            margin: { xs: 1, sm: 2 },
+            maxHeight: { xs: '95vh', sm: '90vh' },
+          }
+        }}
+      >
+        <DialogTitle>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+            <Typography variant="h6" sx={{ fontSize: { xs: '1.1rem', sm: '1.25rem' } }}>Select Action</Typography>
+            <Chip label="Admin" color="primary" size="small" sx={{ fontSize: { xs: '0.7rem', sm: '0.75rem' } }} />
+          </Box>
+        </DialogTitle>
+        <DialogContent sx={{ px: { xs: 2, sm: 3 } }}>
+          {scannedItem && (
+            <Box sx={{ py: 2 }}>
+              <Card sx={{ mb: 3 }}>
+                <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
+                  <Typography variant="h6" gutterBottom sx={{ 
+                    fontSize: { xs: '1.1rem', sm: '1.25rem' },
+                    wordBreak: 'break-word',
+                    mb: 2
+                  }}>
+                    {scannedItem.name || 'Unknown Item'}
+                  </Typography>
+                  
+                  {/* Mobile-optimized chip display */}
+                  <Box sx={{ 
+                    display: 'flex', 
+                    gap: 1, 
+                    flexWrap: 'wrap',
+                    '& .MuiChip-root': {
+                      fontSize: { xs: '0.7rem', sm: '0.75rem' },
+                      height: { xs: 24, sm: 32 }
+                    }
+                  }}>
+                    {scannedItem.code && (
+                      <Chip 
+                        label={`Code: ${scannedItem.code}`} 
+                        variant="outlined" 
+                        size="small"
+                        sx={{ maxWidth: { xs: '100%', sm: 'none' } }}
+                      />
+                    )}
+                    {scannedItem.currentInventory !== undefined && (
+                      <Chip 
+                        label={`Available: ${scannedItem.currentInventory}`} 
+                        color={scannedItem.currentInventory > 0 ? "success" : "error"} 
+                        size="small"
+                        sx={{ maxWidth: { xs: '100%', sm: 'none' } }}
+                      />
+                    )}
+                    {scannedItem.location && (
+                      <Chip 
+                        label={`📍 ${scannedItem.location}`} 
+                        variant="outlined" 
+                        size="small"
+                        sx={{ 
+                          maxWidth: { xs: '100%', sm: 'none' },
+                          '& .MuiChip-label': {
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            maxWidth: { xs: '180px', sm: 'none' }
+                          }
+                        }}
+                      />
+                    )}
+                  </Box>
+                </CardContent>
+              </Card>
+
+              <Typography variant="body1" gutterBottom sx={{ 
+                mb: 3,
+                fontSize: { xs: '0.9rem', sm: '1rem' }
+              }}>
+                What would you like to do with this item?
+              </Typography>
+
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <Button
+                  variant="contained"
+                  color="primary"
+                  size="large"
+                  onClick={handleChoiceUsage}
+                  startIcon={<InventoryIcon />}
+                  sx={{ 
+                    py: { xs: 1.5, sm: 2 },
+                    fontSize: { xs: '0.9rem', sm: '1rem' }
+                  }}
+                  fullWidth
+                >
+                  Record Item Usage
+                </Button>
+                
+                <Button
+                  variant="contained"
+                  color="secondary"
+                  size="large"
+                  onClick={handleChoiceEdit}
+                  startIcon={<EditIcon />}
+                  sx={{ 
+                    py: { xs: 1.5, sm: 2 },
+                    fontSize: { xs: '0.9rem', sm: '1rem' }
+                  }}
+                  fullWidth
+                >
+                  Edit Item & Manage POs
+                </Button>
+              </Box>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ p: { xs: 2, sm: 3 } }}>
+          <Button onClick={closeUsageDialog} fullWidth>Cancel</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Modern Item Management Dialog */}
+      <Dialog 
+        open={showEditDialog} 
+        onClose={closeEditDialog} 
+        maxWidth="lg" 
+        fullWidth
+        fullScreen={isXsScreen} // Full screen on mobile
+        PaperProps={{
+          sx: { 
+            borderRadius: { xs: 0, sm: 4 },
+            minHeight: { xs: '100vh', sm: '85vh' },
+            bgcolor: '#f8fafc',
+            margin: { xs: 0, sm: 2 }
+          }
+        }}
+      >
+        {/* Modern Header */}
+        <Box sx={{ 
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          color: 'white',
+          p: { xs: 2, sm: 3 },
+          position: 'relative',
+          overflow: 'hidden'
+        }}>
+          <Box sx={{ 
+            position: 'absolute',
+            top: 0,
+            right: 0,
+            width: { xs: 100, sm: 200 },
+            height: { xs: 100, sm: 200 },
+            borderRadius: '50%',
+            background: 'rgba(255,255,255,0.1)',
+            transform: 'translate(50%, -50%)'
+          }} />
+          <Box sx={{ position: 'relative', zIndex: 1 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+              <IconButton 
+                onClick={handleGoBack} 
+                sx={{ 
+                  color: 'white',
+                  bgcolor: 'rgba(255,255,255,0.15)',
+                  '&:hover': { bgcolor: 'rgba(255,255,255,0.25)' }
+                }}
+              >
+                <ArrowBackIcon />
+              </IconButton>
+              <Box>
+                <Typography variant="h4" sx={{ 
+                  fontWeight: 700, 
+                  mb: 0.5,
+                  fontSize: { xs: '1.5rem', sm: '2.125rem' }
+                }}>
+                  Item Management Hub
+                </Typography>
+                <Typography variant="subtitle1" sx={{ 
+                  opacity: 0.9,
+                  fontSize: { xs: '0.9rem', sm: '1rem' },
+                  wordBreak: 'break-word'
+                }}>
+                  {scannedItem?.name || 'Manage inventory and purchase orders'}
+                </Typography>
+          </Box>
+            </Box>
+          </Box>
+        </Box>
+
+        <DialogContent sx={{ p: 0, bgcolor: '#f8fafc' }}>
+          {/* Success/Error Messages */}
+          {(success || error) && (
+            <Box sx={{ p: { xs: 2, sm: 3 }, pb: 0 }}>
+          {success && (
+                <Alert severity="success" sx={{ mb: 2, borderRadius: 2 }} onClose={() => setSuccess('')}>
+              {success}
+            </Alert>
+          )}
+          {error && (
+                <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }} onClose={() => setError('')}>
+              {error}
+            </Alert>
+              )}
+            </Box>
+          )}
+
+          {scannedItem && (
+            <Box sx={{ p: { xs: 2, sm: 3 } }}>
+              {/* Item Overview Card */}
+              <Card sx={{ 
+                mb: 4, 
+                borderRadius: { xs: 2, sm: 3 },
+                background: 'linear-gradient(135deg, #ffffff 0%, #f0f4f8 100%)',
+                boxShadow: '0 10px 30px rgba(0,0,0,0.1)',
+                border: '1px solid rgba(255,255,255,0.3)'
+              }}>
+                <CardContent sx={{ p: { xs: 2, sm: 4 } }}>
+                  <Grid container spacing={{ xs: 2, sm: 4 }} alignItems="center">
+                    <Grid item xs={12} md={8}>
+                      <Typography variant="h4" sx={{ 
+                        fontWeight: 700, 
+                        color: '#2d3748',
+                        mb: 2,
+                        fontSize: { xs: '1.5rem', sm: '2.125rem' },
+                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                        backgroundClip: 'text',
+                        WebkitBackgroundClip: 'text',
+                        WebkitTextFillColor: 'transparent',
+                        wordBreak: 'break-word'
+                      }}>
+                        {scannedItem.name}
+                      </Typography>
+                      
+                      <Box sx={{ display: 'flex', gap: { xs: 2, sm: 3 }, mb: 3, flexWrap: 'wrap' }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Box sx={{ 
+                            width: 8, 
+                            height: 8, 
+                            borderRadius: '50%', 
+                            bgcolor: 'primary.main' 
+                          }} />
+                          <Typography variant="body1" color="text.secondary" sx={{ 
+                            fontSize: { xs: '0.9rem', sm: '1rem' },
+                            wordBreak: 'break-word'
+                          }}>
+                            <strong>Code:</strong> {scannedItem.code || 'N/A'}
+                          </Typography>
+                        </Box>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Box sx={{ 
+                            width: 8, 
+                            height: 8, 
+                            borderRadius: '50%', 
+                            bgcolor: 'success.main' 
+                          }} />
+                          <Typography variant="body1" color="text.secondary" sx={{ 
+                            fontSize: { xs: '0.9rem', sm: '1rem' },
+                            wordBreak: 'break-word'
+                          }}>
+                            <strong>Location:</strong> {scannedItem.location || 'N/A'}
+                          </Typography>
+                        </Box>
+                      </Box>
+
+                      {/* Inventory Stats */}
+                  <Grid container spacing={{ xs: 1, sm: 2 }}>
+                        <Grid item xs={4}>
+                          <Box sx={{ 
+                            textAlign: 'center', 
+                            p: { xs: 1, sm: 2 }, 
+                            borderRadius: 2,
+                            background: 'linear-gradient(135deg, #48bb78 0%, #38a169 100%)',
+                            color: 'white',
+                            minHeight: { xs: 60, sm: 80 },
+                            display: 'flex',
+                            flexDirection: 'column',
+                            justifyContent: 'center'
+                          }}>
+                            <Typography 
+                              variant="h3" 
+                              sx={{ 
+                                fontWeight: 800, 
+                                mb: 0.5,
+                                fontSize: { xs: '1.2rem', sm: '2rem', md: '3rem' },
+                                lineHeight: 1,
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap'
+                              }}
+                            >
+                              {scannedItem.currentInventory || 0}
+                        </Typography>
+                            <Typography 
+                              variant="caption" 
+                              sx={{ 
+                                opacity: 0.9, 
+                                fontWeight: 600,
+                                fontSize: { xs: '0.6rem', sm: '0.75rem' },
+                                lineHeight: 1
+                              }}
+                            >
+                              IN STOCK
+                            </Typography>
+                          </Box>
+                      </Grid>
+                        <Grid item xs={4}>
+                          <Box sx={{ 
+                            textAlign: 'center', 
+                            p: { xs: 1, sm: 2 }, 
+                            borderRadius: 2,
+                            background: 'linear-gradient(135deg, #ed8936 0%, #dd6b20 100%)',
+                            color: 'white',
+                            minHeight: { xs: 60, sm: 80 },
+                            display: 'flex',
+                            flexDirection: 'column',
+                            justifyContent: 'center'
+                          }}>
+                            <Typography 
+                              variant="h3" 
+                              sx={{ 
+                                fontWeight: 800, 
+                                mb: 0.5,
+                                fontSize: { xs: '1.2rem', sm: '2rem', md: '3rem' },
+                                lineHeight: 1,
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap'
+                              }}
+                            >
+                              {scannedItem.pendingPO || 0}
+                        </Typography>
+                            <Typography 
+                              variant="caption" 
+                              sx={{ 
+                                opacity: 0.9, 
+                                fontWeight: 600,
+                                fontSize: { xs: '0.6rem', sm: '0.75rem' },
+                                lineHeight: 1
+                              }}
+                            >
+                              PENDING
+                            </Typography>
+                          </Box>
+                      </Grid>
+                        <Grid item xs={4}>
+                          <Box sx={{ 
+                            textAlign: 'center', 
+                            p: { xs: 1, sm: 2 }, 
+                            borderRadius: 2,
+                            background: 'linear-gradient(135deg, #e53e3e 0%, #c53030 100%)',
+                            color: 'white',
+                            minHeight: { xs: 60, sm: 80 },
+                            display: 'flex',
+                            flexDirection: 'column',
+                            justifyContent: 'center'
+                          }}>
+                            <Typography 
+                              variant="h3" 
+                              sx={{ 
+                                fontWeight: 800, 
+                                mb: 0.5,
+                                fontSize: { xs: '1.2rem', sm: '2rem', md: '3rem' },
+                                lineHeight: 1,
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap'
+                              }}
+                            >
+                              {scannedItem.safetyStockThreshold || 0}
+                        </Typography>
+                            <Typography 
+                              variant="caption" 
+                              sx={{ 
+                                opacity: 0.9, 
+                                fontWeight: 600,
+                                fontSize: { xs: '0.6rem', sm: '0.75rem' },
+                                lineHeight: 1
+                              }}
+                            >
+                              MIN STOCK
+                            </Typography>
+                          </Box>
+                      </Grid>
+                      </Grid>
+                    </Grid>
+                    
+                    <Grid item xs={12} md={4}>
+                      <Box sx={{ 
+                        textAlign: 'center',
+                        p: 3,
+                        borderRadius: 2,
+                        bgcolor: 'grey.50',
+                        border: '2px dashed',
+                        borderColor: 'grey.300'
+                      }}>
+                        <Typography variant="h6" color="text.secondary" sx={{ mb: 1 }}>
+                          📊 Barcode
+                        </Typography>
+                        <Typography variant="body2" sx={{ fontFamily: 'monospace', fontWeight: 600 }}>
+                          {scannedItem.barcode || originalScannedCode}
+                        </Typography>
+                      </Box>
+                    </Grid>
+                  </Grid>
+                </CardContent>
+              </Card>
+
+              {/* Action Selection */}
+              <Box sx={{ mb: 4 }}>
+                <Box sx={{ 
+                  display: 'flex',
+                  gap: 2,
+                  p: 1,
+                  bgcolor: 'white',
+                  borderRadius: 3,
+                  boxShadow: '0 4px 20px rgba(0,0,0,0.08)'
+                }}>
+                  <Button
+                    variant={editTabValue === 0 ? "contained" : "text"}
+                    onClick={() => setEditTabValue(0)}
+                    sx={{ 
+                      flex: 1,
+                      py: 2,
+                      borderRadius: 2,
+                      fontWeight: 600,
+                      fontSize: '1rem',
+                      textTransform: 'none',
+                      ...(editTabValue === 0 && {
+                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                        color: 'white',
+                        boxShadow: '0 4px 15px rgba(102,126,234,0.4)'
+                      })
+                    }}
+                  >
+                    📝 Edit Inventory
+                  </Button>
+                  <Button
+                    variant={editTabValue === 1 ? "contained" : "text"}
+                    onClick={() => setEditTabValue(1)}
+                    sx={{ 
+                      flex: 1,
+                      py: 2,
+                      borderRadius: 2,
+                      fontWeight: 600,
+                      fontSize: '1rem',
+                      textTransform: 'none',
+                      ...(editTabValue === 1 && {
+                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                        color: 'white',
+                        boxShadow: '0 4px 15px rgba(102,126,234,0.4)'
+                      })
+                    }}
+                  >
+                    🛒 Purchase Orders {pendingPOs.length > 0 && `(${pendingPOs.length})`}
+                  </Button>
+                </Box>
+              </Box>
+
+              {/* Tab Content */}
+              {editTabValue === 0 && (
+                <Card sx={{ 
+                  borderRadius: 3,
+                  background: 'linear-gradient(135deg, #ffffff 0%, #f7fafc 100%)',
+                  boxShadow: '0 10px 30px rgba(0,0,0,0.1)'
+                }}>
+                  <CardContent sx={{ p: 4 }}>
+                    <Typography variant="h5" sx={{ 
+                      fontWeight: 700, 
+                      mb: 3, 
+                      color: '#2d3748',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 2
+                    }}>
+                      🔧 Inventory Adjustment
+                  </Typography>
+                    
+                    <Grid container spacing={3} alignItems="flex-end">
+                      <Grid item xs={12} md={8}>
+                  <TextField
+                    fullWidth
+                          label="New Quantity"
+                    type="number"
+                    value={editCurrentQuantity}
+                    onChange={(e) => setEditCurrentQuantity(Math.max(0, parseInt(e.target.value) || 0))}
+                    inputProps={{ min: 0 }}
+                          sx={{ 
+                            '& .MuiOutlinedInput-root': {
+                              borderRadius: 2,
+                              fontSize: '1.2rem',
+                              fontWeight: 600,
+                              '& fieldset': {
+                                borderWidth: 2
+                              }
+                            }
+                          }}
+                        />
+                      </Grid>
+                      <Grid item xs={12} md={4}>
+                        <Button
+                          variant="contained"
+                          size="large"
+                          fullWidth
+                          onClick={saveItemEdits}
+                          sx={{ 
+                            py: 2,
+                            borderRadius: 2,
+                            fontWeight: 700,
+                            fontSize: '1.1rem',
+                            background: 'linear-gradient(135deg, #48bb78 0%, #38a169 100%)',
+                            boxShadow: '0 4px 15px rgba(72,187,120,0.4)',
+                            '&:hover': {
+                              background: 'linear-gradient(135deg, #38a169 0%, #2f855a 100%)'
+                            }
+                          }}
+                        >
+                          💾 Save Changes
+                        </Button>
+                      </Grid>
+                    </Grid>
+
+                    {editCurrentQuantity !== (scannedItem.currentInventory || 0) && (
+                      <Alert severity="info" sx={{ mt: 3, borderRadius: 2 }}>
+                        <Typography variant="body1">
+                          <strong>Change Summary:</strong> {scannedItem.currentInventory || 0} → {editCurrentQuantity}
+                          <span style={{ 
+                            color: editCurrentQuantity > (scannedItem.currentInventory || 0) ? '#38a169' : '#e53e3e',
+                            fontWeight: 700,
+                            marginLeft: 8
+                          }}>
+                            ({editCurrentQuantity > (scannedItem.currentInventory || 0) ? '+' : ''}{editCurrentQuantity - (scannedItem.currentInventory || 0)})
+                          </span>
+                  </Typography>
+                      </Alert>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+
+              {editTabValue === 1 && (
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {/* Create New PO */}
+                  <Card sx={{ 
+                    borderRadius: 3,
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    color: 'white',
+                    boxShadow: '0 15px 35px rgba(102,126,234,0.4)'
+                  }}>
+                    <CardContent sx={{ p: 4 }}>
+                      <Typography variant="h5" sx={{ fontWeight: 700, mb: 3, display: 'flex', alignItems: 'center', gap: 2 }}>
+                        ✨ Create New Purchase Order
+                  </Typography>
+                      
+                      <Grid container spacing={3}>
+                        <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                            label="Order Quantity"
+                    type="number"
+                            value={newPOQuantity}
+                            onChange={(e) => setNewPOQuantity(Math.max(0, parseInt(e.target.value) || 0))}
+                            inputProps={{ min: 1 }}
+                            sx={{ 
+                              '& .MuiOutlinedInput-root': {
+                                bgcolor: 'rgba(255,255,255,0.95)',
+                                borderRadius: 3,
+                                fontSize: '1.2rem',
+                                fontWeight: 600,
+                                '& fieldset': {
+                                  borderWidth: 2,
+                                  borderColor: 'rgba(255,255,255,0.8)'
+                                },
+                                '&:hover fieldset': {
+                                  borderColor: 'rgba(255,255,255,1)'
+                                },
+                                '&.Mui-focused fieldset': {
+                                  borderColor: 'rgba(255,255,255,1)'
+                                }
+                              },
+                              '& .MuiInputLabel-root': {
+                                color: '#2d3748',
+                                fontWeight: 700,
+                                fontSize: '0.9rem',
+                                backgroundColor: 'rgba(255,255,255,0.9)',
+                                padding: '4px 12px',
+                                borderRadius: '12px',
+                                border: '1px solid rgba(102,126,234,0.3)',
+                                '&.Mui-focused': {
+                                  color: '#667eea',
+                                  backgroundColor: 'rgba(255,255,255,1)',
+                                  border: '1px solid rgba(102,126,234,0.5)'
+                                }
+                              }
+                            }}
+                          />
+                        </Grid>
+                        <Grid item xs={12} md={6}>
+                          <TextField
+                            fullWidth
+                            label="Tracking Number (Optional)"
+                            value={newPOTrackingNumber}
+                            onChange={(e) => setNewPOTrackingNumber(e.target.value)}
+                            sx={{ 
+                              '& .MuiOutlinedInput-root': {
+                                bgcolor: 'rgba(255,255,255,0.95)',
+                                borderRadius: 3,
+                                fontSize: '1.2rem',
+                                fontWeight: 600,
+                                '& fieldset': {
+                                  borderWidth: 2,
+                                  borderColor: 'rgba(255,255,255,0.8)'
+                                },
+                                '&:hover fieldset': {
+                                  borderColor: 'rgba(255,255,255,1)'
+                                },
+                                '&.Mui-focused fieldset': {
+                                  borderColor: 'rgba(255,255,255,1)'
+                                }
+                              },
+                              '& .MuiInputLabel-root': {
+                                color: '#2d3748',
+                                fontWeight: 700,
+                                fontSize: '0.9rem',
+                                backgroundColor: 'rgba(255,255,255,0.9)',
+                                padding: '4px 12px',
+                                borderRadius: '12px',
+                                border: '1px solid rgba(102,126,234,0.3)',
+                                '&.Mui-focused': {
+                                  color: '#667eea',
+                                  backgroundColor: 'rgba(255,255,255,1)',
+                                  border: '1px solid rgba(102,126,234,0.5)'
+                                }
+                              }
+                            }}
+                          />
+                        </Grid>
+                        <Grid item xs={12}>
+                          <Button
+                            variant="contained"
+                            size="medium"
+                            onClick={createPurchaseOrder}
+                            disabled={!newPOQuantity || newPOQuantity <= 0}
+                            sx={{ 
+                              bgcolor: 'rgba(255,255,255,0.2)',
+                              color: 'white',
+                              px: 4,
+                              py: 2,
+                              borderRadius: 2,
+                              fontWeight: 700,
+                              fontSize: '1.1rem',
+                              border: '2px solid rgba(255,255,255,0.3)',
+                              '&:hover': {
+                                bgcolor: 'rgba(255,255,255,0.3)',
+                                transform: 'translateY(-2px)',
+                                boxShadow: '0 8px 25px rgba(0,0,0,0.2)'
+                              },
+                              '&:disabled': {
+                                bgcolor: 'rgba(255,255,255,0.1)',
+                                color: 'rgba(255,255,255,0.5)'
+                              }
+                            }}
+                          >
+                            🚀 Create Purchase Order
+                          </Button>
+                        </Grid>
+                      </Grid>
+                    </CardContent>
+                  </Card>
+
+                  {/* Existing POs */}
+                  <Card sx={{ 
+                    borderRadius: 3,
+                    background: 'linear-gradient(135deg, #ffffff 0%, #f7fafc 100%)',
+                    boxShadow: '0 10px 30px rgba(0,0,0,0.1)'
+                  }}>
+                    <CardContent sx={{ p: 4 }}>
+                      <Typography variant="h5" sx={{ 
+                        fontWeight: 700, 
+                        mb: 4, 
+                        color: '#2d3748',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 2
+                      }}>
+                        📋 Active Purchase Orders
+                  </Typography>
+                      
+                      {pendingPOs.length > 0 ? (
+                        <Grid container spacing={3}>
+                          {pendingPOs.map((po) => (
+                            <Grid item xs={12} md={6} key={po.id}>
+                              <Card sx={{ 
+                                borderRadius: 3,
+                                border: '2px solid',
+                                borderColor: po.arrived ? '#48bb78' : '#ed8936',
+                                background: po.arrived 
+                                  ? 'linear-gradient(135deg, #f0fff4 0%, #c6f6d5 100%)'
+                                  : 'linear-gradient(135deg, #fffaf0 0%, #fbd38d 100%)',
+                                transition: 'all 0.3s ease',
+                                '&:hover': {
+                                  transform: 'translateY(-4px)',
+                                  boxShadow: '0 12px 30px rgba(0,0,0,0.15)'
+                                }
+                              }}>
+                                <CardContent sx={{ p: 3 }}>
+                                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+                                    <Typography variant="h6" sx={{ fontWeight: 700, color: '#2d3748' }}>
+                                      PO #{po.id}
+                                    </Typography>
+                                    <Chip
+                                      label={po.arrived ? '✅ Arrived' : '⏳ Pending'}
+                                      color={po.arrived ? 'success' : 'warning'}
+                                      sx={{ fontWeight: 700, fontSize: '0.8rem' }}
+                                    />
+                                  </Box>
+                                  
+                                  <Box sx={{ mb: 3, display: 'flex', flexDirection: 'column', gap: 1 }}>
+                                    <Typography variant="body1" sx={{ fontWeight: 600, color: '#4a5568' }}>
+                                      📦 Quantity: <span style={{ color: '#2d3748' }}>{po.quantity}</span>
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                                      📅 Ordered: {new Date(po.orderDate).toLocaleDateString()}
+                  </Typography>
+                                                                        {po.trackingNumber && (
+                                      <Box sx={{ mt: 1 }}>
+                                        <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                                          🚚 Tracking: {po.trackingNumber}
+                                        </Typography>
+                                        {/* <TrackingDisplay trackingNumber={po.trackingNumber} compact /> */}
+                                      </Box>
+                                    )}
+                                    {po.createdBy && (
+                                      <Typography variant="body2" color="text.secondary">
+                                        👤 Created by: {po.createdBy}
+                                      </Typography>
+                                    )}
+              </Box>
+
+                                  <Box sx={{ display: 'flex', gap: 1 }}>
+                                    <Button
+                                      variant="outlined"
+                                      size="small"
+                                      onClick={() => handleEditPO(po)}
+                                      sx={{ 
+                                        borderRadius: 2, 
+                                        fontWeight: 600,
+                                        borderWidth: 2,
+                                        '&:hover': {
+                                          borderWidth: 2
+                                        }
+                                      }}
+                                    >
+                                      ✏️ Edit
+                                    </Button>
+                                    {!po.arrived && (
+                                      <Button
+                                        variant="contained"
+                                        color="success"
+                                        size="small"
+                                        onClick={() => markPOAsArrived(po.id)}
+                                        sx={{ 
+                                          borderRadius: 2, 
+                                          fontWeight: 600,
+                                          background: 'linear-gradient(135deg, #48bb78 0%, #38a169 100%)',
+                                          '&:hover': {
+                                            background: 'linear-gradient(135deg, #38a169 0%, #2f855a 100%)'
+                                          }
+                                        }}
+                                      >
+                                        ✅ Mark Arrived
+                                      </Button>
+                                    )}
+                                  </Box>
+                                </CardContent>
+                              </Card>
+                            </Grid>
+                          ))}
+                        </Grid>
+                      ) : (
+                        <Box sx={{ 
+                          textAlign: 'center', 
+                          py: 8,
+                          bgcolor: '#f7fafc',
+                          borderRadius: 3,
+                          border: '3px dashed',
+                          borderColor: '#cbd5e0'
+                        }}>
+                          <Typography variant="h4" sx={{ mb: 2, opacity: 0.6 }}>
+                            📭
+                          </Typography>
+                          <Typography variant="h6" color="text.secondary" sx={{ mb: 1, fontWeight: 600 }}>
+                            No Purchase Orders
+                          </Typography>
+                          <Typography variant="body1" color="text.secondary">
+                            Create your first purchase order above to get started
+                          </Typography>
+                        </Box>
+                      )}
+                    </CardContent>
+                  </Card>
+                </Box>
+              )}
+            </Box>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Purchase Order Dialog */}
+      <Dialog 
+        open={showEditPODialog} 
+        onClose={() => setShowEditPODialog(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          Edit Purchase Order #{editingPO?.id}
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
+            <TextField
+              fullWidth
+              label="Quantity"
+              type="number"
+              value={editPOQuantity}
+              onChange={(e) => setEditPOQuantity(Math.max(0, parseInt(e.target.value) || 0))}
+              inputProps={{ min: 1 }}
+            />
+            <TextField
+              fullWidth
+              label="Tracking Number"
+              value={editPOTrackingNumber}
+              onChange={(e) => setEditPOTrackingNumber(e.target.value)}
+            />
+            <TextField
+              fullWidth
+              label="Order Date"
+              type="date"
+              value={editPOOrderDate}
+              onChange={(e) => setEditPOOrderDate(e.target.value)}
+              InputLabelProps={{ shrink: true }}
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowEditPODialog(false)}>Cancel</Button>
+          <Button onClick={updatePurchaseOrder} variant="contained" color="primary">
+            Update Purchase Order
+          </Button>
+        </DialogActions>
+      </Dialog>
+
     </Box>
   );
 } 

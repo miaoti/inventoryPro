@@ -7,7 +7,7 @@ interface User {
   username: string;
   email: string;
   fullName: string;
-  role: 'ADMIN' | 'USER';
+  role: 'OWNER' | 'ADMIN' | 'USER';
 }
 
 interface AuthState {
@@ -30,7 +30,7 @@ export const login = createAsyncThunk(
   'auth/login',
   async (credentials: { username: string; password: string }) => {
     const response = await authAPI.login(credentials);
-    const { token, user } = response.data;
+    const { token, user } = response; // response is now the data directly due to interceptor
     // Set cookie with token
     Cookies.set('token', token, { expires: 7 }); // Expires in 7 days
     return { token, user };
@@ -46,7 +46,7 @@ export const register = createAsyncThunk(
     fullName: string;
   }) => {
     const response = await authAPI.register(userData);
-    const { token, user } = response.data;
+    const { token, user } = response; // response is now the data directly due to interceptor
     // Set cookie with token
     Cookies.set('token', token, { expires: 7 }); // Expires in 7 days
     return { token, user };
@@ -68,6 +68,16 @@ const authSlice = createSlice({
       state.isAuthenticated = false;
       // Remove cookie
       Cookies.remove('token');
+      // Clear all localStorage items that might contain authentication data
+      localStorage.removeItem('isAdmin');
+      localStorage.removeItem('userRole');
+      localStorage.removeItem('userName');
+      localStorage.removeItem('authToken');
+      // Clear all sessionStorage items that might contain authentication data
+      sessionStorage.removeItem('isAdmin');
+      sessionStorage.removeItem('userRole');
+      sessionStorage.removeItem('userName');
+      sessionStorage.removeItem('authToken');
     },
     clearError: (state) => {
       state.error = null;

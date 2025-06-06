@@ -6,8 +6,12 @@ import com.inventory.repository.ItemRepository;
 import com.inventory.service.AlertService;
 import com.inventory.service.UsageService;
 import com.inventory.service.AdminSettingsService;
+import com.inventory.service.PurchaseOrderService;
+import com.inventory.dto.PurchaseOrderRequest;
+import com.inventory.dto.PurchaseOrderResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Optional;
@@ -33,6 +37,9 @@ public class PublicBarcodeController {
     @Autowired
     private AdminSettingsService adminSettingsService;
 
+    @Autowired
+    private PurchaseOrderService purchaseOrderService;
+
     @GetMapping("/scan/{barcode}")
     public ResponseEntity<?> scanBarcode(@PathVariable String barcode) {
         System.out.println("DEBUG: Scanning for input: " + barcode);
@@ -57,14 +64,20 @@ public class PublicBarcodeController {
         Item item = itemOpt.get();
         System.out.println("DEBUG: Found item - ID: " + item.getId() + ", Name: " + item.getName() + ", Code: " + item.getCode() + ", Barcode: " + item.getBarcode());
         
-        // Calculate the actual available quantity - currentInventory already reflects usage, so just add pending PO
-        int availableQuantity = Math.max(0, item.getCurrentInventory() + item.getPendingPO());
+        // Calculate the actual available quantity - for usage, only current inventory is available 
+        // (pending PO can't be used until received)
+        int availableQuantity = Math.max(0, item.getCurrentInventory());
         
         // Get admin-configured display fields
         List<String> displayFields = adminSettingsService.getItemDisplayFields();
         
         // Build response with configurable fields
         Map<String, Object> response = buildItemResponse(item, availableQuantity, displayFields);
+        
+        System.out.println("DEBUG: Response - Current Inventory: " + item.getCurrentInventory() + 
+                          ", Available for Usage: " + availableQuantity + 
+                          ", Pending PO: " + item.getPendingPO() + 
+                          ", Safety Stock: " + item.getSafetyStockThreshold());
         
         return ResponseEntity.ok(response);
     }
@@ -101,29 +114,11 @@ public class PublicBarcodeController {
                 case "category":
                     response.put("category", item.getCategory());
                     break;
-                case "status":
-                    response.put("status", item.getStatus());
-                    break;
                 case "currentInventory":
                     response.put("currentInventory", item.getCurrentInventory());
                     break;
                 case "safetyStockThreshold":
                     response.put("safetyStockThreshold", item.getSafetyStockThreshold());
-                    break;
-                case "estimatedConsumption":
-                    response.put("estimatedConsumption", item.getEstimatedConsumption());
-                    break;
-                case "rack":
-                    response.put("rack", item.getRack());
-                    break;
-                case "floor":
-                    response.put("floor", item.getFloor());
-                    break;
-                case "area":
-                    response.put("area", item.getArea());
-                    break;
-                case "bin":
-                    response.put("bin", item.getBin());
                     break;
                 case "barcode":
                     response.put("barcode", item.getBarcode());
@@ -141,13 +136,35 @@ public class PublicBarcodeController {
     @PostMapping("/use")
     public ResponseEntity<?> recordItemUsage(@RequestBody UsageRequest request) {
         try {
+            // Debug logging
+            System.out.println("=== USAGE REQUEST DEBUG ===");
+            System.out.println("Raw request object: " + request);
+            System.out.println("Barcode: '" + request.getBarcode() + "' (null: " + (request.getBarcode() == null) + ")");
+            System.out.println("UserName: '" + request.getUserName() + "' (null: " + (request.getUserName() == null) + ")");
+            System.out.println("QuantityUsed: " + request.getQuantityUsed() + " (null: " + (request.getQuantityUsed() == null) + ")");
+            System.out.println("Notes: '" + request.getNotes() + "' (null: " + (request.getNotes() == null) + ")");
+            System.out.println("Department: '" + request.getDepartment() + "' (null: " + (request.getDepartment() == null) + ")");
+            System.out.println("DNumber: '" + request.getDNumber() + "' (null: " + (request.getDNumber() == null) + ")");
+            System.out.println("DNumber is null: " + (request.getDNumber() == null));
+            System.out.println("DNumber is empty: " + (request.getDNumber() != null && request.getDNumber().isEmpty()));
+            System.out.println("DNumber equals 'null': " + "null".equals(request.getDNumber()));
+            
+            // Sanitize dNumber - convert "null" string to actual null
+            if (request.getDNumber() != null && "null".equals(request.getDNumber().trim())) {
+                System.out.println("Converting string 'null' to actual null");
+                request.setDNumber(null);
+            }
+            
+            System.out.println("After sanitization - DNumber: '" + request.getDNumber() + "'");
+            System.out.println("==========================");
+            
             var usage = usageService.recordUsage(request);
             
             // Return updated item info after usage
             Optional<Item> itemOpt = itemRepository.findByBarcode(request.getBarcode());
             if (itemOpt.isPresent()) {
                 Item item = itemOpt.get();
-                int availableQuantity = Math.max(0, item.getCurrentInventory() + item.getPendingPO());
+                int availableQuantity = Math.max(0, item.getCurrentInventory());
                 
                 // Use HashMap to avoid Map.of() limits
                 Map<String, Object> usageData = new HashMap<>();
@@ -173,6 +190,8 @@ public class PublicBarcodeController {
             }
             return ResponseEntity.ok(Map.of("message", "Usage recorded successfully"));
         } catch (RuntimeException e) {
+            System.out.println("ERROR in recordItemUsage: " + e.getMessage());
+            e.printStackTrace();
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
     }
@@ -224,8 +243,107 @@ public class PublicBarcodeController {
         }
     }
 
+    // New PO creation endpoint
+    @PostMapping("/create-po/{barcode}")
+    public ResponseEntity<?> createPurchaseOrder(@PathVariable String barcode, @RequestBody Map<String, Object> requestData, Authentication authentication) {
+        Optional<Item> itemOpt = itemRepository.findByBarcode(barcode);
+        
+        if (itemOpt.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+        
+        Item item = itemOpt.get();
+        int quantity = (Integer) requestData.getOrDefault("quantity", 0);
+        String trackingNumber = (String) requestData.get("trackingNumber");
+        
+        if (quantity <= 0) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Quantity must be greater than 0"));
+        }
+        
+        try {
+            PurchaseOrderRequest poRequest = new PurchaseOrderRequest();
+            poRequest.setItemId(item.getId());
+            poRequest.setQuantity(quantity);
+            poRequest.setTrackingNumber(trackingNumber);
+            
+            String username = authentication != null ? authentication.getName() : null;
+            PurchaseOrderResponse poResponse = purchaseOrderService.createPurchaseOrder(poRequest, username);
+            
+            // Use HashMap for response
+            Map<String, Object> poData = new HashMap<>();
+            poData.put("id", poResponse.getId());
+            poData.put("quantity", poResponse.getQuantity());
+            poData.put("orderDate", poResponse.getOrderDate());
+            poData.put("trackingNumber", poResponse.getTrackingNumber());
+            
+            Map<String, Object> itemData = new HashMap<>();
+            itemData.put("id", item.getId());
+            itemData.put("name", item.getName());
+            itemData.put("currentInventory", item.getCurrentInventory());
+            itemData.put("pendingPO", purchaseOrderService.getTotalPendingQuantityForItem(item.getId()));
+            itemData.put("usedInventory", item.getUsedInventory());
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("message", "Purchase Order created successfully");
+            response.put("purchaseOrder", poData);
+            response.put("item", itemData);
+            
+            return ResponseEntity.ok(response);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    // Get pending POs for an item
+    @GetMapping("/pending-pos/{barcode}")
+    public ResponseEntity<?> getPendingPurchaseOrders(@PathVariable String barcode) {
+        Optional<Item> itemOpt = itemRepository.findByBarcode(barcode);
+        
+        if (itemOpt.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+        
+        Item item = itemOpt.get();
+        List<PurchaseOrderResponse> pendingPOs = purchaseOrderService.getPendingPurchaseOrdersByItem(item.getId());
+        
+        return ResponseEntity.ok(Map.of("pendingPurchaseOrders", pendingPOs));
+    }
+
+    // Mark a specific PO as arrived
+    @PostMapping("/arrive-po/{purchaseOrderId}")
+    public ResponseEntity<?> markPurchaseOrderAsArrived(@PathVariable Long purchaseOrderId, Authentication authentication) {
+        try {
+            String username = authentication != null ? authentication.getName() : null;
+            PurchaseOrderResponse poResponse = purchaseOrderService.markAsArrived(purchaseOrderId, username);
+            
+            // Get updated item data
+            Optional<Item> itemOpt = itemRepository.findById(poResponse.getItemId());
+            if (itemOpt.isPresent()) {
+                Item item = itemOpt.get();
+                Map<String, Object> itemData = new HashMap<>();
+                itemData.put("id", item.getId());
+                itemData.put("name", item.getName());
+                itemData.put("currentInventory", item.getCurrentInventory());
+                itemData.put("pendingPO", purchaseOrderService.getTotalPendingQuantityForItem(item.getId()));
+                itemData.put("usedInventory", item.getUsedInventory());
+                
+                Map<String, Object> response = new HashMap<>();
+                response.put("message", "Purchase Order marked as arrived successfully");
+                response.put("item", itemData);
+                response.put("arrivedQuantity", poResponse.getQuantity());
+                
+                return ResponseEntity.ok(response);
+            }
+            
+            return ResponseEntity.ok(Map.of("message", "Purchase Order marked as arrived successfully"));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    // Legacy endpoint for backward compatibility
     @PostMapping("/add-pending-po/{barcode}")
-    public ResponseEntity<?> addPendingPO(@PathVariable String barcode, @RequestBody Map<String, Integer> requestData) {
+    public ResponseEntity<?> addPendingPO(@PathVariable String barcode, @RequestBody Map<String, Integer> requestData, Authentication authentication) {
         Optional<Item> itemOpt = itemRepository.findByBarcode(barcode);
         
         if (itemOpt.isEmpty()) {
@@ -235,29 +353,35 @@ public class PublicBarcodeController {
         Item item = itemOpt.get();
         int pendingQuantity = requestData.getOrDefault("quantity", 0);
         
-        item.setPendingPO(item.getPendingPO() + pendingQuantity);
-        itemRepository.save(item);
-        
-        // Check alerts after updating pending PO
-        alertService.checkAndCreateSafetyStockAlert(item);
-        
-        // Use HashMap for response
-        Map<String, Object> itemData = new HashMap<>();
-        itemData.put("id", item.getId());
-        itemData.put("name", item.getName());
-        itemData.put("currentInventory", item.getCurrentInventory());
-        itemData.put("pendingPO", item.getPendingPO());
-        itemData.put("usedInventory", item.getUsedInventory());
-        
-        Map<String, Object> response = new HashMap<>();
-        response.put("message", "Pending PO added successfully");
-        response.put("item", itemData);
-        
-        return ResponseEntity.ok(response);
+        // Create a proper PO instead of just updating the pending count
+        try {
+            PurchaseOrderRequest poRequest = new PurchaseOrderRequest();
+            poRequest.setItemId(item.getId());
+            poRequest.setQuantity(pendingQuantity);
+            
+            String username = authentication != null ? authentication.getName() : null;
+            PurchaseOrderResponse poResponse = purchaseOrderService.createPurchaseOrder(poRequest, username);
+            
+            // Use HashMap for response
+            Map<String, Object> itemData = new HashMap<>();
+            itemData.put("id", item.getId());
+            itemData.put("name", item.getName());
+            itemData.put("currentInventory", item.getCurrentInventory());
+            itemData.put("pendingPO", purchaseOrderService.getTotalPendingQuantityForItem(item.getId()));
+            itemData.put("usedInventory", item.getUsedInventory());
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("message", "Pending PO added successfully");
+            response.put("item", itemData);
+            
+            return ResponseEntity.ok(response);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
     }
 
     @PostMapping("/confirm-restock/{barcode}")
-    public ResponseEntity<?> confirmRestock(@PathVariable String barcode, @RequestBody Map<String, Integer> requestData) {
+    public ResponseEntity<?> confirmRestock(@PathVariable String barcode, @RequestBody Map<String, Object> requestData, Authentication authentication) {
         Optional<Item> itemOpt = itemRepository.findByBarcode(barcode);
         
         if (itemOpt.isEmpty()) {
@@ -265,29 +389,62 @@ public class PublicBarcodeController {
         }
         
         Item item = itemOpt.get();
-        int receivedQuantity = requestData.getOrDefault("quantity", 0);
         
-        // Add to current inventory and reduce from pending PO
-        item.setCurrentInventory(item.getCurrentInventory() + receivedQuantity);
-        item.setPendingPO(Math.max(0, item.getPendingPO() - receivedQuantity));
-        itemRepository.save(item);
+        // Check if there's a specific PO ID to mark as arrived
+        Long purchaseOrderId = null;
+        if (requestData.containsKey("purchaseOrderId")) {
+            purchaseOrderId = Long.valueOf(requestData.get("purchaseOrderId").toString());
+        }
         
-        // Check alerts after restock
-        alertService.checkAndCreateSafetyStockAlert(item);
-        
-        // Use HashMap for response
-        Map<String, Object> itemData = new HashMap<>();
-        itemData.put("id", item.getId());
-        itemData.put("name", item.getName());
-        itemData.put("currentInventory", item.getCurrentInventory());
-        itemData.put("pendingPO", item.getPendingPO());
-        itemData.put("usedInventory", item.getUsedInventory());
-        
-        Map<String, Object> response = new HashMap<>();
-        response.put("message", "Restock confirmed successfully");
-        response.put("item", itemData);
-        
-        return ResponseEntity.ok(response);
+        try {
+            if (purchaseOrderId != null) {
+                // Mark specific PO as arrived
+                String username = authentication != null ? authentication.getName() : null;
+                PurchaseOrderResponse poResponse = purchaseOrderService.markAsArrived(purchaseOrderId, username);
+                
+                Map<String, Object> itemData = new HashMap<>();
+                itemData.put("id", item.getId());
+                itemData.put("name", item.getName());
+                itemData.put("currentInventory", item.getCurrentInventory());
+                itemData.put("pendingPO", purchaseOrderService.getTotalPendingQuantityForItem(item.getId()));
+                itemData.put("usedInventory", item.getUsedInventory());
+                
+                Map<String, Object> response = new HashMap<>();
+                response.put("message", "Purchase Order received successfully");
+                response.put("item", itemData);
+                response.put("receivedQuantity", poResponse.getQuantity());
+                
+                return ResponseEntity.ok(response);
+            } else {
+                // Legacy behavior: just add to inventory for manual restock
+                int receivedQuantity = (Integer) requestData.getOrDefault("quantity", 0);
+                
+                if (receivedQuantity <= 0) {
+                    return ResponseEntity.badRequest().body(Map.of("error", "Quantity must be greater than 0"));
+                }
+                
+                item.setCurrentInventory(item.getCurrentInventory() + receivedQuantity);
+                itemRepository.save(item);
+                
+                // Check alerts after restock
+                alertService.checkAndCreateSafetyStockAlert(item);
+                
+                Map<String, Object> itemData = new HashMap<>();
+                itemData.put("id", item.getId());
+                itemData.put("name", item.getName());
+                itemData.put("currentInventory", item.getCurrentInventory());
+                itemData.put("pendingPO", purchaseOrderService.getTotalPendingQuantityForItem(item.getId()));
+                itemData.put("usedInventory", item.getUsedInventory());
+                
+                Map<String, Object> response = new HashMap<>();
+                response.put("message", "Manual restock confirmed successfully");
+                response.put("item", itemData);
+                
+                return ResponseEntity.ok(response);
+            }
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
     }
 
     @GetMapping("/debug/items")

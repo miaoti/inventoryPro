@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSelector } from 'react-redux';
+import type { RootState } from '../../store';
 import {
   Box,
   Button,
@@ -26,6 +28,15 @@ import {
   Divider,
   Checkbox,
   CircularProgress,
+  InputAdornment,
+  Menu,
+  ListItemIcon,
+  ListItemText,
+  useTheme,
+  useMediaQuery,
+  CardActions,
+  Pagination,
+  Stack,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -37,9 +48,17 @@ import {
   Download as DownloadIcon,
   Visibility as ViewIcon,
   CloudUpload as CloudUploadIcon,
+  Close as CloseIcon,
+  Search as SearchIcon,
+  Clear as ClearIcon,
+  LocalShipping as ReceiveIcon,
+  LocalShipping as LocalShippingIcon,
+  MoreVert as MoreVertIcon,
 } from '@mui/icons-material';
 import { DataGrid, GridColDef } from '@mui/x-data-grid';
-import { itemsAPI } from '../../services/api';
+import { itemsAPI, purchaseOrderAPI } from '../../services/api';
+import { PurchaseOrder } from '../../types/purchaseOrder';
+// import { TrackingDisplay } from '../../../components/TrackingDisplay';
 
 interface Item {
   id: number;
@@ -51,12 +70,6 @@ interface Item {
   location: string;
   equipment?: string;
   category: 'A' | 'B' | 'C';
-  status?: string;
-  estimatedConsumption?: number;
-  rack?: string;
-  floor?: string;
-  area?: string;
-  bin?: string;
   weeklyData?: string; // JSON string for dynamic weekly data
   barcode: string;
   code?: string;
@@ -64,11 +77,19 @@ interface Item {
   usedInventory?: number;
   pendingPO?: number;
   availableQuantity?: number;
+  estimatedConsumption?: number;
 }
 
 export default function ItemsPage() {
   const router = useRouter();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  
+  // Authentication check
+  const { isAuthenticated, user, token } = useSelector((state: RootState) => state.auth);
   const [items, setItems] = useState<Item[]>([]);
+  const [filteredItems, setFilteredItems] = useState<Item[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [openDialog, setOpenDialog] = useState(false);
   const [openDetailDialog, setOpenDetailDialog] = useState(false);
@@ -81,6 +102,26 @@ export default function ItemsPage() {
   const [importResult, setImportResult] = useState<any>(null);
   const [selectedItems, setSelectedItems] = useState<number[]>([]); // For bulk selection
   const [bulkDeleteLoading, setBulkDeleteLoading] = useState(false); // For bulk delete loading
+  const [actionMenuAnchor, setActionMenuAnchor] = useState<null | HTMLElement>(null);
+  const [actionMenuItem, setActionMenuItem] = useState<Item | null>(null);
+  
+  // Mobile pagination state
+  const [mobilePage, setMobilePage] = useState(0);
+  const [mobilePageSize, setMobilePageSize] = useState(10);
+  
+  // PO-related state
+  const [showPODialog, setShowPODialog] = useState(false);
+  const [showCreatePODialog, setShowCreatePODialog] = useState(false);
+  const [pendingPOs, setPendingPOs] = useState<PurchaseOrder[]>([]);
+  const [newPOQuantity, setNewPOQuantity] = useState(0);
+  const [newPOTrackingNumber, setNewPOTrackingNumber] = useState('');
+  
+  // PO editing state
+  const [showEditPODialog, setShowEditPODialog] = useState(false);
+  const [editingPO, setEditingPO] = useState<PurchaseOrder | null>(null);
+  const [editPOQuantity, setEditPOQuantity] = useState(0);
+  const [editPOTrackingNumber, setEditPOTrackingNumber] = useState('');
+  const [editPOOrderDate, setEditPOOrderDate] = useState('');
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -88,28 +129,51 @@ export default function ItemsPage() {
     code: '',
     quantity: 0,
     minQuantity: 0,
+    pendingPO: 0,
     location: '',
     equipment: '',
     category: 'C' as 'A' | 'B' | 'C',
-    status: '',
-    estimatedConsumption: 0,
-    rack: '',
-    floor: '',
-    area: '',
-    bin: '',
     weeklyData: '', // JSON string for dynamic weekly data
   });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Authentication guard - check immediately
   useEffect(() => {
-    fetchItems();
-  }, []);
+    const checkAuth = () => {
+      // Check for token in cookie as fallback
+      const cookieToken = document.cookie.split(';').find(c => c.trim().startsWith('token='));
+      const hasToken = !!(token || cookieToken);
+      
+      if (!isAuthenticated || !hasToken) {
+        // Redirect immediately without fetching any data
+        router.push('/login');
+        return;
+      }
+      
+      // Only fetch data if authenticated
+      fetchItems();
+    };
+
+    checkAuth();
+  }, [isAuthenticated, token, router]);
+
+  // Smart search effect
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setFilteredItems(items);
+    } else {
+      const searchResults = performSmartSearch(items, searchQuery);
+      setFilteredItems(searchResults);
+    }
+    // Reset mobile pagination when search changes
+    setMobilePage(0);
+  }, [items, searchQuery]);
 
   // Refresh data when page becomes visible (after using scanner)
   useEffect(() => {
     const handleVisibilityChange = () => {
-      if (!document.hidden) {
+      if (!document.hidden && isAuthenticated && (token || document.cookie.includes('token='))) {
         fetchItems();
       }
     };
@@ -119,23 +183,119 @@ export default function ItemsPage() {
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, []);
+  }, [isAuthenticated, token]);
+
+  // Smart search algorithm
+  const performSmartSearch = (itemsList: Item[], query: string): Item[] => {
+    if (!query.trim()) return itemsList;
+
+    const queryWords = query.toLowerCase().split(' ').filter(word => word.length > 0);
+    
+    const searchResults = itemsList.map(item => {
+      const searchableText = [
+        item.name || '',
+        item.description || '',
+        item.englishDescription || '',
+        item.code || '',
+        item.location || '',
+        item.equipment || '',
+        item.barcode || '',
+      ].join(' ').toLowerCase();
+
+      let score = 0;
+      let exactMatches = 0;
+      let partialMatches = 0;
+
+      queryWords.forEach(word => {
+        // Exact word match (highest priority)
+        if (searchableText.includes(` ${word} `) || searchableText.startsWith(`${word} `) || searchableText.endsWith(` ${word}`) || searchableText === word) {
+          score += 100;
+          exactMatches++;
+        }
+        // Partial word match (medium priority)
+        else if (searchableText.includes(word)) {
+          score += 50;
+          partialMatches++;
+        }
+        // Fuzzy match for single character differences (low priority)
+        else {
+          const words = searchableText.split(' ');
+          for (const textWord of words) {
+            if (calculateLevenshteinDistance(word, textWord) <= 1 && Math.min(word.length, textWord.length) > 2) {
+              score += 20;
+              partialMatches++;
+              break;
+            }
+          }
+        }
+      });
+
+      // Bonus for exact name matches
+      if (item.name?.toLowerCase().includes(query.toLowerCase())) {
+        score += 200;
+      }
+
+      // Bonus for code matches
+      if (item.code?.toLowerCase().includes(query.toLowerCase())) {
+        score += 150;
+      }
+
+      return { item, score, exactMatches, partialMatches };
+    });
+
+    // Filter out items with no matches and sort by score
+    return searchResults
+      .filter(result => result.score > 0)
+      .sort((a, b) => {
+        // First by exact matches, then by score, then by name
+        if (a.exactMatches !== b.exactMatches) {
+          return b.exactMatches - a.exactMatches;
+        }
+        if (a.score !== b.score) {
+          return b.score - a.score;
+        }
+        return (a.item.name || '').localeCompare(b.item.name || '');
+      })
+      .map(result => result.item);
+  };
+
+  // Calculate Levenshtein distance for fuzzy matching
+  const calculateLevenshteinDistance = (str1: string, str2: string): number => {
+    const matrix = Array(str2.length + 1).fill(null).map(() => Array(str1.length + 1).fill(null));
+
+    for (let i = 0; i <= str1.length; i++) matrix[0][i] = i;
+    for (let j = 0; j <= str2.length; j++) matrix[j][0] = j;
+
+    for (let j = 1; j <= str2.length; j++) {
+      for (let i = 1; i <= str1.length; i++) {
+        const indicator = str1[i - 1] === str2[j - 1] ? 0 : 1;
+        matrix[j][i] = Math.min(
+          matrix[j][i - 1] + 1, // deletion
+          matrix[j - 1][i] + 1, // insertion
+          matrix[j - 1][i - 1] + indicator // substitution
+        );
+      }
+    }
+
+    return matrix[str2.length][str1.length];
+  };
 
   const fetchItems = async () => {
     try {
       setLoading(true);
-      const response = await itemsAPI.getAll();
+      const responseData = await itemsAPI.getAll();
       
-      // Ensure we have valid data
-      if (!response.data || !Array.isArray(response.data)) {
-        console.error('Invalid response format:', response.data);
+      // Ensure we have valid data - since the API interceptor returns response.data directly
+      if (!responseData || !Array.isArray(responseData)) {
+        console.error('Invalid response format:', responseData);
         setItems([]);
+        setFilteredItems([]);
         setSelectedItems([]);
         return;
       }
       
       // Process items to calculate available quantities
-      const processedItems = response.data.map((item: any) => {
+      const processedItems = responseData.map((item: any) => {
         // Ensure all required fields exist with default values
         const currentInventory = item.quantity || 0;
         const usedInventory = item.usedInventory || 0;
@@ -152,12 +312,6 @@ export default function ItemsPage() {
           location: item.location || '',
           equipment: item.equipment || '',
           category: item.category || 'C',
-          status: item.status || '',
-          estimatedConsumption: item.estimatedConsumption || 0,
-          rack: item.rack || '',
-          floor: item.floor || '',
-          area: item.area || '',
-          bin: item.bin || '',
           weeklyData: item.weeklyData || '',
           barcode: item.barcode || '',
           currentInventory: currentInventory,
@@ -176,10 +330,19 @@ export default function ItemsPage() {
     } catch (error) {
       console.error('Error fetching items:', error);
       setItems([]); // Set empty array on error
+      setFilteredItems([]); // Set empty array on error
       setSelectedItems([]); // Clear selections on error
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchQuery(event.target.value);
+  };
+
+  const clearSearch = () => {
+    setSearchQuery('');
   };
 
   const handleOpenDialog = (item?: Item) => {
@@ -195,13 +358,8 @@ export default function ItemsPage() {
         location: item.location,
         equipment: item.equipment || '',
         category: item.category,
-        status: item.status || '',
-        estimatedConsumption: item.estimatedConsumption || 0,
-        rack: item.rack || '',
-        floor: item.floor || '',
-        area: item.area || '',
-        bin: item.bin || '',
         weeklyData: item.weeklyData || '',
+        pendingPO: item.pendingPO || 0,
       });
     } else {
       setSelectedItem(null);
@@ -215,13 +373,8 @@ export default function ItemsPage() {
         location: '',
         equipment: '',
         category: 'C',
-        status: '',
-        estimatedConsumption: 0,
-        rack: '',
-        floor: '',
-        area: '',
-        bin: '',
         weeklyData: '',
+        pendingPO: 0,
       });
     }
     setOpenDialog(true);
@@ -276,6 +429,38 @@ export default function ItemsPage() {
     } catch (error) {
       console.error('Error adding quantity:', error);
       alert('Error adding quantity. Please try again.');
+    }
+  };
+
+  const handleReceivePO = async (item: Item) => {
+    if (!item.pendingPO || item.pendingPO <= 0) {
+      alert('No pending PO to receive for this item');
+      return;
+    }
+
+    if (window.confirm(`Receive ${item.pendingPO} units from PO for ${item.name}? This will add to current inventory and reset PO to 0.`)) {
+      try {
+        const newQuantity = item.quantity + item.pendingPO;
+        await itemsAPI.update(item.id, {
+          name: item.name,
+          description: item.description || '',
+          englishDescription: item.englishDescription || '',
+          code: item.code || '',
+          quantity: newQuantity,
+          minQuantity: item.minQuantity,
+          pendingPO: 0, // Reset PO to 0
+          location: item.location,
+          equipment: item.equipment || '',
+          category: item.category,
+          weeklyData: item.weeklyData || '',
+        });
+        
+        fetchItems(); // Refresh the items list
+        alert(`Successfully received ${item.pendingPO} units from PO`);
+      } catch (error) {
+        console.error('Error receiving PO:', error);
+        alert('Error receiving PO. Please try again.');
+      }
     }
   };
 
@@ -450,37 +635,38 @@ export default function ItemsPage() {
         </Box>
       ),
     },
-    { field: 'name', headerName: 'Name', flex: 1 },
-    { field: 'code', headerName: 'Code', width: 120 },
+    { field: 'name', headerName: 'Name', flex: 1.5 },
+    { field: 'code', headerName: 'Code', width: 100 },
     { 
       field: 'category', 
       headerName: 'Category', 
-      width: 100,
+      width: 90,
       renderCell: (params) => (
         <Chip 
           label={params.value} 
           color={getCategoryColor(params.value) as any}
-          size="medium"
+          size="small"
         />
       )
     },
-    { field: 'quantity', headerName: 'Current Inventory', type: 'number', width: 140 },
-    { field: 'minQuantity', headerName: 'Min Quantity', type: 'number', width: 120 },
+    { field: 'quantity', headerName: 'Current', type: 'number', width: 90 },
+    { field: 'pendingPO', headerName: 'PO', type: 'number', width: 70 },
+    { field: 'minQuantity', headerName: 'Min', type: 'number', width: 70 },
     { field: 'location', headerName: 'Location', flex: 1 },
     { 
       field: 'barcode', 
       headerName: 'Barcode', 
-      flex: 1.5,
+      flex: 1.2,
       renderCell: (params) => {
-        if (!params.row || !params.value) return <Typography>No barcode</Typography>;
+        if (!params.row || !params.value) return <Typography variant="caption" color="text.secondary">No barcode</Typography>;
         return (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <img 
               src={`http://localhost:8080/api/public/barcode-image/${params.value}`}
               alt={`Barcode: ${params.value}`}
-              style={{ height: 30, maxWidth: 120 }}
+              style={{ height: 24, maxWidth: 100 }}
             />
-            <Typography variant="caption" color="text.secondary">
+            <Typography variant="caption" color="text.secondary" noWrap>
               {params.value}
             </Typography>
           </Box>
@@ -490,24 +676,58 @@ export default function ItemsPage() {
     {
       field: 'actions',
       headerName: 'Actions',
-      flex: 1,
+      width: 140,
       sortable: false,
       filterable: false,
       renderCell: (params) => {
         if (!params.row) return null;
         return (
-          <Box sx={{ display: 'flex', gap: 1 }}>
-            <IconButton onClick={() => handleOpenDetailDialog(params.row)} size="small" title="View Details">
-              <ViewIcon />
+          <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
+            {/* Primary Action - View Details */}
+            <IconButton 
+              onClick={(e) => {
+                e.stopPropagation();
+                handleOpenDetailDialog(params.row);
+              }} 
+              size="small" 
+              title="View Details"
+              sx={{ 
+                color: 'primary.main',
+                '&:hover': { bgcolor: 'primary.light', color: 'white' }
+              }}
+            >
+              <ViewIcon fontSize="small" />
             </IconButton>
-            <IconButton onClick={() => handleOpenDialog(params.row)} size="small" title="Edit Item">
-              <EditIcon />
-            </IconButton>
-            <IconButton onClick={() => handleOpenQuantityDialog(params.row)} size="small" title="Add Quantity" color="success">
-              <InventoryIcon />
-            </IconButton>
-            <IconButton onClick={() => handleDelete(params.row.id)} size="small" title="Delete Item" color="error">
-              <DeleteIcon />
+
+            {/* Quick Action - Receive PO (only if available) */}
+            {/* {params.row.pendingPO > 0 && (
+              <IconButton 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleReceivePO(params.row);
+                }} 
+                size="small" 
+                title={`Receive ${params.row.pendingPO} units from PO`}
+                sx={{ 
+                  color: 'info.main',
+                  '&:hover': { bgcolor: 'info.light', color: 'white' }
+                }}
+              >
+                <ReceiveIcon fontSize="small" />
+              </IconButton>
+            )} */}
+
+            {/* More Actions Menu */}
+            <IconButton
+              onClick={(e) => handleActionMenuOpen(e, params.row)}
+              size="small"
+              title="More actions"
+              sx={{ 
+                color: 'text.secondary',
+                '&:hover': { bgcolor: 'grey.200' }
+              }}
+            >
+              <MoreVertIcon fontSize="small" />
             </IconButton>
           </Box>
         );
@@ -523,11 +743,195 @@ export default function ItemsPage() {
     }
   };
 
+  const handleActionMenuOpen = (event: React.MouseEvent<HTMLElement>, item: Item) => {
+    event.stopPropagation();
+    setActionMenuAnchor(event.currentTarget);
+    setActionMenuItem(item);
+  };
+
+  const handleActionMenuClose = () => {
+    setActionMenuAnchor(null);
+    setActionMenuItem(null);
+  };
+
+  const handleMenuAction = (action: string) => {
+    if (!actionMenuItem) return;
+    
+    handleActionMenuClose();
+    
+    switch (action) {
+      case 'view':
+        handleOpenDetailDialog(actionMenuItem);
+        break;
+      case 'edit':
+        handleOpenDialog(actionMenuItem);
+        break;
+      case 'addQuantity':
+        handleOpenQuantityDialog(actionMenuItem);
+        break;
+      case 'receivePO':
+        handleReceivePO(actionMenuItem);
+        break;
+      case 'managePO':
+        handleOpenPODialog(actionMenuItem);
+        break;
+      case 'createPO':
+        handleOpenCreatePODialog(actionMenuItem);
+        break;
+      case 'delete':
+        handleDelete(actionMenuItem.id);
+        break;
+    }
+  };
+
+  // PO-related functions
+  const fetchPendingPOs = async (itemId: number) => {
+    try {
+      const response = await purchaseOrderAPI.getPendingByItem(itemId);
+      const responseData = (response as any)?.data || response || [];
+      setPendingPOs(Array.isArray(responseData) ? responseData : []);
+    } catch (error) {
+      console.error('Error fetching pending POs:', error);
+      setPendingPOs([]);
+    }
+  };
+
+  const handleOpenPODialog = async (item: Item) => {
+    setSelectedItem(item);
+    await fetchPendingPOs(item.id);
+    setShowPODialog(true);
+  };
+
+  const handleOpenCreatePODialog = (item: Item) => {
+    setSelectedItem(item);
+    setNewPOQuantity(0);
+    setNewPOTrackingNumber('');
+    setShowCreatePODialog(true);
+  };
+
+  const createPurchaseOrder = async () => {
+    if (!selectedItem || newPOQuantity <= 0) {
+      alert('Please enter a valid PO quantity');
+      return;
+    }
+
+    try {
+      await purchaseOrderAPI.create({
+        itemId: selectedItem.id,
+        quantity: newPOQuantity,
+        trackingNumber: newPOTrackingNumber || undefined,
+      });
+
+      alert(`Created Purchase Order for ${newPOQuantity} units of ${selectedItem.name}`);
+      
+      // Refresh items list
+      fetchItems();
+      
+      setNewPOQuantity(0);
+      setNewPOTrackingNumber('');
+      setShowCreatePODialog(false);
+    } catch (error) {
+      console.error('Error creating PO:', error);
+      alert('Failed to create Purchase Order. Please try again.');
+    }
+  };
+
+  const markPOAsArrived = async (purchaseOrderId: number) => {
+    try {
+      await purchaseOrderAPI.markAsArrived(purchaseOrderId);
+      
+      alert('Purchase Order marked as arrived successfully');
+      
+      // Refresh items list and pending POs
+      fetchItems();
+      if (selectedItem) {
+        await fetchPendingPOs(selectedItem.id);
+      }
+    } catch (error) {
+      console.error('Error marking PO as arrived:', error);
+      alert('Failed to mark Purchase Order as arrived. Please try again.');
+    }
+  };
+
+  const handleEditPO = (po: PurchaseOrder) => {
+    setEditingPO(po);
+    setEditPOQuantity(po.quantity);
+    setEditPOTrackingNumber(po.trackingNumber || '');
+    setEditPOOrderDate(po.orderDate.split('T')[0]); // Format for date input
+    setShowEditPODialog(true);
+  };
+
+  const updatePurchaseOrder = async () => {
+    if (!editingPO || !selectedItem) return;
+
+    try {
+      await purchaseOrderAPI.update(selectedItem.id, editingPO.id, {
+          quantity: editPOQuantity,
+          trackingNumber: editPOTrackingNumber,
+        orderDate: editPOOrderDate ? `${editPOOrderDate}T00:00:00` : undefined,
+      });
+
+        alert('Purchase order updated successfully!');
+        setShowEditPODialog(false);
+        setEditingPO(null);
+        // Reset form
+        setEditPOQuantity(0);
+        setEditPOTrackingNumber('');
+        setEditPOOrderDate('');
+        // Refresh data
+        fetchItems();
+        if (selectedItem) {
+          await fetchPendingPOs(selectedItem.id);
+      }
+    } catch (error) {
+      console.error('Error updating purchase order:', error);
+      alert('Failed to update purchase order');
+    }
+  };
+
+  // Authentication guard UI
+  if (!isAuthenticated || (!token && !document.cookie.includes('token='))) {
+    return (
+      <Box sx={{ 
+        p: { xs: 1, sm: 2, md: 3 }, 
+        width: '100%',
+        maxWidth: '100vw',
+        overflow: 'hidden',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        minHeight: '50vh'
+      }}>
+        <Paper sx={{ p: 4, textAlign: 'center', maxWidth: 400 }}>
+          <Typography variant="h5" color="error" gutterBottom>
+            Access Denied
+          </Typography>
+          <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
+            You must be logged in to access this page.
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Redirecting to login...
+          </Typography>
+        </Paper>
+      </Box>
+    );
+  }
+
   return (
-    <Box sx={{ p: 3 }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
+    <Box sx={{ 
+      p: { xs: 1, sm: 2, md: 3 }, 
+      width: '100%',
+      maxWidth: '100vw',
+      overflow: 'hidden'
+    }}>
+      <Box sx={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', mb: 3, gap: 2 }}>
         <Typography variant="h4">Inventory Items</Typography>
-        <Box sx={{ display: 'flex', gap: 1 }}>
+        <Box sx={{ 
+          display: 'flex', 
+          gap: 1, 
+          flexWrap: 'wrap',
+          justifyContent: isMobile ? 'center' : 'flex-end'
+        }}>
           {selectedItems.length > 0 && (
             <Button
               variant="outlined"
@@ -535,8 +939,9 @@ export default function ItemsPage() {
               onClick={handleBulkDelete}
               color="error"
               disabled={bulkDeleteLoading}
+              size={isMobile ? 'small' : 'medium'}
             >
-              {bulkDeleteLoading ? 'Deleting...' : `Delete Selected (${selectedItems.length})`}
+              {bulkDeleteLoading ? 'Deleting...' : `Delete (${selectedItems.length})`}
             </Button>
           )}
           <Button
@@ -544,58 +949,338 @@ export default function ItemsPage() {
             startIcon={<RefreshIcon />}
             onClick={fetchItems}
             disabled={loading}
+            size={isMobile ? 'small' : 'medium'}
           >
-            Refresh
+            {isMobile ? 'Refresh' : 'Refresh'}
           </Button>
           <Button
             variant="outlined"
             startIcon={<DownloadIcon />}
             onClick={handleExportBarcodes}
             color="secondary"
+            size={isMobile ? 'small' : 'medium'}
           >
-            Export Barcodes
+            {isMobile ? 'Export' : 'Export Barcodes'}
           </Button>
           <Button
             variant="outlined"
             startIcon={<UploadIcon />}
             onClick={() => setOpenImportDialog(true)}
             color="info"
+            size={isMobile ? 'small' : 'medium'}
           >
-            Import CSV/Excel
+            {isMobile ? 'Import' : 'Import CSV/Excel'}
           </Button>
           <Button
             variant="contained"
             startIcon={<AddIcon />}
             onClick={() => handleOpenDialog()}
+            size={isMobile ? 'small' : 'medium'}
           >
             Add Item
           </Button>
         </Box>
       </Box>
 
-      <Paper sx={{ height: 400, width: '100%' }}>
-        <DataGrid
-          rows={items || []}
-          columns={columns}
-          loading={loading}
-          pageSizeOptions={[5, 10, 25]}
-          initialState={{
-            pagination: { paginationModel: { pageSize: 10 } },
+      {/* Smart Search Bar */}
+      <Box sx={{ mb: 3 }}>
+        <TextField
+          fullWidth
+          variant="outlined"
+          placeholder="Search items by name, code, description, location, equipment... (e.g., 'white belt', 'belt', 'B001')"
+          value={searchQuery}
+          onChange={handleSearchChange}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchIcon color="action" />
+              </InputAdornment>
+            ),
+            endAdornment: searchQuery && (
+              <InputAdornment position="end">
+                <IconButton onClick={clearSearch} size="small" edge="end">
+                  <ClearIcon />
+                </IconButton>
+              </InputAdornment>
+            ),
           }}
-          disableRowSelectionOnClick
-          getRowId={(row) => row?.id || `temp-${Math.random()}`}
           sx={{
-            '& .MuiDataGrid-row': {
-              '&:hover': {
-                backgroundColor: 'rgba(0, 0, 0, 0.04)',
-              },
+            '& .MuiOutlinedInput-root': {
+              backgroundColor: 'background.paper',
             },
           }}
         />
-      </Paper>
+        {searchQuery && (
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+            Found {filteredItems.length} item{filteredItems.length !== 1 ? 's' : ''} matching "{searchQuery}"
+          </Typography>
+        )}
+      </Box>
+
+      {/* Responsive Layout */}
+      {isMobile ? (
+        /* Mobile Card Layout */
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {loading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
+              <CircularProgress />
+            </Box>
+          ) : filteredItems.length === 0 ? (
+            <Paper sx={{ p: 4, textAlign: 'center' }}>
+              <Typography variant="h6" color="text.secondary">
+                No items found
+              </Typography>
+            </Paper>
+          ) : (
+            <>
+              {/* Mobile Items Display */}
+              {filteredItems
+                .slice(mobilePage * mobilePageSize, (mobilePage + 1) * mobilePageSize)
+                .map((item) => (
+              <Card key={item.id} sx={{ position: 'relative' }}>
+                <CardContent>
+                  {/* Selection Checkbox */}
+                  <Box sx={{ position: 'absolute', top: 8, left: 8 }}>
+                    <Checkbox
+                      checked={selectedItems.includes(item.id)}
+                      onChange={(e) => {
+                        e.stopPropagation();
+                        handleItemSelect(item.id);
+                      }}
+                      size="small"
+                    />
+                  </Box>
+
+                  {/* Main Content */}
+                  <Box sx={{ ml: 5 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+                      <Box sx={{ flex: 1 }}>
+                        <Typography variant="h6" gutterBottom>
+                          {item.name}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          Code: {item.code || 'N/A'}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          Location: {item.location || 'N/A'}
+                        </Typography>
+                      </Box>
+                      <Chip 
+                        label={item.category} 
+                        color={getCategoryColor(item.category) as any}
+                        size="small"
+                      />
+                    </Box>
+
+                    {/* Inventory Info */}
+                    <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap' }}>
+                      <Box sx={{ textAlign: 'center', minWidth: 60 }}>
+                        <Typography variant="h6" color="primary">
+                          {item.quantity || 0}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          Current
+                        </Typography>
+                      </Box>
+                      <Box sx={{ textAlign: 'center', minWidth: 60 }}>
+                        <Typography variant="h6" color="warning.main">
+                          {item.pendingPO || 0}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          PO
+                        </Typography>
+                      </Box>
+                      <Box sx={{ textAlign: 'center', minWidth: 60 }}>
+                        <Typography variant="h6" color="error.main">
+                          {item.minQuantity || 0}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          Min
+                        </Typography>
+                      </Box>
+                    </Box>
+
+                    {/* Barcode */}
+                    {item.barcode && (
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                        <img 
+                          src={`http://localhost:8080/api/public/barcode-image/${item.barcode}`}
+                          alt={`Barcode: ${item.barcode}`}
+                          style={{ height: 20, maxWidth: 80 }}
+                        />
+                        <Typography variant="caption" color="text.secondary">
+                          {item.barcode}
+                        </Typography>
+                      </Box>
+                    )}
+                  </Box>
+                </CardContent>
+                
+                <CardActions sx={{ justifyContent: 'space-between', px: 2, pb: 2 }}>
+                  <Button
+                    size="small"
+                    startIcon={<ViewIcon />}
+                    onClick={() => handleOpenDetailDialog(item)}
+                  >
+                    View
+                  </Button>
+                  <IconButton
+                    onClick={(e) => handleActionMenuOpen(e, item)}
+                    size="small"
+                  >
+                    <MoreVertIcon />
+                  </IconButton>
+                </CardActions>
+              </Card>
+                ))}
+              
+              {/* Mobile Pagination */}
+              {filteredItems.length > mobilePageSize && (
+                <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
+                  <Stack spacing={2} alignItems="center">
+                    <Pagination
+                      count={Math.ceil(filteredItems.length / mobilePageSize)}
+                      page={mobilePage + 1}
+                      onChange={(event, value) => setMobilePage(value - 1)}
+                      color="primary"
+                      size="large"
+                      showFirstButton 
+                      showLastButton
+                    />
+                    <Typography variant="body2" color="text.secondary">
+                      Showing {(mobilePage * mobilePageSize) + 1}-{Math.min((mobilePage + 1) * mobilePageSize, filteredItems.length)} of {filteredItems.length} items
+                    </Typography>
+                  </Stack>
+                </Box>
+              )}
+            </>
+          )}
+        </Box>
+      ) : (
+        /* Desktop Table Layout */
+        <Paper sx={{ 
+          height: 600, 
+          width: '100%',
+          overflow: 'hidden'
+        }}>
+          <DataGrid
+            rows={filteredItems || []}
+            columns={columns}
+            loading={loading}
+            pageSizeOptions={[10, 25, 50, 100]}
+            initialState={{
+              pagination: { paginationModel: { pageSize: 25 } },
+            }}
+            pagination
+            disableRowSelectionOnClick
+            getRowId={(row) => row?.id || `temp-${Math.random()}`}
+            sx={{
+              width: '100%',
+              '& .MuiDataGrid-root': {
+                minWidth: 0,
+              },
+              '& .MuiDataGrid-columnHeaders': {
+                minWidth: 0,
+              },
+              '& .MuiDataGrid-virtualScroller': {
+                minWidth: 0,
+              },
+              '& .MuiDataGrid-row': {
+                '&:hover': {
+                  backgroundColor: 'rgba(0, 0, 0, 0.04)',
+                },
+                minWidth: 0,
+              },
+              '& .MuiDataGrid-footerContainer': {
+                minHeight: 52,
+                justifyContent: 'center'
+              }
+            }}
+          />
+        </Paper>
+      )}
+
+      {/* Action Menu */}
+      <Menu
+        anchorEl={actionMenuAnchor}
+        open={Boolean(actionMenuAnchor)}
+        onClose={handleActionMenuClose}
+        transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+        anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+        PaperProps={{
+          elevation: 3,
+          sx: {
+            mt: 1,
+            minWidth: 180,
+            '& .MuiMenuItem-root': {
+              px: 2,
+              py: 1,
+              borderRadius: 0.5,
+              mx: 0.5,
+              my: 0.25,
+            },
+          },
+        }}
+      >
+        <MenuItem onClick={() => handleMenuAction('edit')}>
+          <ListItemIcon>
+            <EditIcon fontSize="small" color="primary" />
+          </ListItemIcon>
+          <ListItemText primary="Edit Item" />
+        </MenuItem>
+        
+        <MenuItem onClick={() => handleMenuAction('addQuantity')}>
+          <ListItemIcon>
+            <InventoryIcon fontSize="small" color="success" />
+          </ListItemIcon>
+          <ListItemText primary="Add Quantity" />
+        </MenuItem>
+
+        <Divider sx={{ my: 0.5 }} />
+
+        <MenuItem onClick={() => handleMenuAction('createPO')}>
+          <ListItemIcon>
+            <AddIcon fontSize="small" color="info" />
+          </ListItemIcon>
+          <ListItemText primary="Create Purchase Order" />
+        </MenuItem>
+
+        {actionMenuItem && actionMenuItem.pendingPO && actionMenuItem.pendingPO > 0 && (
+          <MenuItem onClick={() => handleMenuAction('managePO')}>
+            <ListItemIcon>
+              <LocalShippingIcon fontSize="small" color="warning" />
+            </ListItemIcon>
+            <ListItemText primary={`Manage POs (${actionMenuItem.pendingPO})`} />
+          </MenuItem>
+        )}
+        
+        <Divider sx={{ my: 0.5 }} />
+        
+        <MenuItem 
+          onClick={() => handleMenuAction('delete')}
+          sx={{ 
+            color: 'error.main',
+            '&:hover': { 
+              bgcolor: 'error.light',
+              color: 'error.contrastText'
+            }
+          }}
+        >
+          <ListItemIcon>
+            <DeleteIcon fontSize="small" color="error" />
+          </ListItemIcon>
+          <ListItemText primary="Delete Item" />
+        </MenuItem>
+      </Menu>
 
       {/* Item Detail Dialog - Redesigned */}
-      <Dialog open={openDetailDialog} onClose={handleCloseDetailDialog} maxWidth="lg" fullWidth>
+      <Dialog 
+        open={openDetailDialog} 
+        onClose={handleCloseDetailDialog} 
+        maxWidth="lg" 
+        fullWidth
+        fullScreen={isMobile}
+      >
         <DialogTitle>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <Typography variant="h5">Item Details</Typography>
@@ -736,42 +1421,6 @@ export default function ItemsPage() {
                         <strong>Equipment:</strong> {selectedItem.equipment || 'Not specified'}
                       </Typography>
                     </Grid>
-                    {(selectedItem.rack || selectedItem.floor || selectedItem.area || selectedItem.bin) && (
-                      <>
-                        <Grid item xs={12}>
-                          <Divider sx={{ my: 1 }} />
-                          <Typography variant="subtitle2" gutterBottom>Detailed Location</Typography>
-                        </Grid>
-                        {selectedItem.rack && (
-                          <Grid item xs={6} md={3}>
-                            <Typography variant="body2">
-                              <strong>Rack:</strong> {selectedItem.rack}
-                            </Typography>
-                          </Grid>
-                        )}
-                        {selectedItem.floor && (
-                          <Grid item xs={6} md={3}>
-                            <Typography variant="body2">
-                              <strong>Floor:</strong> {selectedItem.floor}
-                            </Typography>
-                          </Grid>
-                        )}
-                        {selectedItem.area && (
-                          <Grid item xs={6} md={3}>
-                            <Typography variant="body2">
-                              <strong>Area:</strong> {selectedItem.area}
-                            </Typography>
-                          </Grid>
-                        )}
-                        {selectedItem.bin && (
-                          <Grid item xs={6} md={3}>
-                            <Typography variant="body2">
-                              <strong>Bin:</strong> {selectedItem.bin}
-                            </Typography>
-                          </Grid>
-                        )}
-                      </>
-                    )}
                   </Grid>
                 </CardContent>
               </Card>
@@ -806,11 +1455,6 @@ export default function ItemsPage() {
                   <Grid container spacing={2}>
                     <Grid item xs={12} md={6}>
                       <Typography variant="body2" gutterBottom>
-                        <strong>Status:</strong> {selectedItem.status || 'Active'}
-                      </Typography>
-                    </Grid>
-                    <Grid item xs={12} md={6}>
-                      <Typography variant="body2" gutterBottom>
                         <strong>ABC Category:</strong> {selectedItem.category} 
                         {selectedItem.category === 'A' && ' - High Value'}
                         {selectedItem.category === 'B' && ' - Medium Value'}
@@ -836,6 +1480,20 @@ export default function ItemsPage() {
           }} variant="outlined" color="success">
             Add Stock
           </Button>
+          <Button onClick={() => {
+            handleCloseDetailDialog();
+            if (selectedItem) handleOpenCreatePODialog(selectedItem);
+          }} variant="outlined" color="info">
+            Create PO
+          </Button>
+          {selectedItem && selectedItem.pendingPO && selectedItem.pendingPO > 0 && (
+            <Button onClick={() => {
+              handleCloseDetailDialog();
+              if (selectedItem) handleOpenPODialog(selectedItem);
+            }} variant="outlined" color="warning">
+              Manage POs ({selectedItem.pendingPO})
+            </Button>
+          )}
           <Button onClick={() => {
             handleCloseDetailDialog();
             if (selectedItem) handleOpenDialog(selectedItem);
@@ -879,7 +1537,19 @@ export default function ItemsPage() {
 
       {/* Import CSV Dialog */}
       <Dialog open={openImportDialog} onClose={() => setOpenImportDialog(false)} maxWidth="md" fullWidth>
-        <DialogTitle>Import Items from CSV/Excel</DialogTitle>
+        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          Import Items from CSV/Excel
+          <IconButton 
+            onClick={() => {
+              setOpenImportDialog(false);
+              setImportFile(null);
+              setImportResult(null);
+            }}
+            size="small"
+          >
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
         <DialogContent>
           <Box sx={{ pt: 2 }}>
             <Alert severity="info" sx={{ mb: 2 }}>
@@ -890,6 +1560,7 @@ export default function ItemsPage() {
                 • Part Number will be used as the item code<br/>
                 • Rows with empty Description will be skipped<br/>
                 • Duplicate items (same Part Number) will be skipped automatically<br/>
+                • Status, Total Consumption, Rack, Floor, Area, and Bin columns are ignored<br/>
                 • Supported formats: CSV, XLSX, XLS, XLSM
               </Typography>
             </Alert>
@@ -968,13 +1639,6 @@ export default function ItemsPage() {
           </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => {
-            setOpenImportDialog(false);
-            setImportFile(null);
-            setImportResult(null);
-          }}>
-            Cancel
-          </Button>
           <Button 
             onClick={handleImportCSV} 
             variant="contained"
@@ -986,7 +1650,13 @@ export default function ItemsPage() {
       </Dialog>
 
       {/* Create/Edit Item Dialog */}
-      <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="md" fullWidth>
+      <Dialog 
+        open={openDialog} 
+        onClose={handleCloseDialog} 
+        maxWidth="md" 
+        fullWidth
+        fullScreen={isMobile}
+      >
         <DialogTitle>
           {selectedItem ? 'Edit Item' : 'Add New Item'}
         </DialogTitle>
@@ -1049,6 +1719,16 @@ export default function ItemsPage() {
             <Grid item xs={12} md={6}>
               <TextField
                 fullWidth
+                label="Pending PO"
+                type="number"
+                value={formData.pendingPO}
+                onChange={(e) => setFormData({ ...formData, pendingPO: Number(e.target.value) })}
+                helperText="Purchase orders on the way"
+              />
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <TextField
+                fullWidth
                 label="Location"
                 value={formData.location}
                 onChange={(e) => setFormData({ ...formData, location: e.target.value })}
@@ -1076,55 +1756,6 @@ export default function ItemsPage() {
                 </Select>
               </FormControl>
             </Grid>
-            <Grid item xs={12} md={4}>
-              <TextField
-                fullWidth
-                label="Status"
-                value={formData.status}
-                onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-              />
-            </Grid>
-            <Grid item xs={12} md={4}>
-              <TextField
-                fullWidth
-                label="Estimated Consumption"
-                type="number"
-                value={formData.estimatedConsumption}
-                onChange={(e) => setFormData({ ...formData, estimatedConsumption: Number(e.target.value) })}
-              />
-            </Grid>
-            <Grid item xs={12} md={3}>
-              <TextField
-                fullWidth
-                label="Rack"
-                value={formData.rack}
-                onChange={(e) => setFormData({ ...formData, rack: e.target.value })}
-              />
-            </Grid>
-            <Grid item xs={12} md={3}>
-              <TextField
-                fullWidth
-                label="Floor"
-                value={formData.floor}
-                onChange={(e) => setFormData({ ...formData, floor: e.target.value })}
-              />
-            </Grid>
-            <Grid item xs={12} md={3}>
-              <TextField
-                fullWidth
-                label="Area"
-                value={formData.area}
-                onChange={(e) => setFormData({ ...formData, area: e.target.value })}
-              />
-            </Grid>
-            <Grid item xs={12} md={3}>
-              <TextField
-                fullWidth
-                label="Bin"
-                value={formData.bin}
-                onChange={(e) => setFormData({ ...formData, bin: e.target.value })}
-              />
-            </Grid>
             <Grid item xs={12}>
               <TextField
                 fullWidth
@@ -1143,6 +1774,218 @@ export default function ItemsPage() {
           <Button onClick={handleCloseDialog}>Cancel</Button>
           <Button onClick={handleSave} variant="contained">
             {selectedItem ? 'Update' : 'Add'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Create Purchase Order Dialog */}
+      <Dialog 
+        open={showCreatePODialog} 
+        onClose={() => setShowCreatePODialog(false)} 
+        maxWidth="sm" 
+        fullWidth
+        fullScreen={isMobile}
+      >
+        <DialogTitle>Create Purchase Order</DialogTitle>
+        <DialogContent>
+          {selectedItem && (
+            <Box sx={{ py: 2 }}>
+              <Card sx={{ mb: 3 }}>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>{selectedItem.name}</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    <strong>Code:</strong> {selectedItem.code || 'N/A'}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    <strong>Current Inventory:</strong> {selectedItem.currentInventory || selectedItem.quantity || 0}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    <strong>Pending PO:</strong> {selectedItem.pendingPO || 0}
+                  </Typography>
+                </CardContent>
+              </Card>
+
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                <TextField
+                  fullWidth
+                  label="Quantity to Order"
+                  type="number"
+                  value={newPOQuantity}
+                  onChange={(e) => setNewPOQuantity(Math.max(0, parseInt(e.target.value) || 0))}
+                  inputProps={{ min: 1 }}
+                  required
+                  helperText="Enter the quantity to order"
+                />
+
+                <TextField
+                  fullWidth
+                  label="Tracking Number (Optional)"
+                  value={newPOTrackingNumber}
+                  onChange={(e) => setNewPOTrackingNumber(e.target.value)}
+                  helperText="Enter tracking number if available"
+                />
+              </Box>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowCreatePODialog(false)}>Cancel</Button>
+          <Button 
+            onClick={createPurchaseOrder} 
+            variant="contained"
+            color="primary"
+            disabled={!selectedItem || newPOQuantity <= 0}
+          >
+            Create Purchase Order
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Manage Purchase Orders Dialog */}
+      <Dialog 
+        open={showPODialog} 
+        onClose={() => setShowPODialog(false)} 
+        maxWidth="md" 
+        fullWidth
+        fullScreen={isMobile}
+      >
+        <DialogTitle>Manage Purchase Orders</DialogTitle>
+        <DialogContent>
+          {selectedItem && (
+            <Box sx={{ py: 2 }}>
+              <Card sx={{ mb: 3 }}>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>{selectedItem.name}</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    <strong>Code:</strong> {selectedItem.code || 'N/A'}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    <strong>Current Inventory:</strong> {selectedItem.currentInventory || selectedItem.quantity || 0}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    <strong>Total Pending PO:</strong> {selectedItem.pendingPO || 0}
+                  </Typography>
+                </CardContent>
+              </Card>
+
+              <Typography variant="h6" gutterBottom>Pending Purchase Orders</Typography>
+              {!pendingPOs || pendingPOs.length === 0 ? (
+                <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
+                  No pending purchase orders for this item.
+                </Typography>
+              ) : (
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  {(pendingPOs || []).map((po) => (
+                    <Card key={po.id} variant="outlined">
+                      <CardContent>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                          <Box sx={{ flex: 1 }}>
+                            <Typography variant="subtitle1">
+                              <strong>PO #{po.id}</strong>
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              <strong>Quantity:</strong> {po.quantity}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              <strong>Order Date:</strong> {new Date(po.orderDate).toLocaleDateString()}
+                            </Typography>
+                            {po.trackingNumber && (
+                              <Box sx={{ mt: 1 }}>
+                                <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                                  <strong>Tracking:</strong> {po.trackingNumber}
+                                </Typography>
+                                {/* <TrackingDisplay trackingNumber={po.trackingNumber} compact /> */}
+                              </Box>
+                            )}
+                            {po.createdBy && (
+                              <Typography variant="body2" color="text.secondary">
+                                <strong>Created by:</strong> {po.createdBy}
+                              </Typography>
+                            )}
+                          </Box>
+                          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, ml: 2 }}>
+                            <Button
+                              variant="outlined"
+                              color="primary"
+                              onClick={() => handleEditPO(po)}
+                              size="small"
+                            >
+                              Edit
+                            </Button>
+                            <Button
+                              variant="contained"
+                              color="success"
+                              onClick={() => markPOAsArrived(po.id)}
+                              size="small"
+                            >
+                              Mark as Arrived
+                            </Button>
+                          </Box>
+                        </Box>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </Box>
+              )}
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowPODialog(false)}>Close</Button>
+          <Button 
+            onClick={() => {
+              setShowPODialog(false);
+              setShowCreatePODialog(true);
+            }}
+            variant="contained"
+            color="primary"
+          >
+            Create New PO
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Edit Purchase Order Dialog */}
+      <Dialog 
+        open={showEditPODialog} 
+        onClose={() => setShowEditPODialog(false)}
+        maxWidth="sm"
+        fullWidth
+        fullScreen={isMobile}
+      >
+        <DialogTitle>
+          Edit Purchase Order #{editingPO?.id}
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
+            <TextField
+              fullWidth
+              label="Quantity"
+              type="number"
+              value={editPOQuantity}
+              onChange={(e) => setEditPOQuantity(Math.max(0, parseInt(e.target.value) || 0))}
+              inputProps={{ min: 1 }}
+            />
+            <TextField
+              fullWidth
+              label="Tracking Number"
+              value={editPOTrackingNumber}
+              onChange={(e) => setEditPOTrackingNumber(e.target.value)}
+            />
+            <TextField
+              fullWidth
+              label="Order Date"
+              type="date"
+              value={editPOOrderDate}
+              onChange={(e) => setEditPOOrderDate(e.target.value)}
+              InputLabelProps={{ shrink: true }}
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowEditPODialog(false)}>Cancel</Button>
+          <Button onClick={updatePurchaseOrder} variant="contained" color="primary">
+            Update Purchase Order
           </Button>
         </DialogActions>
       </Dialog>

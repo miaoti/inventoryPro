@@ -2,6 +2,7 @@ package com.inventory.dto;
 
 import lombok.Data;
 import java.time.LocalDateTime;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 @Data
 public class UsageResponse {
@@ -9,6 +10,10 @@ public class UsageResponse {
     private ItemSummary item;
     private String userName;
     private String department;
+    
+    @JsonProperty("dNumber")
+    private String dNumber;
+    
     private Integer quantityUsed;
     private LocalDateTime usedAt;
     private String notes;
@@ -23,12 +28,13 @@ public class UsageResponse {
         private String location;
     }
 
-    public UsageResponse(Long id, ItemSummary item, String userName, String department, Integer quantityUsed, 
+    public UsageResponse(Long id, ItemSummary item, String userName, String department, String dNumber, Integer quantityUsed, 
                         LocalDateTime usedAt, String notes, String barcode) {
         this.id = id;
         this.item = item;
         this.userName = userName;
         this.department = department;
+        this.dNumber = dNumber;
         this.quantityUsed = quantityUsed;
         this.usedAt = usedAt;
         this.notes = notes;

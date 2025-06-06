@@ -11,14 +11,9 @@ public class ItemCreateRequest {
     private String code;
     private Integer quantity;
     private Integer minQuantity;
+    private Integer pendingPO;
     private String location;
     private String equipment;
     private ABCCategory category;
-    private String status;
-    private Integer estimatedConsumption;
-    private String rack;
-    private String floor;
-    private String area;
-    private String bin;
     private String weeklyData; // JSON string for dynamic weekly data
 } 

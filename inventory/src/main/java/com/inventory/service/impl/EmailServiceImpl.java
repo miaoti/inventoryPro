@@ -113,16 +113,24 @@ public class EmailServiceImpl implements EmailService {
     }
     
     private boolean isAlertUrgent(Alert alert) {
-        // Consider alert urgent if current inventory is less than 20% of safety stock threshold
-        int criticalLevel = (int) (alert.getSafetyStockThreshold() * 0.2);
+        // Consider alert urgent if current inventory is less than or equal to 50% of safety stock threshold
+        int criticalLevel = (int) (alert.getSafetyStockThreshold() * 0.5);
         return alert.getCurrentInventory() <= criticalLevel;
     }
     
     private String buildAlertEmailTemplate(Alert alert) {
-        boolean isUrgent = isAlertUrgent(alert);
+        // Use the alert's alertType field directly instead of recalculating
+        boolean isUrgent = "CRITICAL_STOCK".equals(alert.getAlertType());
         String urgencyColor = isUrgent ? "#ff4444" : "#ff9800";
-        String urgencyLabel = isUrgent ? "URGENT" : "WARNING";
-        
+        String urgencyLabel = isUrgent ? "CRITICAL" : "WARNING";
+        int current = alert.getCurrentInventory();
+        int safety = alert.getSafetyStockThreshold();
+        String itemCode = alert.getItem().getCode();
+        String itemName = alert.getItem().getName();
+        String message = String.format(
+            "Item %s (%s) has only %d units left. %d units is lower than Safety Stock (%d units).",
+            itemName, itemCode, current, current, safety
+        );
         return String.format("""
             <!DOCTYPE html>
             <html>
@@ -132,23 +140,20 @@ public class EmailServiceImpl implements EmailService {
                 <title>Inventory Alert</title>
             </head>
             <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-                <div style="background: linear-gradient(135deg, #667eea 0%%, #764ba2 100%%); padding: 30px; border-radius: 10px; text-align: center; margin-bottom: 30px;">
-                    <h1 style="color: white; margin: 0; font-size: 28px;">📦 %s</h1>
-                    <p style="color: white; margin: 10px 0 0 0; font-size: 18px;">Inventory Management System</p>
-                </div>
-                
                 <div style="background-color: %s; color: white; padding: 15px; border-radius: 8px; text-align: center; margin-bottom: 25px;">
                     <h2 style="margin: 0; font-size: 22px;">%s ALERT</h2>
                     <p style="margin: 5px 0 0 0; font-size: 16px;">Immediate attention required</p>
                 </div>
-                
-                <div style="background-color: #f8f9fa; padding: 25px; border-radius: 8px; margin-bottom: 25px;">
-                    <h3 style="color: #333; margin-top: 0;">📋 Alert Details</h3>
-                    <p><strong>Alert Type:</strong> %s</p>
-                    <p><strong>Message:</strong> %s</p>
-                    <p><strong>Generated:</strong> %s</p>
+                <div style="background-color: #f8f9fa; padding: 25px; border-radius: 8px; margin-bottom: 25px; border: 1px solid #ddd;">
+                    <h3 style="color: #333; margin-top: 0;">📋 Alert Summary</h3>
+                    <ul style="padding-left: 20px; margin: 0 0 10px 0;">
+                        <li><strong>Item:</strong> %s (%s)</li>
+                        <li><strong>Current Inventory:</strong> %d units</li>
+                        <li><strong>Safety Stock:</strong> %d units</li>
+                        <li><strong>Message:</strong> %s</li>
+                        <li><strong>Generated:</strong> %s</li>
+                    </ul>
                 </div>
-                
                 <div style="background-color: #fff; border: 1px solid #ddd; border-radius: 8px; overflow: hidden; margin-bottom: 25px;">
                     <h3 style="background-color: #667eea; color: white; margin: 0; padding: 15px; font-size: 18px;">🏷️ Item Information</h3>
                     <table style="width: 100%%; border-collapse: collapse;">
@@ -170,38 +175,6 @@ public class EmailServiceImpl implements EmailService {
                         </tr>
                     </table>
                 </div>
-                
-                <div style="background-color: #fff; border: 1px solid #ddd; border-radius: 8px; overflow: hidden; margin-bottom: 25px;">
-                    <h3 style="background-color: #28a745; color: white; margin: 0; padding: 15px; font-size: 18px;">📊 Current Inventory Status</h3>
-                    <table style="width: 100%%; border-collapse: collapse;">
-                        <tr style="background-color: #f8f9fa;">
-                            <td style="padding: 12px 15px; border-bottom: 1px solid #ddd; font-weight: bold;">Current Inventory</td>
-                            <td style="padding: 12px 15px; border-bottom: 1px solid #ddd; color: %s; font-weight: bold;">%d units</td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 12px 15px; border-bottom: 1px solid #ddd; font-weight: bold;">Used Inventory</td>
-                            <td style="padding: 12px 15px; border-bottom: 1px solid #ddd;">%d units</td>
-                        </tr>
-                        <tr style="background-color: #f8f9fa;">
-                            <td style="padding: 12px 15px; border-bottom: 1px solid #ddd; font-weight: bold;">Pending Purchase Orders</td>
-                            <td style="padding: 12px 15px; border-bottom: 1px solid #ddd;">%d units</td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 12px 15px; border-bottom: 1px solid #ddd; font-weight: bold;">Safety Stock Threshold</td>
-                            <td style="padding: 12px 15px; border-bottom: 1px solid #ddd;">%d units</td>
-                        </tr>
-                        <tr style="background-color: #fff3cd;">
-                            <td style="padding: 12px 15px; font-weight: bold;">Effective Inventory</td>
-                            <td style="padding: 12px 15px; font-weight: bold; color: %s;">%d units</td>
-                        </tr>
-                    </table>
-                </div>
-                
-                <div style="background-color: #fff3cd; border: 1px solid #ffeaa7; border-radius: 8px; padding: 20px; margin-bottom: 25px;">
-                    <h3 style="color: #d68910; margin-top: 0;">⚡ Action Required</h3>
-                    <p style="margin-bottom: 0;">Please review the inventory levels and consider placing a purchase order to restock this item.</p>
-                </div>
-                
                 <div style="text-align: center; padding: 25px; background-color: #f8f9fa; border-radius: 8px;">
                     <p style="margin: 0; color: #666; font-size: 14px;">
                         This alert was generated automatically by %s<br>
@@ -211,21 +184,13 @@ public class EmailServiceImpl implements EmailService {
             </body>
             </html>
             """,
-            COMPANY_NAME, urgencyColor, urgencyLabel,
-            alert.getAlertType(),
-            alert.getMessage(),
+            urgencyColor, urgencyLabel,
+            itemName, itemCode, current, safety, message,
             alert.getCreatedAt().format(DateTimeFormatter.ofPattern("MMM dd, yyyy 'at' HH:mm")),
-            alert.getItem().getName(),
-            alert.getItem().getCode(),
+            itemName,
+            itemCode,
             alert.getItem().getLocation() != null ? alert.getItem().getLocation() : "Not specified",
             alert.getItem().getBarcode() != null ? alert.getItem().getBarcode() : "Not specified",
-            isUrgent ? "#dc3545" : "#fd7e14",
-            alert.getCurrentInventory(),
-            alert.getUsedInventory(),
-            alert.getPendingPO(),
-            alert.getSafetyStockThreshold(),
-            isUrgent ? "#dc3545" : "#fd7e14",
-            alert.getCurrentInventory() + alert.getPendingPO(),
             COMPANY_NAME, SUPPORT_EMAIL, SUPPORT_EMAIL
         );
     }
@@ -240,11 +205,6 @@ public class EmailServiceImpl implements EmailService {
                 <title>Contact Form Submission</title>
             </head>
             <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-                <div style="background: linear-gradient(135deg, #667eea 0%%, #764ba2 100%%); padding: 30px; border-radius: 10px; text-align: center; margin-bottom: 30px;">
-                    <h1 style="color: white; margin: 0; font-size: 28px;">📧 %s</h1>
-                    <p style="color: white; margin: 10px 0 0 0; font-size: 18px;">New Contact Form Submission</p>
-                </div>
-                
                 <div style="background-color: #f8f9fa; padding: 25px; border-radius: 8px; margin-bottom: 25px;">
                     <h3 style="color: #333; margin-top: 0;">👤 Contact Information</h3>
                     <table style="width: 100%%; border-collapse: collapse;">
@@ -281,7 +241,6 @@ public class EmailServiceImpl implements EmailService {
             </body>
             </html>
             """,
-            COMPANY_NAME,
             contactForm.getName(),
             contactForm.getEmail(), contactForm.getEmail(),
             contactForm.getCompany() != null ? contactForm.getCompany() : "Not provided",
@@ -301,11 +260,6 @@ public class EmailServiceImpl implements EmailService {
                 <title>Welcome to Smart Inventory Pro</title>
             </head>
             <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-                <div style="background: linear-gradient(135deg, #667eea 0%%, #764ba2 100%%); padding: 30px; border-radius: 10px; text-align: center; margin-bottom: 30px;">
-                    <h1 style="color: white; margin: 0; font-size: 28px;">🎉 Welcome to %s!</h1>
-                    <p style="color: white; margin: 10px 0 0 0; font-size: 18px;">Your account has been created successfully</p>
-                </div>
-                
                 <div style="background-color: #f8f9fa; padding: 25px; border-radius: 8px; margin-bottom: 25px;">
                     <h3 style="color: #333; margin-top: 0;">👋 Hello %s,</h3>
                     <p>Welcome to Smart Inventory Pro! Your account has been successfully created and you can now access our powerful inventory management system.</p>
@@ -332,7 +286,7 @@ public class EmailServiceImpl implements EmailService {
             </body>
             </html>
             """,
-            COMPANY_NAME, userName,
+            userName,
             temporaryPassword != null ? 
                 String.format("""
                     <div style="background-color: #fff3cd; border: 1px solid #ffeaa7; padding: 20px; border-radius: 8px; margin-bottom: 25px;">
@@ -355,11 +309,6 @@ public class EmailServiceImpl implements EmailService {
                 <title>Daily Inventory Summary</title>
             </head>
             <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-                <div style="background: linear-gradient(135deg, #667eea 0%%, #764ba2 100%%); padding: 30px; border-radius: 10px; text-align: center; margin-bottom: 30px;">
-                    <h1 style="color: white; margin: 0; font-size: 28px;">📊 %s</h1>
-                    <p style="color: white; margin: 10px 0 0 0; font-size: 18px;">Daily Inventory Summary</p>
-                </div>
-                
                 <div style="background-color: %s; color: white; padding: 20px; border-radius: 8px; text-align: center; margin-bottom: 25px;">
                     <h2 style="margin: 0 0 10px 0; font-size: 36px;">%d</h2>
                     <p style="margin: 0; font-size: 18px;">Active Alert%s</p>
@@ -379,7 +328,6 @@ public class EmailServiceImpl implements EmailService {
             </body>
             </html>
             """,
-            COMPANY_NAME,
             alertCount > 0 ? "#dc3545" : "#28a745",
             alertCount,
             alertCount != 1 ? "s" : "",

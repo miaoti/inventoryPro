@@ -68,12 +68,23 @@ public interface UsageRepository extends JpaRepository<Usage, Long> {
     // Statistics Queries for Quick Stats Dashboard
     
     // Get daily usage aggregated by date for the last N days
-    @Query("SELECT DATE(u.usedAt) as usageDate, SUM(u.quantityUsed) as totalUsage " +
-           "FROM Usage u " +
-           "WHERE u.usedAt >= :startDate " +
-           "GROUP BY DATE(u.usedAt) " +
-           "ORDER BY usageDate")
+    @Query(value = "SELECT DATE(used_at) as usage_date, SUM(quantity_used) as total_usage " +
+                   "FROM item_usage " +
+                   "WHERE used_at >= :startDate " +
+                   "GROUP BY DATE(used_at) " +
+                   "ORDER BY usage_date", 
+           nativeQuery = true)
     List<Object[]> getDailyUsageStats(@Param("startDate") LocalDateTime startDate);
+    
+    // Get daily usage aggregated by date for a specific date range
+    @Query(value = "SELECT DATE(used_at) as usage_date, SUM(quantity_used) as total_usage " +
+                   "FROM item_usage " +
+                   "WHERE used_at >= :startDate AND used_at <= :endDate " +
+                   "GROUP BY DATE(used_at) " +
+                   "ORDER BY usage_date", 
+           nativeQuery = true)
+    List<Object[]> getDailyUsageStatsFiltered(@Param("startDate") LocalDateTime startDate,
+                                             @Param("endDate") LocalDateTime endDate);
     
     // Get top N most used items by total quantity used
     @Query("SELECT u.item.id, u.item.name, u.item.code, SUM(u.quantityUsed) as totalUsage " +
@@ -81,6 +92,16 @@ public interface UsageRepository extends JpaRepository<Usage, Long> {
            "GROUP BY u.item.id, u.item.name, u.item.code " +
            "ORDER BY totalUsage DESC")
     List<Object[]> getTopUsageItems(Pageable pageable);
+    
+    // Get top N most used items by total quantity used for a specific date range
+    @Query("SELECT u.item.id, u.item.name, u.item.code, SUM(u.quantityUsed) as totalUsage " +
+           "FROM Usage u " +
+           "WHERE u.usedAt >= :startDate AND u.usedAt <= :endDate " +
+           "GROUP BY u.item.id, u.item.name, u.item.code " +
+           "ORDER BY totalUsage DESC")
+    List<Object[]> getTopUsageItemsFiltered(Pageable pageable,
+                                           @Param("startDate") LocalDateTime startDate,
+                                           @Param("endDate") LocalDateTime endDate);
     
     // Get usage by department for analytics
     @Query("SELECT u.department, SUM(u.quantityUsed) as totalUsage " +

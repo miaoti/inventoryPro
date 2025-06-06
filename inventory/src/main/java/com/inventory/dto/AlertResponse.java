@@ -15,9 +15,11 @@ public class AlertResponse {
     private Integer safetyStockThreshold;
     private Boolean resolved;
     private Boolean read;
+    private Boolean ignored;
     private LocalDateTime createdAt;
     private LocalDateTime resolvedAt;
     private LocalDateTime readAt;
+    private LocalDateTime ignoredAt;
 
     @Data
     public static class ItemSummary {
@@ -29,8 +31,9 @@ public class AlertResponse {
 
     public AlertResponse(Long id, ItemSummary item, String alertType, String message, 
                         Integer currentInventory, Integer pendingPO, Integer usedInventory, 
-                        Integer safetyStockThreshold, Boolean resolved, Boolean read,
-                        LocalDateTime createdAt, LocalDateTime resolvedAt, LocalDateTime readAt) {
+                        Integer safetyStockThreshold, Boolean resolved, Boolean read, Boolean ignored,
+                        LocalDateTime createdAt, LocalDateTime resolvedAt, LocalDateTime readAt, 
+                        LocalDateTime ignoredAt) {
         this.id = id;
         this.item = item;
         this.alertType = alertType;
@@ -41,8 +44,10 @@ public class AlertResponse {
         this.safetyStockThreshold = safetyStockThreshold;
         this.resolved = resolved;
         this.read = read;
+        this.ignored = ignored;
         this.createdAt = createdAt;
         this.resolvedAt = resolvedAt;
         this.readAt = readAt;
+        this.ignoredAt = ignoredAt;
     }
 } 

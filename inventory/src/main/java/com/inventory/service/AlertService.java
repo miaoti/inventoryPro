@@ -25,62 +25,90 @@ public class AlertService {
     @Autowired
     private UserService userService;
     
+    @Autowired
+    private AdminSettingsService adminSettingsService;
+    
     @Value("${app.alerts.notification-email:miaotingshuo@gmail.com}")
     private String fallbackNotificationEmail;
 
     public void checkAndCreateSafetyStockAlert(Item item) {
-        // Calculate effective inventory - currentInventory already reflects usage, so just add pending PO
-        int effectiveInventory = item.getCurrentInventory() + item.getPendingPO();
+        // Use current inventory only (not effective inventory)
+        int currentInventory = item.getCurrentInventory();
+        int safetyThreshold = item.getSafetyStockThreshold();
         
-        if (effectiveInventory < item.getSafetyStockThreshold()) {
+        System.out.println("=== ALERT CHECK DEBUG ===");
+        System.out.println("Item: " + item.getName() + " (" + item.getCode() + ")");
+        System.out.println("Current Inventory: " + currentInventory);
+        System.out.println("Safety Threshold: " + safetyThreshold);
+        
+        // Get configurable thresholds from admin settings
+        double warningThresholdPercent = adminSettingsService.getWarningThreshold() / 100.0;
+        double criticalThresholdPercent = adminSettingsService.getCriticalThreshold() / 100.0;
+        
+        System.out.println("Warning Threshold %: " + (warningThresholdPercent * 100));
+        System.out.println("Critical Threshold %: " + (criticalThresholdPercent * 100));
+        
+        // Calculate threshold values
+        int warningThreshold = (int) Math.round(safetyThreshold * warningThresholdPercent);
+        int criticalThreshold = (int) Math.round(safetyThreshold * criticalThresholdPercent);
+        
+        System.out.println("Warning Threshold Value: " + warningThreshold);
+        System.out.println("Critical Threshold Value: " + criticalThreshold);
+        System.out.println("Should trigger alert? " + (currentInventory <= warningThreshold && safetyThreshold > 0));
+        
+        // Check if alert should be triggered (current inventory below warning threshold)
+        if (currentInventory <= warningThreshold && safetyThreshold > 0) {
+            System.out.println("ALERT TRIGGER CONDITIONS MET - Creating alert...");
+            
             // Check if there's an existing unresolved alert for this item
             List<Alert> existingAlerts = alertRepository.findByItemAndResolvedFalse(item);
+            System.out.println("Existing unresolved alerts: " + existingAlerts.size());
             
             if (existingAlerts.isEmpty()) {
                 // Create new alert if none exists
-                createNewAlert(item, effectiveInventory);
+                System.out.println("Creating new alert (no existing alerts)...");
+                createNewAlert(item, currentInventory, safetyThreshold, warningThreshold, criticalThreshold);
             } else {
-                // Check if we should create a new alert (for status updates)
-                Alert latestAlert = existingAlerts.get(0); // Should be ordered by creation date
-                
-                // Create a new alert if:
-                // 1. The inventory has changed significantly (different levels)
-                // 2. It's been more than 24 hours since the last alert
-                boolean inventoryChanged = hasInventoryChangedSignificantly(latestAlert, effectiveInventory);
-                boolean timePassed = hasEnoughTimePassed(latestAlert);
-                
-                if (inventoryChanged || timePassed) {
-                    // Resolve the old alert and create a new one for updated status
-                    latestAlert.resolve();
-                    alertRepository.save(latestAlert);
-                    createNewAlert(item, effectiveInventory);
+                // Always create new alert and mark existing ones as ignored
+                // This ensures we capture every inventory change while below safety threshold
+                System.out.println("Marking " + existingAlerts.size() + " existing alerts as ignored and creating new alert...");
+                for (Alert alert : existingAlerts) {
+                    alert.ignore();
+                    alertRepository.save(alert);
                 }
+                createNewAlert(item, currentInventory, safetyThreshold, warningThreshold, criticalThreshold);
             }
         } else {
+            System.out.println("Alert conditions NOT met - checking for alerts to resolve...");
             // Resolve existing alerts if inventory is back above threshold
             List<Alert> existingAlerts = alertRepository.findByItemAndResolvedFalse(item);
+            System.out.println("Resolving " + existingAlerts.size() + " existing alerts");
             for (Alert alert : existingAlerts) {
                 alert.resolve();
                 alertRepository.save(alert);
             }
         }
+        System.out.println("========================");
     }
 
-    private void createNewAlert(Item item, int effectiveInventory) {
+    private void createNewAlert(Item item, int currentInventory, int safetyThreshold, int warningThreshold, int criticalThreshold) {
         Alert alert = new Alert();
         alert.setItem(item);
         
-        // Determine alert type based on severity
-        String alertType = determineAlertType(effectiveInventory, item.getSafetyStockThreshold());
+        // Determine alert type based on severity using configurable thresholds
+        String alertType = determineAlertType(currentInventory, warningThreshold, criticalThreshold);
         alert.setAlertType(alertType);
         
+        // Create more accurate message
+        double currentPercent = safetyThreshold > 0 ? (double) currentInventory / safetyThreshold * 100 : 0;
         alert.setMessage(String.format(
-            "%s alert: %s (%s) has effective inventory of %d units, below safety threshold of %d units.",
+            "%s alert: %s (%s) has current inventory of %d units (%.1f%% of safety stock), below warning threshold of %d units.",
             alertType.replace("_", " ").toLowerCase(), 
             item.getName(), 
             item.getCode(), 
-            effectiveInventory, 
-            item.getSafetyStockThreshold()
+            currentInventory,
+            currentPercent,
+            warningThreshold
         ));
         
         alert.setCurrentInventory(item.getCurrentInventory());
@@ -94,27 +122,52 @@ public class AlertService {
         sendNotificationToUsers(savedAlert);
     }
 
-    private String determineAlertType(int effectiveInventory, int safetyThreshold) {
-        double ratio = (double) effectiveInventory / safetyThreshold;
-        
-        if (ratio < 0.2) {
+    private String determineAlertType(int currentInventory, int warningThreshold, int criticalThreshold) {
+        if (currentInventory <= criticalThreshold) {
             return "CRITICAL_STOCK";
-        } else {
+        } else if (currentInventory <= warningThreshold) {
             return "WARNING_STOCK";
+        } else {
+            return "NORMAL_STOCK";
         }
     }
 
-    private boolean hasInventoryChangedSignificantly(Alert lastAlert, int currentEffectiveInventory) {
-        int lastEffectiveInventory = lastAlert.getCurrentInventory() + lastAlert.getPendingPO();
+    private boolean hasInventoryChangedSignificantly(Alert lastAlert, int currentInventory, int safetyThreshold, int warningThreshold, int criticalThreshold) {
+        int lastCurrentInventory = lastAlert.getCurrentInventory();
         
-        // Consider it significant if inventory changed by more than 10% or crossed severity threshold
-        double changePercent = Math.abs((double)(currentEffectiveInventory - lastEffectiveInventory) / lastAlert.getSafetyStockThreshold());
+        System.out.println("=== INVENTORY CHANGE CHECK ===");
+        System.out.println("Last Alert Inventory: " + lastCurrentInventory);
+        System.out.println("Current Inventory: " + currentInventory);
+        System.out.println("Safety Threshold: " + safetyThreshold);
         
-        // Also check if severity level changed
-        String lastType = determineAlertType(lastEffectiveInventory, lastAlert.getSafetyStockThreshold());
-        String currentType = determineAlertType(currentEffectiveInventory, lastAlert.getSafetyStockThreshold());
+        // Consider it significant if inventory changed by any amount when below safety threshold
+        // This ensures alerts are always updated when inventory changes in critical situations
+        boolean inventoryChanged = lastCurrentInventory != currentInventory;
         
-        return changePercent >= 0.1 || !lastType.equals(currentType);
+        // Calculate change percentage for reference
+        double changePercent = safetyThreshold > 0 ? Math.abs((double)(currentInventory - lastCurrentInventory) / safetyThreshold) : 0;
+        
+        // Check if severity level changed
+        String lastType = determineAlertType(lastCurrentInventory, warningThreshold, criticalThreshold);
+        String currentType = determineAlertType(currentInventory, warningThreshold, criticalThreshold);
+        boolean severityChanged = !lastType.equals(currentType);
+        
+        System.out.println("Inventory Changed: " + inventoryChanged);
+        System.out.println("Change Percent: " + (changePercent * 100) + "%");
+        System.out.println("Last Alert Type: " + lastType);
+        System.out.println("Current Alert Type: " + currentType);
+        System.out.println("Severity Changed: " + severityChanged);
+        
+        // More aggressive change detection:
+        // 1. Any inventory change when below safety threshold
+        // 2. Severity level change
+        // 3. Significant percentage change (>10%)
+        boolean isSignificant = inventoryChanged || severityChanged || changePercent >= 0.1;
+        
+        System.out.println("Is Change Significant: " + isSignificant);
+        System.out.println("==============================");
+        
+        return isSignificant;
     }
 
     private boolean hasEnoughTimePassed(Alert lastAlert) {
@@ -127,19 +180,27 @@ public class AlertService {
     }
 
     public List<Alert> getActiveAlerts() {
-        return alertRepository.findByResolvedFalseOrderByCreatedAtDesc();
+        return alertRepository.findActiveAlertsOrderByCreatedAtDesc();
+    }
+
+    public List<Alert> getIgnoredAlerts() {
+        return alertRepository.findIgnoredAlertsOrderByIgnoredAtDesc();
+    }
+
+    public List<Alert> getResolvedAlerts() {
+        return alertRepository.findResolvedAlertsOrderByResolvedAtDesc();
     }
 
     public long getActiveAlertCount() {
-        return alertRepository.countByResolvedFalse();
+        return alertRepository.countByResolvedFalseAndIgnoredFalse();
     }
 
     public long getUnreadAlertCount() {
-        return alertRepository.countByResolvedFalseAndReadFalse();
+        return alertRepository.countByResolvedFalseAndReadFalseAndIgnoredFalse();
     }
 
     public List<Alert> getUnreadAlerts() {
-        return alertRepository.findUnreadAlertsOrderByCreatedAtDesc();
+        return alertRepository.findActiveUnreadAlertsOrderByCreatedAtDesc();
     }
 
     public void markAlertAsRead(Long alertId) {

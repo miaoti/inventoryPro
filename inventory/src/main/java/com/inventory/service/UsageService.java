@@ -29,6 +29,23 @@ public class UsageService {
 
     @Transactional
     public Usage recordUsage(UsageRequest request) {
+        // Validate request
+        if (request == null) {
+            throw new RuntimeException("Usage request cannot be null");
+        }
+        if (request.getBarcode() == null || request.getBarcode().trim().isEmpty()) {
+            throw new RuntimeException("Barcode is required");
+        }
+        if (request.getUserName() == null || request.getUserName().trim().isEmpty()) {
+            throw new RuntimeException("User name is required");
+        }
+        if (request.getQuantityUsed() == null || request.getQuantityUsed() <= 0) {
+            throw new RuntimeException("Quantity used must be greater than 0");
+        }
+        if (request.getDepartment() == null || request.getDepartment().trim().isEmpty()) {
+            throw new RuntimeException("Department is required");
+        }
+
         // Find the item by barcode
         Optional<Item> itemOpt = itemRepository.findByBarcode(request.getBarcode());
         if (itemOpt.isEmpty()) {
@@ -49,25 +66,35 @@ public class UsageService {
         }
 
         // Update item inventory - reduce current inventory and track used inventory
+        int oldInventory = item.getCurrentInventory();
         item.setCurrentInventory(item.getCurrentInventory() - request.getQuantityUsed());
         item.setUsedInventory(item.getUsedInventory() + request.getQuantityUsed());
-        itemRepository.save(item);
+        Item savedItem = itemRepository.save(item);
 
-        // Create usage record
+        System.out.println("=== USAGE DEBUG ===");
+        System.out.println("Item: " + savedItem.getName() + " (" + savedItem.getCode() + ")");
+        System.out.println("Old Inventory: " + oldInventory);
+        System.out.println("New Current Inventory: " + savedItem.getCurrentInventory());
+        System.out.println("Safety Stock Threshold: " + savedItem.getSafetyStockThreshold());
+        System.out.println("Pending PO: " + savedItem.getPendingPO());
+        System.out.println("Should trigger alert? " + (savedItem.getCurrentInventory() <= savedItem.getSafetyStockThreshold()));
+        System.out.println("==================");
+
+        // Create usage record with proper null handling
         Usage usage = new Usage(
-            item,
-            request.getUserName(),
+            savedItem,  // Use saved item to ensure we have the latest state
+            request.getUserName().trim(),
             request.getQuantityUsed(),
-            request.getNotes(),
-            request.getBarcode(),
-            request.getDepartment(),
-            request.getDNumber()
+            request.getNotes() != null ? request.getNotes().trim() : null,
+            request.getBarcode().trim(),
+            request.getDepartment().trim(),
+            request.getDNumber() != null ? request.getDNumber().trim() : null
         );
 
         Usage savedUsage = usageRepository.save(usage);
 
-        // Check for alerts after usage
-        alertService.checkAndCreateSafetyStockAlert(item);
+        // Check for alerts after usage (use saved item to ensure latest state)
+        alertService.checkAndCreateSafetyStockAlert(savedItem);
 
         return savedUsage;
     }

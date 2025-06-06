@@ -39,6 +39,20 @@ public class AlertController {
                 .collect(Collectors.toList());
     }
 
+    @GetMapping("/ignored")
+    public List<AlertResponse> getIgnoredAlerts() {
+        return alertService.getIgnoredAlerts().stream()
+                .map(this::convertToResponse)
+                .collect(Collectors.toList());
+    }
+
+    @GetMapping("/resolved")
+    public List<AlertResponse> getResolvedAlerts() {
+        return alertService.getResolvedAlerts().stream()
+                .map(this::convertToResponse)
+                .collect(Collectors.toList());
+    }
+
     @GetMapping("/count")
     public Map<String, Long> getActiveAlertCount() {
         return Map.of(
@@ -114,9 +128,11 @@ public class AlertController {
                 alert.getSafetyStockThreshold(),
                 alert.getResolved(),
                 alert.getRead(),
+                alert.getIgnored(),
                 alert.getCreatedAt(),
                 alert.getResolvedAt(),
-                alert.getReadAt()
+                alert.getReadAt(),
+                alert.getIgnoredAt()
             );
         } catch (Exception e) {
             System.err.println("Error converting alert to response: " + e.getMessage());

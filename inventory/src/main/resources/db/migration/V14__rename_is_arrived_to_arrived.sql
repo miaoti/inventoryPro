@@ -1,0 +1,1 @@
+ALTER TABLE purchase_orders CHANGE COLUMN is_arrived arrived BOOLEAN NOT NULL DEFAULT FALSE; 

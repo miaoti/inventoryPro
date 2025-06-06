@@ -31,4 +31,30 @@ public class AdminSettingsController {
         adminSettingsService.updateItemDisplayFields(fields);
         return ResponseEntity.ok("Item display fields updated successfully");
     }
+
+    @GetMapping("/alert-thresholds")
+    public ResponseEntity<Map<String, Object>> getAlertThresholds() {
+        return ResponseEntity.ok(adminSettingsService.getAlertThresholds());
+    }
+
+    @PostMapping("/alert-thresholds")
+    public ResponseEntity<String> updateAlertThresholds(@RequestBody Map<String, Integer> request) {
+        Integer warningThreshold = request.get("warningThreshold");
+        Integer criticalThreshold = request.get("criticalThreshold");
+        
+        if (warningThreshold == null || criticalThreshold == null) {
+            return ResponseEntity.badRequest().body("Both warningThreshold and criticalThreshold are required");
+        }
+        
+        if (criticalThreshold >= warningThreshold) {
+            return ResponseEntity.badRequest().body("Critical threshold must be lower than warning threshold");
+        }
+        
+        if (warningThreshold < 0 || warningThreshold > 200 || criticalThreshold < 0 || criticalThreshold > 200) {
+            return ResponseEntity.badRequest().body("Thresholds must be between 0 and 200 percent");
+        }
+        
+        adminSettingsService.updateAlertThresholds(warningThreshold, criticalThreshold);
+        return ResponseEntity.ok("Alert thresholds updated successfully");
+    }
 } 

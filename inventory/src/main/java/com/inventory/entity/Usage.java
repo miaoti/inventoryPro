@@ -38,7 +38,7 @@ public class Usage {
     @Column(length = 50)
     private String department;
 
-    @Column(length = 20)
+    @Column(name = "d_number", length = 20)
     private String dNumber;
 
     @PrePersist

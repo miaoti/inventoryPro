@@ -28,4 +28,22 @@ public interface AlertRepository extends JpaRepository<Alert, Long> {
     
     @Query("SELECT a FROM Alert a JOIN FETCH a.item WHERE a.resolved = false AND a.read = false ORDER BY a.createdAt DESC")
     List<Alert> findUnreadAlertsOrderByCreatedAtDesc();
+    
+    // New methods for ignored alerts
+    @Query("SELECT a FROM Alert a JOIN FETCH a.item WHERE a.resolved = false AND a.ignored = false ORDER BY a.createdAt DESC")
+    List<Alert> findActiveAlertsOrderByCreatedAtDesc();
+    
+    @Query("SELECT a FROM Alert a JOIN FETCH a.item WHERE a.ignored = true ORDER BY a.ignoredAt DESC")
+    List<Alert> findIgnoredAlertsOrderByIgnoredAtDesc();
+    
+    long countByResolvedFalseAndIgnoredFalse();
+    
+    long countByResolvedFalseAndReadFalseAndIgnoredFalse();
+    
+    @Query("SELECT a FROM Alert a JOIN FETCH a.item WHERE a.resolved = false AND a.read = false AND a.ignored = false ORDER BY a.createdAt DESC")
+    List<Alert> findActiveUnreadAlertsOrderByCreatedAtDesc();
+    
+    // New method for resolved alerts
+    @Query("SELECT a FROM Alert a JOIN FETCH a.item WHERE a.resolved = true ORDER BY a.resolvedAt DESC")
+    List<Alert> findResolvedAlertsOrderByResolvedAtDesc();
 } 

@@ -33,6 +33,10 @@ import {
   Assessment as ReportsIcon,
   Settings as SettingsIcon,
   Analytics as AnalyticsIcon,
+  SupervisorAccount as OwnerIcon,
+  People as UsersIcon,
+  ShoppingCart as POStatsIcon,
+  AccountCircle as ProfileIcon,
 } from '@mui/icons-material';
 import Cookies from 'js-cookie';
 import { alertsAPI } from '../services/api';
@@ -51,54 +55,61 @@ export default function Layout({ children }: LayoutProps) {
   const router = useRouter();
   const dispatch = useDispatch();
   const { unreadAlerts } = useSelector((state: RootState) => state.alerts);
-  const { isAuthenticated: authIsAuthenticated, token } = useSelector((state: RootState) => state.auth);
+  const { isAuthenticated: authIsAuthenticated, token, user } = useSelector((state: RootState) => state.auth);
 
   // Check authentication status on component mount and when auth state changes
   useEffect(() => {
     const checkAuth = () => {
       const cookieToken = Cookies.get('token');
-      
-      if (cookieToken && !authIsAuthenticated) {
-        // If we have a token but Redux doesn't know about it, set the auth state
-        // This happens on page refresh
-        // Note: In a production app, you'd want to verify this token with the backend
-        dispatch(setCredentials({ 
-          user: {
-            id: 0, // You'd get this from token or API call
-            username: 'user', // You'd get this from token or API call
-            email: 'user@example.com', // You'd get this from token or API call
-            fullName: 'User', // You'd get this from token or API call
-            role: 'USER' as const // You'd get this from token or API call
-          }, 
-          token: cookieToken 
-        }));
-        setIsAuthenticated(true);
-        return;
-      }
-      
       const hasToken = !!(cookieToken || token);
       const isAuthenticatedFromStore = authIsAuthenticated;
+      
+      // If we have a token but the store isn't authenticated yet, wait a bit
+      // This allows AuthProvider time to restore the session
+      if (hasToken && !isAuthenticatedFromStore) {
+        console.log('Layout: Found token but store not authenticated yet, waiting for AuthProvider...');
+        // Don't redirect immediately, give AuthProvider time to work
+        const timeout = setTimeout(() => {
+          // Recheck after a delay
+          const stillNotAuthenticated = !authIsAuthenticated;
+          if (stillNotAuthenticated) {
+            console.log('Layout: Still not authenticated after delay, user may need to login again');
+            // Only redirect if we're on a protected page
+            if (typeof window !== 'undefined') {
+              const currentPath = window.location.pathname;
+              const protectedPaths = ['/dashboard', '/quick-stats', '/items', '/alerts', '/usage-reports', '/settings', '/admin', '/profile'];
+              
+              if (protectedPaths.some(path => currentPath.startsWith(path))) {
+                console.log('Layout: Redirecting to login after auth timeout');
+                router.push('/login');
+              }
+            }
+          }
+        }, 2000); // Wait 2 seconds for AuthProvider to complete
+        
+        return () => clearTimeout(timeout);
+      }
       
       // User is authenticated if they have a token AND the store says they're authenticated
       const authenticated = hasToken && isAuthenticatedFromStore;
       setIsAuthenticated(authenticated);
       
-      // Only redirect to login for protected pages (not public pages like scanner)
-      if (!authenticated && typeof window !== 'undefined') {
+      // Only redirect to login for protected pages if definitely not authenticated
+      if (!hasToken && typeof window !== 'undefined') {
         const currentPath = window.location.pathname;
         const publicPaths = ['/', '/login', '/register', '/scanner', '/barcode-scanner'];
-        const protectedPaths = ['/dashboard', '/quick-stats', '/items', '/alerts', '/usage-reports', '/settings'];
+        const protectedPaths = ['/dashboard', '/quick-stats', '/items', '/alerts', '/usage-reports', '/settings', '/admin', '/profile'];
         
-        // Only redirect if user is trying to access a protected page
+        // Only redirect if user is trying to access a protected page and has no token at all
         if (protectedPaths.some(path => currentPath.startsWith(path))) {
-          console.log('Trying to access protected page without authentication, redirecting to login...');
+          console.log('Layout: No token found, redirecting to login for protected page');
           router.push('/login');
         }
       }
     };
 
     checkAuth();
-  }, [token, authIsAuthenticated, router, dispatch]);
+  }, [token, authIsAuthenticated, router]);
 
   // Fetch alert counts periodically to keep sidebar badge updated
   useEffect(() => {
@@ -107,8 +118,8 @@ export default function Layout({ children }: LayoutProps) {
         try {
           const response = await alertsAPI.getCounts();
           dispatch(updateAlertCounts({
-            unreadAlerts: response.data.unreadAlerts,
-            activeAlerts: response.data.activeAlerts
+            unreadAlerts: response.unreadAlerts,
+            activeAlerts: response.activeAlerts
           }));
         } catch (error) {
           console.error('Error fetching alert counts:', error);
@@ -140,7 +151,11 @@ export default function Layout({ children }: LayoutProps) {
   const handleLogout = () => {
     dispatch(logout());
     Cookies.remove('token');
-    router.push('/login');
+    // Clear all possible authentication-related storage
+    localStorage.clear();
+    sessionStorage.clear();
+    // Force reload to ensure all state is cleared
+    window.location.href = '/login';
   };
 
   // Don't render the drawer if not authenticated
@@ -192,6 +207,34 @@ export default function Layout({ children }: LayoutProps) {
           </ListItemIcon>
           <ListItemText primary="Settings" />
         </ListItem>
+        
+        {/* Remove admin/settings navigation - settings moved to main /settings page */}
+        
+        {/* Owner-only menu items */}
+        {user?.role === 'OWNER' && (
+          <>
+            <ListItem button onClick={() => handleNavigation('/admin/users')}>
+              <ListItemIcon>
+                <UsersIcon />
+              </ListItemIcon>
+              <ListItemText primary="User Management" />
+            </ListItem>
+            <ListItem button onClick={() => handleNavigation('/admin/purchase-orders')}>
+              <ListItemIcon>
+                <POStatsIcon />
+              </ListItemIcon>
+              <ListItemText primary="PO Statistics" />
+            </ListItem>
+          </>
+        )}
+        
+        <ListItem button onClick={() => handleNavigation('/profile')}>
+          <ListItemIcon>
+            <ProfileIcon />
+          </ListItemIcon>
+          <ListItemText primary="Profile" />
+        </ListItem>
+        
         <ListItem button onClick={handleLogout}>
           <ListItemIcon>
             <LogoutIcon />
@@ -202,74 +245,102 @@ export default function Layout({ children }: LayoutProps) {
     </div>
   );
 
-  // If not authenticated, render children without the sidebar layout
-  if (!isAuthenticated) {
-    return (
-      <Box sx={{ display: 'flex', width: '100%' }}>
-        <CssBaseline />
-        <Box component="main" sx={{ flexGrow: 1, width: '100%' }}>
-          {children}
-        </Box>
-      </Box>
-    );
-  }
-
-  // Authenticated users get the full layout with sidebar
+  // Use conditional rendering instead of early returns to avoid hooks issues
   return (
-    <Box sx={{ display: 'flex' }}>
+    <Box sx={{ 
+      display: 'flex', 
+      width: '100%', 
+      maxWidth: '100vw',
+      overflow: 'hidden'
+    }}>
       <CssBaseline />
-      <AppBar
-        position="fixed"
-        sx={{
-          width: { sm: `calc(100% - ${drawerWidth}px)` },
-          ml: { sm: `${drawerWidth}px` },
-        }}
-      >
-        <Toolbar>
-          <IconButton
-            color="inherit"
-            aria-label="open drawer"
-            edge="start"
-            onClick={handleDrawerToggle}
-            sx={{ mr: 2, display: { sm: 'none' } }}
+      
+      {/* Only render AppBar and Drawer for authenticated users */}
+      {isAuthenticated && (
+        <>
+          <AppBar
+            position="fixed"
+            sx={{
+              width: { xs: '100%', sm: `calc(100% - ${drawerWidth}px)` },
+              ml: { sm: `${drawerWidth}px` },
+              maxWidth: '100vw',
+              overflow: 'hidden'
+            }}
           >
-            <MenuIcon />
-          </IconButton>
-          <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
-            Inventory Management
-          </Typography>
-        </Toolbar>
-      </AppBar>
-      <Box
-        component="nav"
-        sx={{ width: { sm: drawerWidth }, flexShrink: { sm: 0 } }}
-      >
-        <Drawer
-          variant={isMobile ? 'temporary' : 'permanent'}
-          open={mobileOpen}
-          onClose={handleDrawerToggle}
-          ModalProps={{
-            keepMounted: true, // Better open performance on mobile.
-          }}
-          sx={{
-            '& .MuiDrawer-paper': {
-              boxSizing: 'border-box',
-              width: drawerWidth,
-            },
-          }}
-        >
-          {drawer}
-        </Drawer>
-      </Box>
+            <Toolbar sx={{ 
+              minWidth: 0,
+              width: '100%',
+              maxWidth: '100%',
+              overflow: 'hidden'
+            }}>
+              <IconButton
+                color="inherit"
+                aria-label="open drawer"
+                edge="start"
+                onClick={handleDrawerToggle}
+                sx={{ mr: 2, display: { sm: 'none' } }}
+              >
+                <MenuIcon />
+              </IconButton>
+              <Typography 
+                variant="h6" 
+                noWrap 
+                component="div" 
+                sx={{ 
+                  flexGrow: 1,
+                  minWidth: 0,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis'
+                }}
+              >
+                Inventory Management
+              </Typography>
+            </Toolbar>
+          </AppBar>
+          
+          <Box
+            component="nav"
+            sx={{ 
+              width: { sm: drawerWidth }, 
+              flexShrink: { sm: 0 },
+              maxWidth: { xs: '100vw', sm: drawerWidth }
+            }}
+          >
+            <Drawer
+              variant={isMobile ? 'temporary' : 'permanent'}
+              open={mobileOpen}
+              onClose={handleDrawerToggle}
+              ModalProps={{
+                keepMounted: true, // Better open performance on mobile.
+              }}
+              sx={{
+                '& .MuiDrawer-paper': {
+                  boxSizing: 'border-box',
+                  width: drawerWidth,
+                  maxWidth: '100vw',
+                  overflow: 'hidden'
+                },
+              }}
+            >
+              {drawer}
+            </Drawer>
+          </Box>
+        </>
+      )}
+      
+      {/* Main content area */}
       <Box
         component="main"
         sx={{
           flexGrow: 1,
-          p: 3,
-          width: { sm: `calc(100% - ${drawerWidth}px)` },
+          p: 0, // Remove padding here since each page handles its own
+          width: isAuthenticated ? { xs: '100%', sm: `calc(100% - ${drawerWidth}px)` } : '100%',
+          maxWidth: '100vw',
+          overflow: 'hidden',
+          minWidth: 0
         }}
       >
-        <Toolbar />
+        {isAuthenticated && <Toolbar />}
         {children}
       </Box>
     </Box>
