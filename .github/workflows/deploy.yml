@@ -150,7 +150,7 @@ jobs:
         MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD }}
       run: |
         # Copy deployment files to server
-        scp -r docker-compose.prod.yml nginx ubuntu@129.146.49.129:~/inventory_app/
+        scp -r docker-compose.prod.yml nginx mysql ubuntu@129.146.49.129:~/inventory_app/
         scp .env.production ubuntu@129.146.49.129:~/inventory_app/.env
         
         # Create deployment script
@@ -175,11 +175,91 @@ jobs:
         docker pull ghcr.io/$GITHUB_REPOSITORY_OWNER/inventorypro/inventory-frontend:latest
         
         # Update docker-compose to use registry images
-        sed -i 's|build:|#build:|g' docker-compose.prod.yml
-        sed -i 's|context: ./inventory|#context: ./inventory|g' docker-compose.prod.yml
-        sed -i 's|dockerfile: Dockerfile|#dockerfile: Dockerfile|g' docker-compose.prod.yml
-        sed -i 's|context: ./inventory_frontend|#context: ./inventory_frontend|g' docker-compose.prod.yml
-        sed -i 's|#|  image: ghcr.io/$GITHUB_REPOSITORY_OWNER/inventorypro/inventory-backend:latest\n    #|' docker-compose.prod.yml
+        cat > docker-compose.prod.yml << 'COMPOSE_EOF'
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: inventory_mysql_prod
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./mysql/init:/docker-entrypoint-initdb.d
+    command: --default-authentication-plugin=mysql_native_password
+    networks:
+      - inventory_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  backend:
+    image: ghcr.io/$GITHUB_REPOSITORY_OWNER/inventorypro/inventory-backend:latest
+    container_name: inventory_backend_prod
+    environment:
+      SPRING_PROFILES_ACTIVE: production
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE}?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: ${MYSQL_USER}
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      MAIL_USERNAME: ${MAIL_USERNAME}
+      MAIL_PASSWORD: ${MAIL_PASSWORD}
+    ports:
+      - "8080:8080"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - inventory_network
+    restart: unless-stopped
+
+  frontend:
+    image: ghcr.io/$GITHUB_REPOSITORY_OWNER/inventorypro/inventory-frontend:latest
+    container_name: inventory_frontend_prod
+    environment:
+      NEXT_PUBLIC_API_URL: http://backend:8080/api
+      NODE_ENV: production
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    networks:
+      - inventory_network
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:alpine
+    container_name: inventory_nginx_prod
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/ssl:/etc/nginx/ssl
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - inventory_network
+    restart: unless-stopped
+
+volumes:
+  mysql_data:
+
+networks:
+  inventory_network:
+    driver: bridge
+COMPOSE_EOF
         
         # Stop existing containers
         docker-compose -f docker-compose.prod.yml down || true
