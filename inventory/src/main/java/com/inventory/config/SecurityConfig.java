@@ -32,12 +32,11 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-            .cors() // Enable CORS
-            .and()
-            .csrf().disable() // Disable CSRF for APIs
-            .sessionManagement()
+            .cors(cors -> cors.configure(http)) // Modern CORS configuration
+            .csrf(csrf -> csrf.disable()) // Modern CSRF disable
+            .sessionManagement(session -> session
                 .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
-            .and()
+            )
             .authorizeHttpRequests(authz -> authz
                 .requestMatchers(
                     new AntPathRequestMatcher("/auth/**"),
@@ -47,7 +46,8 @@ public class SecurityConfig {
                     new AntPathRequestMatcher("/items/**"),
                     new AntPathRequestMatcher("/alerts/**"),
                     new AntPathRequestMatcher("/usage/**"),
-                    new AntPathRequestMatcher("/public/**")
+                    new AntPathRequestMatcher("/public/**"),
+                    new AntPathRequestMatcher("/actuator/health")
                 ).permitAll()
                 .requestMatchers(
                     new AntPathRequestMatcher("/user/**"),
@@ -58,7 +58,9 @@ public class SecurityConfig {
             )
             .userDetailsService(customUserDetailsService)
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
-            .headers(headers -> headers.frameOptions().disable());
+            .headers(headers -> headers
+                .frameOptions(frameOptions -> frameOptions.disable())
+            );
         return http.build();
     }
 } 

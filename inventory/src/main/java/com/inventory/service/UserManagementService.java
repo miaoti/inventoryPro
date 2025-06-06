@@ -3,6 +3,8 @@ package com.inventory.service;
 import com.inventory.dto.UserResponse;
 import com.inventory.dto.UserUpdateRequest;
 import com.inventory.dto.ProfileUpdateRequest;
+import com.inventory.dto.CreateUserRequest;
+import com.inventory.dto.UpdateUsernameRequest;
 import com.inventory.entity.User;
 import com.inventory.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -70,6 +72,56 @@ public class UserManagementService {
         }
         
         userRepository.delete(user);
+    }
+
+    @Transactional
+    public UserResponse createUser(CreateUserRequest request) {
+        // Check if username already exists
+        if (userRepository.findByUsername(request.getUsername()) != null) {
+            throw new RuntimeException("Username already exists");
+        }
+        
+        // Check if email already exists
+        if (userRepository.findByEmail(request.getEmail()) != null) {
+            throw new RuntimeException("Email already exists");
+        }
+        
+        User user = new User();
+        user.setUsername(request.getUsername());
+        user.setPassword(passwordEncoder.encode(request.getPassword()));
+        user.setEmail(request.getEmail());
+        user.setName(request.getFullName());
+        
+        // Parse role string to enum
+        try {
+            User.UserRole role = User.UserRole.valueOf(request.getRole().toUpperCase());
+            user.setRole(role);
+        } catch (IllegalArgumentException e) {
+            throw new RuntimeException("Invalid role: " + request.getRole());
+        }
+        
+        user.setEnabled(true);
+        user.setEnableEmailAlerts(true);
+        user.setEnableDailyDigest(false);
+        
+        User savedUser = userRepository.save(user);
+        return convertToResponse(savedUser);
+    }
+
+    @Transactional
+    public UserResponse updateUsername(Long id, UpdateUsernameRequest request) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        
+        // Check if the new username already exists
+        User existingUser = userRepository.findByUsername(request.getUsername());
+        if (existingUser != null && !existingUser.getId().equals(user.getId())) {
+            throw new RuntimeException("Username already exists");
+        }
+        
+        user.setUsername(request.getUsername());
+        User savedUser = userRepository.save(user);
+        return convertToResponse(savedUser);
     }
 
     @Transactional
