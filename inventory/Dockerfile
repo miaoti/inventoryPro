@@ -1,5 +1,5 @@
 # Use Eclipse Temurin JDK 17 as base image for building
-FROM eclipse-temurin:17-jdk-alpine AS build
+FROM eclipse-temurin:17-jdk AS build
 
 # Set working directory
 WORKDIR /app
@@ -19,14 +19,14 @@ COPY src src
 RUN ./gradlew clean build -x test
 
 # Runtime stage - Use Eclipse Temurin JRE 17
-FROM eclipse-temurin:17-jre-alpine
+FROM eclipse-temurin:17-jre
 
 # Install curl for health checks
-RUN apk add --no-cache curl
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user
-RUN addgroup -g 1001 -S spring && \
-    adduser -S spring -u 1001 -G spring
+RUN groupadd -g 1001 spring && \
+    useradd -r -u 1001 -g spring spring
 
 # Set working directory
 WORKDIR /app
