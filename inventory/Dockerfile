@@ -1,5 +1,5 @@
-# Use OpenJDK 17 as base image
-FROM openjdk:17-jdk-alpine AS build
+# Use Eclipse Temurin JDK 17 as base image for building
+FROM eclipse-temurin:17-jdk-alpine AS build
 
 # Set working directory
 WORKDIR /app
@@ -18,8 +18,8 @@ COPY src src
 # Build the application
 RUN ./gradlew clean build -x test
 
-# Runtime stage
-FROM openjdk:17-jre-alpine
+# Runtime stage - Use Eclipse Temurin JRE 17
+FROM eclipse-temurin:17-jre-alpine
 
 # Install curl for health checks
 RUN apk add --no-cache curl
