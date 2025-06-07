@@ -3,72 +3,29 @@ name: Deploy to Oracle Cloud
 on:
   push:
     branches: [ main, master ]
-  pull_request:
-    branches: [ main, master ]
+  workflow_dispatch:
 
 env:
   REGISTRY: ghcr.io
-  BACKEND_IMAGE_NAME: ${{ github.repository_owner }}/inventorypro/inventory-backend
-  FRONTEND_IMAGE_NAME: ${{ github.repository_owner }}/inventorypro/inventory-frontend
+  FRONTEND_IMAGE_NAME: ${{ github.repository }}/frontend
+  BACKEND_IMAGE_NAME: ${{ github.repository }}/backend
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Set up JDK 17
-      uses: actions/setup-java@v4
-      with:
-        java-version: '17'
-        distribution: 'temurin'
-
-    - name: Cache Gradle dependencies
-      uses: actions/cache@v3
-      with:
-        path: |
-          ~/.gradle/caches
-          ~/.gradle/wrapper
-        key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-        restore-keys: |
-          ${{ runner.os }}-gradle-
-
-    - name: Test Backend
-      run: |
-        cd inventory
-        chmod +x gradlew
-        ./gradlew test
-
-    - name: Set up Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '18'
-        cache: 'npm'
-        cache-dependency-path: inventory_frontend/package-lock.json
-
-    - name: Test Frontend
-      run: |
-        cd inventory_frontend
-        npm ci
-        npm run lint
-
-  build-and-push:
-    needs: test
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
-    
+  build-and-deploy:
+    runs-on: self-hosted
     permissions:
       contents: read
       packages: write
 
     steps:
-    - name: Checkout code
+    - name: Checkout repository
       uses: actions/checkout@v4
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
+      with:
+        driver-opts: |
+          network=host
 
     - name: Log in to Container Registry
       uses: docker/login-action@v3
@@ -77,18 +34,7 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Extract metadata for backend
-      id: meta-backend
-      uses: docker/metadata-action@v5
-      with:
-        images: ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE_NAME }}
-        tags: |
-          type=ref,event=branch
-          type=ref,event=pr
-          type=sha,prefix={{branch}}-
-          type=raw,value=latest,enable={{is_default_branch}}
-
-    - name: Extract metadata for frontend
+    - name: Extract metadata (tags, labels) for Frontend
       id: meta-frontend
       uses: docker/metadata-action@v5
       with:
@@ -99,164 +45,110 @@ jobs:
           type=sha,prefix={{branch}}-
           type=raw,value=latest,enable={{is_default_branch}}
 
-    - name: Build and push backend image
+    - name: Extract metadata (tags, labels) for Backend
+      id: meta-backend
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE_NAME }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=sha,prefix={{branch}}-
+          type=raw,value=latest,enable={{is_default_branch}}
+
+    - name: Build and push Frontend Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: ./inventory_frontend
+        file: ./inventory_frontend/Dockerfile
+        push: true
+        tags: ${{ steps.meta-frontend.outputs.tags }}
+        labels: ${{ steps.meta-frontend.outputs.labels }}
+        build-args: |
+          NODE_ENV=production
+          NEXT_PUBLIC_API_URL=/api
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        platforms: linux/amd64
+
+    - name: Build and push Backend Docker image
       uses: docker/build-push-action@v5
       with:
         context: ./inventory
         file: ./inventory/Dockerfile
-        platforms: linux/amd64,linux/arm64
         push: true
         tags: ${{ steps.meta-backend.outputs.tags }}
         labels: ${{ steps.meta-backend.outputs.labels }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
-
-    - name: Build and push frontend image
-      uses: docker/build-push-action@v5
-      with:
-        context: ./inventory_frontend
-        file: ./inventory_frontend/Dockerfile
-        platforms: linux/amd64,linux/arm64
-        push: true
-        tags: ${{ steps.meta-frontend.outputs.tags }}
-        labels: ${{ steps.meta-frontend.outputs.labels }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
-
-  deploy:
-    needs: build-and-push
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
-
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Set up SSH
-      uses: webfactory/ssh-agent@v0.7.0
-      with:
-        ssh-private-key: ${{ secrets.ORACLE_SSH_KEY }}
-
-    - name: Add Oracle Cloud host to known hosts
-      run: |
-        ssh-keyscan -H 129.146.49.129 >> ~/.ssh/known_hosts
+        platforms: linux/amd64
 
     - name: Deploy to Oracle Cloud
       env:
+        ORACLE_HOST: 129.146.49.129
+        ORACLE_USER: ubuntu
         MYSQL_ROOT_PASSWORD: ${{ secrets.MYSQL_ROOT_PASSWORD }}
-        MYSQL_PASSWORD: ${{ secrets.MYSQL_PASSWORD }}
+        MYSQL_DATABASE: inventory_db
+        MYSQL_USER: inventory_user
+        MYSQL_PASSWORD: ${{ secrets.MYSQL_ROOT_PASSWORD }}
         JWT_SECRET: ${{ secrets.JWT_SECRET }}
         MAIL_USERNAME: ${{ secrets.MAIL_USERNAME }}
         MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD }}
       run: |
-        # Copy deployment files to server
-        scp -r docker-compose.deploy.yml nginx mysql ubuntu@129.146.49.129:~/inventory_app/
-        scp .env.production ubuntu@129.146.49.129:~/inventory_app/.env
+        # Create deployment directory
+        mkdir -p ~/deploy
         
-        # Create deployment script
-        cat > deploy.sh << 'EOF'
-        #!/bin/bash
-        set -e
+        # Copy necessary files
+        cp docker-compose.prod.yml ~/deploy/
+        cp nginx/nginx.conf ~/deploy/
+        cp -r mysql ~/deploy/
         
-        cd ~/inventory_app
-        
-        # Update environment variables
-        sed -i "s/your_secure_root_password_here/$MYSQL_ROOT_PASSWORD/g" .env
-        sed -i "s/your_secure_mysql_password_here/$MYSQL_PASSWORD/g" .env
-        sed -i "s/your_very_long_jwt_secret_key_at_least_32_characters_long/$JWT_SECRET/g" .env
-        sed -i "s/your_email@example.com/$MAIL_USERNAME/g" .env
-        sed -i "s/your_email_password/$MAIL_PASSWORD/g" .env
-        
-        # Login to GitHub Container Registry
-        echo $GITHUB_TOKEN | docker login ghcr.io -u $GITHUB_ACTOR --password-stdin
-        
-        # Pull latest images
-        docker pull ghcr.io/miaoti/inventorypro/inventory-backend:latest
-        docker pull ghcr.io/miaoti/inventorypro/inventory-frontend:latest
-        
-        # Stop existing containers
-        docker-compose -f docker-compose.deploy.yml down || true
-        
-        # Start new containers
-        docker-compose -f docker-compose.deploy.yml --env-file .env up -d
-        
-        # Clean up old images
-        docker image prune -f
-        
-        echo "Deployment completed successfully!"
+        # Create environment file
+        cat > ~/deploy/.env << EOF
+        MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+        MYSQL_DATABASE=${MYSQL_DATABASE}
+        MYSQL_USER=${MYSQL_USER}
+        MYSQL_PASSWORD=${MYSQL_PASSWORD}
+        JWT_SECRET=${JWT_SECRET}
+        MAIL_USERNAME=${MAIL_USERNAME}
+        MAIL_PASSWORD=${MAIL_PASSWORD}
         EOF
         
-        # Upload and execute deployment script
-        scp deploy.sh ubuntu@129.146.49.129:~/deploy.sh
-        ssh ubuntu@129.146.49.129 "chmod +x ~/deploy.sh && \
-          MYSQL_ROOT_PASSWORD='$MYSQL_ROOT_PASSWORD' \
-          MYSQL_PASSWORD='$MYSQL_PASSWORD' \
-          JWT_SECRET='$JWT_SECRET' \
-          MAIL_USERNAME='$MAIL_USERNAME' \
-          MAIL_PASSWORD='$MAIL_PASSWORD' \
-          GITHUB_TOKEN='${{ secrets.GITHUB_TOKEN }}' \
-          GITHUB_ACTOR='${{ github.actor }}' \
-          GITHUB_REPOSITORY_OWNER='${{ github.repository_owner }}' \
-          ~/deploy.sh"
-
-    - name: Deployment Status Check
-      run: |
-        # Wait for services to start
-        echo "Waiting for services to start..."
-        sleep 60
+        # Deploy via SSH
+        echo "${{ secrets.ORACLE_SSH_KEY }}" > ~/deploy/oracle_key
+        chmod 600 ~/deploy/oracle_key
         
-        # Check container status
-        echo "Checking container status..."
-        ssh ubuntu@129.146.49.129 "cd ~/inventory_app && docker-compose -f docker-compose.deploy.yml ps"
+        # Copy files to server
+        scp -i ~/deploy/oracle_key -o StrictHostKeyChecking=no -r ~/deploy/* ${ORACLE_USER}@${ORACLE_HOST}:~/inventory/
         
-        # Check container logs
-        echo "Checking container logs..."
-        ssh ubuntu@129.146.49.129 "cd ~/inventory_app && docker-compose -f docker-compose.deploy.yml logs --tail=20"
+        # Execute deployment on server
+        ssh -i ~/deploy/oracle_key -o StrictHostKeyChecking=no ${ORACLE_USER}@${ORACLE_HOST} << 'ENDSSH'
+          cd ~/inventory
+          
+          # Stop existing containers
+          docker compose -f docker-compose.prod.yml down --remove-orphans || true
+          
+          # Clean up old images to force rebuild
+          docker system prune -f
+          docker image prune -a -f
+          
+          # Build and start with no cache
+          docker compose -f docker-compose.prod.yml build --no-cache --pull
+          docker compose -f docker-compose.prod.yml up -d
+          
+          # Wait for services to be healthy
+          echo "Waiting for services to start..."
+          sleep 30
+          
+          # Check service status
+          docker compose -f docker-compose.prod.yml ps
+          
+          # Test endpoints
+          echo "Testing endpoints..."
+          curl -f http://localhost:80/health || echo "Health check failed"
+          curl -f http://localhost:3000 || echo "Frontend failed"
+          curl -f http://localhost:8080/actuator/health || echo "Backend failed"
+        ENDSSH
         
-        # Check if ports are listening
-        echo "Checking if ports are listening..."
-        ssh ubuntu@129.146.49.129 "netstat -tlnp | grep -E ':(80|3000|8080|3306)'"
-        
-        # Try different health check endpoints
-        echo "Testing connectivity..."
-        
-        # Test direct backend health check
-        for i in {1..5}; do
-          echo "Attempt $i: Testing backend health..."
-          if ssh ubuntu@129.146.49.129 "curl -f http://localhost:8080/actuator/health" 2>/dev/null; then
-            echo "Backend health check passed!"
-            break
-          fi
-          sleep 10
-        done
-        
-        # Test frontend
-        for i in {1..5}; do
-          echo "Attempt $i: Testing frontend..."
-          if ssh ubuntu@129.146.49.129 "curl -f http://localhost:3000" 2>/dev/null; then
-            echo "Frontend check passed!"
-            break
-          fi
-          sleep 10
-        done
-        
-        # Test nginx
-        for i in {1..5}; do
-          echo "Attempt $i: Testing nginx..."
-          if ssh ubuntu@129.146.49.129 "curl -f http://localhost:80" 2>/dev/null; then
-            echo "Nginx check passed!"
-            break
-          fi
-          sleep 10
-        done
-        
-        # Test external connectivity (non-blocking)
-        echo "Testing external connectivity..."
-        if curl -f --connect-timeout 10 http://129.146.49.129/ 2>/dev/null; then
-          echo "External connectivity check passed!"
-        else
-          echo "External connectivity failed - this may be due to Oracle Cloud firewall settings"
-          echo "Local services are running correctly"
-        fi
-        
-        echo "Deployment status check completed!" 
+        # Cleanup
+        rm -rf ~/deploy 

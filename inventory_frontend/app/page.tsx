@@ -1,7 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSelector } from 'react-redux';
+import type { RootState } from './store';
+import Cookies from 'js-cookie';
 import {
   Box,
   Container,
@@ -28,6 +31,7 @@ import {
   TextField,
   Alert,
   CircularProgress,
+  Avatar,
 } from '@mui/material';
 import {
   Inventory as InventoryIcon,
@@ -47,6 +51,8 @@ import {
   Business as BusinessIcon,
   Support as SupportIcon,
   Close as CloseIcon,
+  Dashboard as DashboardIcon,
+  AccountCircle as AccountIcon,
 } from '@mui/icons-material';
 
 export default function LandingPage() {
@@ -63,6 +69,35 @@ export default function LandingPage() {
   const [formSubmitting, setFormSubmitting] = useState(false);
   const [formSuccess, setFormSuccess] = useState(false);
   const [formError, setFormError] = useState('');
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+
+  // Get auth state from Redux
+  const { isAuthenticated, user } = useSelector((state: RootState) => state.auth);
+
+  // Check authentication status
+  useEffect(() => {
+    const token = Cookies.get('token');
+    const userData = Cookies.get('user');
+    
+    if (token && userData) {
+      try {
+        const parsedUser = JSON.parse(userData);
+        setIsLoggedIn(true);
+        setCurrentUser(parsedUser);
+      } catch (error) {
+        console.error('Error parsing user data:', error);
+        setIsLoggedIn(false);
+        setCurrentUser(null);
+      }
+    } else if (isAuthenticated && user) {
+      setIsLoggedIn(true);
+      setCurrentUser(user);
+    } else {
+      setIsLoggedIn(false);
+      setCurrentUser(null);
+    }
+  }, [isAuthenticated, user]);
 
   const handleFormChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({
@@ -240,24 +275,54 @@ export default function LandingPage() {
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
       {/* Navigation */}
-      <AppBar position="static" sx={{ bgcolor: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(10px)' }}>
+      <AppBar position="static" sx={{ bgcolor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(10px)' }}>
         <Toolbar>
           <InventoryIcon sx={{ mr: 2, color: 'white' }} />
           <Typography variant="h6" component="div" sx={{ flexGrow: 1, color: 'white', fontWeight: 'bold' }}>
             Smart Inventory Pro
           </Typography>
-          <Button 
-            color="inherit" 
-            onClick={() => router.push('/login')}
-            sx={{ 
-              bgcolor: 'rgba(255,255,255,0.2)', 
-              '&:hover': { bgcolor: 'rgba(255,255,255,0.3)' },
-              borderRadius: 2,
-              px: 3
-            }}
-          >
-            Login
-          </Button>
+          
+          {isLoggedIn && currentUser ? (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Avatar sx={{ bgcolor: 'primary.main', width: 32, height: 32 }}>
+                  <AccountIcon />
+                </Avatar>
+                <Typography variant="body1" sx={{ color: 'white', fontWeight: 'bold' }}>
+                  Welcome, {currentUser.username}!
+                </Typography>
+              </Box>
+              <Button 
+                variant="contained"
+                startIcon={<DashboardIcon />}
+                onClick={() => router.push('/dashboard')}
+                sx={{ 
+                  bgcolor: 'primary.main', 
+                  '&:hover': { bgcolor: 'primary.dark' },
+                  borderRadius: 2,
+                  px: 3,
+                  fontWeight: 'bold'
+                }}
+              >
+                Dashboard
+              </Button>
+            </Box>
+          ) : (
+            <Button 
+              color="inherit" 
+              onClick={() => router.push('/login')}
+              sx={{ 
+                bgcolor: 'rgba(255,255,255,0.2)', 
+                '&:hover': { bgcolor: 'rgba(255,255,255,0.3)' },
+                borderRadius: 2,
+                px: 3,
+                color: 'white',
+                fontWeight: 'bold'
+              }}
+            >
+              Login
+            </Button>
+          )}
         </Toolbar>
       </AppBar>
 
@@ -280,7 +345,10 @@ export default function LandingPage() {
                   mb: 3
                 }}
               >
-                Smart Inventory Management
+                {isLoggedIn && currentUser ? 
+                  `Welcome back, ${currentUser.username}!` : 
+                  'Smart Inventory Management'
+                }
               </Typography>
               <Typography 
                 variant="h5" 
@@ -294,52 +362,99 @@ export default function LandingPage() {
                   fontWeight: 500
                 }}
               >
-                Streamline your inventory operations with intelligent tracking, barcode scanning, and real-time analytics. 
-                Perfect for warehouses, offices, and any organization that needs to track item usage.
+                {isLoggedIn && currentUser ? 
+                  'Ready to manage your inventory? Access your dashboard to track items, scan barcodes, and view analytics.' :
+                  'Streamline your inventory operations with intelligent tracking, barcode scanning, and real-time analytics. Perfect for warehouses, offices, and any organization that needs to track item usage.'
+                }
               </Typography>
               <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center', flexWrap: 'wrap' }}>
-                <Button
-                  variant="contained"
-                  size="large"
-                  onClick={() => setShowContactForm(true)}
-                  sx={{
-                    bgcolor: '#4CAF50',
-                    '&:hover': { bgcolor: '#45a049' },
-                    px: 4,
-                    py: 1.5,
-                    borderRadius: 3,
-                    textTransform: 'none',
-                    fontSize: '1.1rem',
-                    fontWeight: 'bold',
-                    boxShadow: '0 4px 15px rgba(76, 175, 80, 0.3)'
-                  }}
-                  startIcon={<SecurityIcon />}
-                >
-                  Get Started Free
-                </Button>
-                <Button
-                  variant="outlined"
-                  size="large"
-                  onClick={() => document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' })}
-                  sx={{
-                    borderColor: 'white',
-                    color: 'white',
-                    borderWidth: 2,
-                    '&:hover': { 
-                      borderColor: 'white', 
-                      bgcolor: 'rgba(255,255,255,0.2)',
-                      borderWidth: 2
-                    },
-                    px: 4,
-                    py: 1.5,
-                    borderRadius: 3,
-                    textTransform: 'none',
-                    fontSize: '1.1rem',
-                    fontWeight: 'bold'
-                  }}
-                >
-                  Learn More
-                </Button>
+                {isLoggedIn && currentUser ? (
+                  <>
+                    <Button
+                      variant="contained"
+                      size="large"
+                      onClick={() => router.push('/dashboard')}
+                      sx={{
+                        bgcolor: '#4CAF50',
+                        '&:hover': { bgcolor: '#45a049' },
+                        px: 4,
+                        py: 1.5,
+                        borderRadius: 3,
+                        textTransform: 'none',
+                        fontSize: '1.1rem',
+                        fontWeight: 'bold',
+                        boxShadow: '0 4px 15px rgba(76, 175, 80, 0.3)'
+                      }}
+                      startIcon={<DashboardIcon />}
+                    >
+                      Go to Dashboard
+                    </Button>
+                    <Button
+                      variant="contained"
+                      size="large"
+                      onClick={() => router.push('/scanner')}
+                      sx={{
+                        bgcolor: '#2196F3',
+                        '&:hover': { bgcolor: '#1976D2' },
+                        px: 4,
+                        py: 1.5,
+                        borderRadius: 3,
+                        textTransform: 'none',
+                        fontSize: '1.1rem',
+                        fontWeight: 'bold',
+                        boxShadow: '0 4px 15px rgba(33, 150, 243, 0.3)'
+                      }}
+                      startIcon={<ScannerIcon />}
+                    >
+                      Scan Items
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button
+                      variant="contained"
+                      size="large"
+                      onClick={() => setShowContactForm(true)}
+                      sx={{
+                        bgcolor: '#4CAF50',
+                        '&:hover': { bgcolor: '#45a049' },
+                        px: 4,
+                        py: 1.5,
+                        borderRadius: 3,
+                        textTransform: 'none',
+                        fontSize: '1.1rem',
+                        fontWeight: 'bold',
+                        boxShadow: '0 4px 15px rgba(76, 175, 80, 0.3)'
+                      }}
+                      startIcon={<SecurityIcon />}
+                    >
+                      Get Started Free
+                    </Button>
+                    <Button
+                      variant="outlined"
+                      size="large"
+                      onClick={() => document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' })}
+                      sx={{
+                        borderColor: 'white',
+                        color: 'white',
+                        borderWidth: 2,
+                        '&:hover': { 
+                          borderColor: 'white', 
+                          bgcolor: 'rgba(255,255,255,0.2)',
+                          borderWidth: 2
+                        },
+                        px: 4,
+                        py: 1.5,
+                        borderRadius: 3,
+                        textTransform: 'none',
+                        fontSize: '1.1rem',
+                        fontWeight: 'bold'
+                      }}
+                    >
+                      Learn More
+                    </Button>
+                  </>
+                )}
               </Box>
             </Box>
           </Fade>
