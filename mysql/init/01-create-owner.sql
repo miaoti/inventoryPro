@@ -4,8 +4,8 @@
 USE inventory;
 
 -- Insert the owner user
-INSERT IGNORE INTO users (id, username, email, password, enabled, created_at, updated_at) 
-VALUES (1, 'zoe', 'zhongqi0728@gmail.com', '$2a$12$VCOmYI4XwytlMGHWyvrh/u80KxX70jVkV4AMdcAqVfnlenmcx69OO', true, NOW(), NOW());
+INSERT IGNORE INTO users (id, username, email, password, full_name, enabled, created_at, updated_at) 
+VALUES (1, 'zoe', 'zhongqi0728@gmail.com', '$2a$12$VCOmYI4XwytlMGHWyvrh/u80KxX70jVkV4AMdcAqVfnlenmcx69OO', 'Zoe Admin', true, NOW(), NOW());
 
 -- Insert the OWNER role assignment
 INSERT IGNORE INTO user_roles (user_id, role)
