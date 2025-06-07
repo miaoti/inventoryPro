@@ -13,142 +13,154 @@ env:
 jobs:
   build-and-deploy:
     runs-on: self-hosted
-    permissions:
-      contents: read
-      packages: write
-
+    
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
 
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
-      with:
-        driver-opts: |
-          network=host
-
-    - name: Log in to Container Registry
-      uses: docker/login-action@v3
-      with:
-        registry: ${{ env.REGISTRY }}
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: Extract metadata (tags, labels) for Frontend
-      id: meta-frontend
-      uses: docker/metadata-action@v5
-      with:
-        images: ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE_NAME }}
-        tags: |
-          type=ref,event=branch
-          type=ref,event=pr
-          type=sha,prefix={{branch}}-
-          type=raw,value=latest,enable={{is_default_branch}}
-
-    - name: Extract metadata (tags, labels) for Backend
-      id: meta-backend
-      uses: docker/metadata-action@v5
-      with:
-        images: ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE_NAME }}
-        tags: |
-          type=ref,event=branch
-          type=ref,event=pr
-          type=sha,prefix={{branch}}-
-          type=raw,value=latest,enable={{is_default_branch}}
-
-    - name: Build and push Frontend Docker image
-      uses: docker/build-push-action@v5
-      with:
-        context: ./inventory_frontend
-        file: ./inventory_frontend/Dockerfile
-        push: true
-        tags: ${{ steps.meta-frontend.outputs.tags }}
-        labels: ${{ steps.meta-frontend.outputs.labels }}
-        build-args: |
-          NODE_ENV=production
-          NEXT_PUBLIC_API_URL=/api
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
-        platforms: linux/amd64
-
-    - name: Build and push Backend Docker image
-      uses: docker/build-push-action@v5
-      with:
-        context: ./inventory
-        file: ./inventory/Dockerfile
-        push: true
-        tags: ${{ steps.meta-backend.outputs.tags }}
-        labels: ${{ steps.meta-backend.outputs.labels }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
-        platforms: linux/amd64
-
-    - name: Deploy to Oracle Cloud
-      env:
-        ORACLE_HOST: 129.146.49.129
-        ORACLE_USER: ubuntu
-        MYSQL_ROOT_PASSWORD: ${{ secrets.MYSQL_ROOT_PASSWORD }}
-        MYSQL_DATABASE: inventory_db
-        MYSQL_USER: inventory_user
-        MYSQL_PASSWORD: ${{ secrets.MYSQL_ROOT_PASSWORD }}
-        JWT_SECRET: ${{ secrets.JWT_SECRET }}
-        MAIL_USERNAME: ${{ secrets.MAIL_USERNAME }}
-        MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD }}
+    - name: Set up environment variables
       run: |
-        # Create deployment directory
-        mkdir -p ~/deploy
-        
-        # Copy necessary files
-        cp docker-compose.prod.yml ~/deploy/
-        cp nginx/nginx.conf ~/deploy/
-        cp -r mysql ~/deploy/
-        
-        # Create environment file
-        cat > ~/deploy/.env << EOF
-        MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
-        MYSQL_DATABASE=${MYSQL_DATABASE}
-        MYSQL_USER=${MYSQL_USER}
-        MYSQL_PASSWORD=${MYSQL_PASSWORD}
-        JWT_SECRET=${JWT_SECRET}
-        MAIL_USERNAME=${MAIL_USERNAME}
-        MAIL_PASSWORD=${MAIL_PASSWORD}
+        echo "Setting up environment variables..."
+        cat > .env << EOF
+        MYSQL_ROOT_PASSWORD=${{ secrets.MYSQL_ROOT_PASSWORD }}
+        MYSQL_DATABASE=inventory_db
+        MYSQL_USER=inventory_user
+        MYSQL_PASSWORD=${{ secrets.MYSQL_ROOT_PASSWORD }}
+        JWT_SECRET=${{ secrets.JWT_SECRET }}
+        MAIL_USERNAME=${{ secrets.MAIL_USERNAME }}
+        MAIL_PASSWORD=${{ secrets.MAIL_PASSWORD }}
+        NODE_ENV=production
+        SPRING_PROFILES_ACTIVE=production
+        NEXT_PUBLIC_API_URL=/api
         EOF
+
+    - name: Stop existing containers
+      run: |
+        echo "Stopping existing containers..."
+        docker stop $(docker ps -aq) 2>/dev/null || true
+        docker system prune -f
+
+    - name: Verify source code structure
+      run: |
+        echo "Checking source code structure..."
+        echo "Backend (Spring Boot):"
+        if [ -f ./inventory/pom.xml ]; then
+          echo "✅ Found Spring Boot backend"
+          ls -la ./inventory/
+        else
+          echo "❌ No Spring Boot backend found"
+        fi
         
-        # Deploy via SSH
-        echo "${{ secrets.ORACLE_SSH_KEY }}" > ~/deploy/oracle_key
-        chmod 600 ~/deploy/oracle_key
+        echo "Frontend (Next.js):"
+        if [ -f ./inventory_frontend/package.json ]; then
+          echo "✅ Found Next.js frontend"
+          ls -la ./inventory_frontend/
+        else
+          echo "❌ No Next.js frontend found"
+        fi
+
+    - name: Build application with correct configuration
+      run: |
+        echo "Building application with production settings..."
+        export DOCKER_BUILDKIT=1
         
-        # Copy files to server
-        scp -i ~/deploy/oracle_key -o StrictHostKeyChecking=no -r ~/deploy/* ${ORACLE_USER}@${ORACLE_HOST}:~/inventory/
+        # Build with no cache to ensure fresh build with /api
+        docker-compose -f docker-compose.prod.yml build --no-cache --pull \
+          --build-arg NEXT_PUBLIC_API_URL=/api \
+          --build-arg NODE_ENV=production
+
+    - name: Start application services
+      run: |
+        echo "Starting application services..."
+        docker-compose -f docker-compose.prod.yml up -d
+
+    - name: Wait for services to be ready
+      run: |
+        echo "Waiting for services to start..."
+        sleep 60
         
-        # Execute deployment on server
-        ssh -i ~/deploy/oracle_key -o StrictHostKeyChecking=no ${ORACLE_USER}@${ORACLE_HOST} << 'ENDSSH'
-          cd ~/inventory
-          
-          # Stop existing containers
-          docker compose -f docker-compose.prod.yml down --remove-orphans || true
-          
-          # Clean up old images to force rebuild
-          docker system prune -f
-          docker image prune -a -f
-          
-          # Build and start with no cache
-          docker compose -f docker-compose.prod.yml build --no-cache --pull
-          docker compose -f docker-compose.prod.yml up -d
-          
-          # Wait for services to be healthy
-          echo "Waiting for services to start..."
-          sleep 30
-          
-          # Check service status
-          docker compose -f docker-compose.prod.yml ps
-          
-          # Test endpoints
-          echo "Testing endpoints..."
-          curl -f http://localhost:80/health || echo "Health check failed"
-          curl -f http://localhost:3000 || echo "Frontend failed"
-          curl -f http://localhost:8080/actuator/health || echo "Backend failed"
-        ENDSSH
+        echo "Checking service health..."
+        # Check MySQL
+        for i in {1..12}; do
+          if docker-compose -f docker-compose.prod.yml exec -T mysql mysqladmin ping -h localhost -u root -p${{ secrets.MYSQL_ROOT_PASSWORD }} 2>/dev/null; then
+            echo "✅ MySQL is healthy"
+            break
+          fi
+          echo "⏳ Waiting for MySQL... ($i/12)"
+          sleep 10
+        done
+
+        # Check Backend
+        for i in {1..15}; do
+          if curl -f http://localhost:8080/actuator/health 2>/dev/null; then
+            echo "✅ Backend is healthy"
+            break
+          fi
+          echo "⏳ Waiting for Backend... ($i/15)"
+          sleep 10
+        done
+
+        # Check Frontend
+        for i in {1..10}; do
+          if curl -f http://localhost:3000 2>/dev/null; then
+            echo "✅ Frontend is healthy"
+            break
+          fi
+          echo "⏳ Waiting for Frontend... ($i/10)"
+          sleep 10
+        done
+
+        # Check Nginx
+        for i in {1..8}; do
+          if curl -f http://localhost:80/health 2>/dev/null; then
+            echo "✅ Nginx is healthy"
+            break
+          fi
+          echo "⏳ Waiting for Nginx... ($i/8)"
+          sleep 5
+        done
+
+    - name: Final deployment verification
+      run: |
+        echo "🔍 Final deployment verification..."
+        echo "Container status:"
+        docker-compose -f docker-compose.prod.yml ps
         
-        # Cleanup
-        rm -rf ~/deploy 
+        echo "Testing endpoints:"
+        echo "Main site (port 80):"
+        curl -I http://localhost:80 && echo "✅ Main site OK" || echo "❌ Main site FAILED"
+        
+        echo "Frontend (port 3000):"
+        curl -I http://localhost:3000 && echo "✅ Frontend OK" || echo "❌ Frontend FAILED"  
+        
+        echo "Backend (port 8080):"
+        curl -I http://localhost:8080/actuator/health && echo "✅ Backend OK" || echo "❌ Backend FAILED"
+        
+        echo "🎉 Deployment Summary:"
+        if curl -s http://localhost:80 >/dev/null; then
+          echo "✅ SUCCESS: Your real inventory application is live!"
+          echo "🌐 Access your app at: http://129.146.49.129"
+          echo "📱 Frontend: Your actual Next.js application"
+          echo "🔧 Backend: Your actual Spring Boot API"
+          echo "💾 Database: MySQL with your schema"
+        else
+          echo "❌ Deployment verification failed"
+          echo "Container logs:"
+          docker-compose -f docker-compose.prod.yml logs --tail=20
+          exit 1
+        fi
+
+    - name: Cleanup on failure
+      if: failure()
+      run: |
+        echo "🚨 Deployment failed, showing debug information..."
+        echo "Container status:"
+        docker-compose -f docker-compose.prod.yml ps
+        
+        echo "Recent logs:"
+        echo "=== Frontend logs ==="
+        docker-compose -f docker-compose.prod.yml logs frontend --tail=10
+        echo "=== Backend logs ==="
+        docker-compose -f docker-compose.prod.yml logs backend --tail=10
+        echo "=== Nginx logs ==="
+        docker-compose -f docker-compose.prod.yml logs nginx --tail=10 
