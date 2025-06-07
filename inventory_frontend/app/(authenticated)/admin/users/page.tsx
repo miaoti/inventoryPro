@@ -268,8 +268,8 @@ export default function UserManagementPage() {
             fontSize: { xs: '1.5rem', md: '2.125rem' }
           }}
         >
-          User Management
-        </Typography>
+        User Management
+      </Typography>
         <Button
           variant="contained"
           startIcon={<AddIcon />}
