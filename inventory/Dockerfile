@@ -4,7 +4,7 @@ FROM eclipse-temurin:17-jdk AS build
 # Set working directory
 WORKDIR /app
 
-# Copy gradle files
+# Copy gradle wrapper and build files first for better caching
 COPY gradle gradle
 COPY build.gradle settings.gradle gradlew ./
 COPY gradlew.bat ./
@@ -12,17 +12,20 @@ COPY gradlew.bat ./
 # Make gradlew executable
 RUN chmod +x ./gradlew
 
+# Download dependencies (this layer will be cached)
+RUN ./gradlew dependencies --no-daemon
+
 # Copy source code
 COPY src src
 
-# Build the application
-RUN ./gradlew clean build -x test
+# Build the application with parallel builds and daemon disabled for container
+RUN ./gradlew clean build -x test --no-daemon --parallel
 
 # Runtime stage - Use Eclipse Temurin JRE 17
 FROM eclipse-temurin:17-jre
 
-# Install curl for health checks
-RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+# Install wget for health checks (lighter than curl)
+RUN apt-get update && apt-get install -y wget && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user
 RUN groupadd -g 1001 spring && \
@@ -43,9 +46,9 @@ USER spring
 # Expose port
 EXPOSE 8080
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=30s --retries=3 \
-  CMD curl -f http://localhost:8080/actuator/health || exit 1
+# Health check with faster interval
+HEALTHCHECK --interval=15s --timeout=3s --start-period=15s --retries=2 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:8080/actuator/health || exit 1
 
-# Run the application
-ENTRYPOINT ["java", "-jar", "app.jar"] 
+# Run the application with optimized JVM settings
+ENTRYPOINT ["java", "-XX:+UseContainerSupport", "-XX:MaxRAMPercentage=75.0", "-jar", "app.jar"] 
