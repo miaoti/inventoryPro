@@ -897,9 +897,9 @@ export default function BarcodeScanner() {
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
             <PersonIcon color="primary" />
             <TextField
-              label="Logged in as"
+              label={user ? "Logged in as" : "Your name"}
               value={userName}
-              placeholder="Loading user name..."
+              placeholder={user ? "Loading user name..." : "Enter your name to start scanning"}
               size="small"
               sx={{ 
                 flexGrow: 1,
@@ -909,9 +909,14 @@ export default function BarcodeScanner() {
                 }
               }}
               InputProps={{
-                readOnly: true,
+                readOnly: !!user,
               }}
-              variant="filled"
+              variant={user ? "filled" : "outlined"}
+              onChange={(e) => {
+                if (!user) {
+                  setUserName(e.target.value);
+                }
+              }}
             />
             {isAdmin && (
               <Chip 
@@ -923,7 +928,10 @@ export default function BarcodeScanner() {
             )}
           </Box>
           <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-            Your name is automatically set from your account and will be recorded with each item usage for tracking purposes.
+            {user 
+              ? "Your name is automatically set from your account and will be recorded with each item usage for tracking purposes."
+              : "Please enter your name - it will be recorded with each item usage for tracking purposes."
+            }
             {isAdmin && (
               <span style={{ color: '#d32f2f', fontWeight: 'bold' }}> (Admin privileges active)</span>
             )}

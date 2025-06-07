@@ -28,7 +28,9 @@ public class User {
     @Column(nullable = false)
     private String fullName;
 
-    // Role is managed through separate user_roles table
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private UserRole role;
 
     @Column(name = "enabled")
     private Boolean enabled = true;
