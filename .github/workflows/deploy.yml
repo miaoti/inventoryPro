@@ -85,6 +85,11 @@ jobs:
       run: |
         echo "Starting application services..."
         docker-compose -f docker-compose.prod.yml up -d
+        
+        echo "Force restarting nginx to pick up config changes..."
+        sleep 5
+        docker-compose -f docker-compose.prod.yml restart nginx
+        sleep 10
 
     - name: Wait for services to be ready
       run: |
@@ -135,6 +140,15 @@ jobs:
           sleep 5
         done
 
+
+    - name: Verify nginx configuration
+      run: |
+        echo "🔍 Checking nginx configuration in container..."
+        echo "Current nginx.conf in container:"
+        docker exec inventory_nginx_prod cat /etc/nginx/nginx.conf | grep -A 5 -B 2 "location /api/"
+        echo ""
+        echo "Testing nginx config syntax:"
+        docker exec inventory_nginx_prod nginx -t
 
     - name: Diagnose API issues
       run: |
