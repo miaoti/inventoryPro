@@ -212,7 +212,7 @@ export default function UsageReportsPage() {
       if (selectedDepartment.trim()) params.append('department', selectedDepartment.trim());
       if (selectedBarcodeOrItem.trim()) params.append('barcodeOrItemCode', selectedBarcodeOrItem.trim());
 
-      const response = await fetch(`http://localhost:8080/api/usage/export/excel/filtered?${params.toString()}`, {
+      const response = await fetch(`${API_URL}/usage/export/excel/filtered?${params.toString()}`, {
         method: 'GET',
         credentials: 'include',
         headers: {
@@ -295,7 +295,7 @@ export default function UsageReportsPage() {
 
   const handleExportAllUsageToExcel = async () => {
     try {
-      const response = await fetch('http://localhost:8080/api/usage/export/excel', {
+      const response = await fetch(`${API_URL}/usage/export/excel`, {
         method: 'GET',
         credentials: 'include',
         headers: {
@@ -328,7 +328,7 @@ export default function UsageReportsPage() {
     }
 
     try {
-      const response = await fetch(`http://localhost:8080/api/usage/export/excel/date-range?startDate=${startDate}&endDate=${endDate}`, {
+      const response = await fetch(`${API_URL}/usage/export/excel/date-range?startDate=${startDate}&endDate=${endDate}`, {
         method: 'GET',
         credentials: 'include',
         headers: {

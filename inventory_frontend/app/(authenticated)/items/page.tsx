@@ -85,6 +85,9 @@ export default function ItemsPage() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   
+  // API URL configuration
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api';
+  
   // Authentication check
   const { isAuthenticated, user, token } = useSelector((state: RootState) => state.auth);
   const [items, setItems] = useState<Item[]>([]);
@@ -662,7 +665,7 @@ export default function ItemsPage() {
         return (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <img 
-              src={`http://localhost:8080/api/public/barcode-image/${params.value}`}
+              src={`${API_URL}/public/barcode-image/${params.value}`}
               alt={`Barcode: ${params.value}`}
               style={{ height: 24, maxWidth: 100 }}
             />
@@ -1104,7 +1107,7 @@ export default function ItemsPage() {
                     {item.barcode && (
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
                         <img 
-                          src={`http://localhost:8080/api/public/barcode-image/${item.barcode}`}
+                          src={`${API_URL}/public/barcode-image/${item.barcode}`}
                           alt={`Barcode: ${item.barcode}`}
                           style={{ height: 20, maxWidth: 80 }}
                         />
@@ -1319,7 +1322,7 @@ export default function ItemsPage() {
                     <Grid item xs={12} md={4}>
                       <Box sx={{ textAlign: 'center' }}>
                         <img 
-                          src={`http://localhost:8080/api/public/barcode-image/${selectedItem.barcode}`}
+                          src={`${API_URL}/public/barcode-image/${selectedItem.barcode}`}
                           alt={`Barcode: ${selectedItem.barcode}`}
                           style={{ height: 80, maxWidth: '100%' }}
                         />

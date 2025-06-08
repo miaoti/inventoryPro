@@ -90,6 +90,9 @@ type SortField = 'createdAt' | 'urgencyLevel' | 'itemName' | 'currentInventory';
 export default function AlertsPage() {
   const router = useRouter();
   
+  // API URL configuration
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api';
+  
   // Redux state
   const dispatch = useDispatch();
   const { alerts: reduxAlerts, unreadAlerts, activeAlerts } = useSelector((state: RootState) => state.alerts);
@@ -405,7 +408,7 @@ export default function AlertsPage() {
 
   const handleExportToExcel = async () => {
     try {
-      const response = await fetch('http://localhost:8080/api/alerts/export/excel', {
+      const response = await fetch(`${API_URL}/alerts/export/excel`, {
         method: 'GET',
         credentials: 'include',
         headers: {
