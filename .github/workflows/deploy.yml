@@ -132,11 +132,6 @@ jobs:
           sleep 5
         done
 
-    - name: Fix Nginx 404 issue
-      run: |
-        echo "🔧 Fixing potential Nginx routing issues..."
-        chmod +x fix-nginx-404.sh
-        ./fix-nginx-404.sh
 
     - name: Final deployment verification
       run: |
