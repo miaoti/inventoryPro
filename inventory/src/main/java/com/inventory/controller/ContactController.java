@@ -14,7 +14,6 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/contact")
-@CrossOrigin(origins = "http://localhost:3000", allowCredentials = "true")
 public class ContactController {
     
     private static final Logger logger = LoggerFactory.getLogger(ContactController.class);

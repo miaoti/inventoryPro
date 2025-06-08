@@ -10,7 +10,6 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/admin/settings")
-@CrossOrigin(origins = "http://localhost:3000", allowCredentials = "true")
 public class AdminSettingsController {
 
     @Autowired

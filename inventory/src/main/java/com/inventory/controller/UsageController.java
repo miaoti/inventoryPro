@@ -22,7 +22,6 @@ import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/usage")
-@CrossOrigin(origins = "http://localhost:3000", allowCredentials = "true")
 public class UsageController {
 
     @Autowired

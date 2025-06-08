@@ -12,7 +12,6 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/items")
-@CrossOrigin(origins = "http://localhost:3000", allowCredentials = "true")
 public class PurchaseOrderController {
 
     @Autowired

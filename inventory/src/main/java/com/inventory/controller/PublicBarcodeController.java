@@ -22,7 +22,6 @@ import java.util.ArrayList;
 
 @RestController
 @RequestMapping("/public/barcode")
-@CrossOrigin(origins = "http://localhost:3000", allowCredentials = "true")
 public class PublicBarcodeController {
     
     @Autowired

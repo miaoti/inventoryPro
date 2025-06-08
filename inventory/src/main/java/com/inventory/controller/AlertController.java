@@ -16,7 +16,6 @@ import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/alerts")
-@CrossOrigin(origins = "http://localhost:3000", allowCredentials = "true")
 public class AlertController {
 
     @Autowired

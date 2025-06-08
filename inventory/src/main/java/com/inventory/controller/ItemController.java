@@ -30,7 +30,6 @@ import com.opencsv.exceptions.CsvException;
 
 @RestController
 @RequestMapping("/items")
-@CrossOrigin(origins = "http://localhost:3000", allowCredentials = "true")
 public class ItemController {
     @Autowired
     private ItemRepository itemRepository;
