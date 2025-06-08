@@ -132,6 +132,12 @@ jobs:
           sleep 5
         done
 
+    - name: Fix Nginx 404 issue
+      run: |
+        echo "🔧 Fixing potential Nginx routing issues..."
+        chmod +x fix-nginx-404.sh
+        ./fix-nginx-404.sh
+
     - name: Final deployment verification
       run: |
         echo "🔍 Final deployment verification..."
@@ -146,7 +152,7 @@ jobs:
         curl -I http://localhost:3000 && echo "✅ Frontend OK" || echo "❌ Frontend FAILED"  
         
         echo "Backend (port 8080):"
-        curl -I http://localhost:8080/actuator/health && echo "✅ Backend OK" || echo "❌ Backend FAILED"
+        curl -I http://localhost:8080/api/actuator/health && echo "✅ Backend OK" || echo "❌ Backend FAILED"
         
         echo "🎉 Deployment Summary:"
         if curl -s http://localhost:80 >/dev/null; then
@@ -156,9 +162,14 @@ jobs:
           echo "🔧 Backend: Your actual Spring Boot API"
           echo "💾 Database: MySQL with your schema"
         else
-          echo "❌ Deployment verification failed"
-          echo "Container logs:"
-          docker-compose -f docker-compose.prod.yml logs --tail=20
+          echo "❌ Deployment verification failed - running enhanced diagnostics..."
+          echo "=== Nginx logs ==="
+          docker-compose -f docker-compose.prod.yml logs nginx --tail=20
+          echo "=== Frontend logs ==="
+          docker-compose -f docker-compose.prod.yml logs frontend --tail=10
+          echo "=== Network connectivity test ==="
+          echo "Testing internal connectivity:"
+          docker-compose -f docker-compose.prod.yml exec nginx curl -I http://frontend:3000 || echo "Nginx -> Frontend failed"
           exit 1
         fi
 
