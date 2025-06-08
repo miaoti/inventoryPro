@@ -103,12 +103,12 @@ jobs:
         done
 
         # Check Backend (extended timeout for migrations)
-        for i in {1..20}; do
+        for i in {1..10}; do
           if curl -f http://localhost:8080/actuator/health 2>/dev/null; then
             echo "✅ Backend is healthy"
             break
           fi
-          echo "⏳ Waiting for Backend (migrations may be running)... ($i/20)"
+          echo "⏳ Waiting for Backend (migrations may be running)... ($i/10)"
           sleep 10
         done
 
