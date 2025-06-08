@@ -5,7 +5,7 @@ A web-based inventory management system built with Spring Boot, React.js, and My
 ## Features
 
 - User authentication and authorization
-- Item management (CRUD operations)
+- Item management (CRUD operations) 
 - Barcode scanning for inventory updates
 - Real-time inventory tracking
 - Alert system for low stock items
