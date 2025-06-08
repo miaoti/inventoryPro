@@ -34,11 +34,23 @@ jobs:
         NEXT_PUBLIC_API_URL=/api
         EOF
 
-    - name: Stop existing containers
+    - name: Stop existing containers and repair failed migration
       run: |
         echo "Stopping existing containers..."
         docker stop $(docker ps -aq) 2>/dev/null || true
         docker system prune -f
+        
+        echo "Starting MySQL to repair failed migration..."
+        docker-compose -f docker-compose.prod.yml up -d mysql
+        sleep 20
+        
+        echo "Repairing failed V17 migration..."
+        docker-compose -f docker-compose.prod.yml exec -T mysql mysql -u root -p${{ secrets.MYSQL_ROOT_PASSWORD }} -e "
+        USE inventory_db;
+        DELETE FROM flyway_schema_history WHERE version = '17' AND success = 0;
+        " 2>/dev/null || echo "Migration repair attempted"
+        
+        docker-compose -f docker-compose.prod.yml stop mysql
 
     - name: Verify source code structure
       run: |
