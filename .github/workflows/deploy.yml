@@ -104,8 +104,11 @@ jobs:
 
         # Check Backend (extended timeout for migrations)
         for i in {1..10}; do
-          if curl -f http://localhost:8080/actuator/health 2>/dev/null; then
-            echo "✅ Backend is healthy"
+          if curl -f http://localhost:8080/api/actuator/health 2>/dev/null; then
+            echo "✅ Backend is healthy (with /api context)"
+            break
+          elif curl -f http://localhost:8080/actuator/health 2>/dev/null; then
+            echo "✅ Backend is healthy (without /api context)"
             break
           fi
           echo "⏳ Waiting for Backend (migrations may be running)... ($i/10)"
@@ -132,6 +135,12 @@ jobs:
           sleep 5
         done
 
+
+    - name: Diagnose API issues
+      run: |
+        echo "🔍 Running API diagnostics..."
+        chmod +x diagnose-api-404.sh
+        ./diagnose-api-404.sh
 
     - name: Final deployment verification
       run: |

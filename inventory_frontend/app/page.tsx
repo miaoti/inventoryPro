@@ -308,20 +308,20 @@ export default function LandingPage() {
               </Button>
             </Box>
           ) : (
-            <Button 
-              color="inherit" 
-              onClick={() => router.push('/login')}
-              sx={{ 
-                bgcolor: 'rgba(255,255,255,0.2)', 
-                '&:hover': { bgcolor: 'rgba(255,255,255,0.3)' },
-                borderRadius: 2,
+          <Button 
+            color="inherit" 
+            onClick={() => router.push('/login')}
+            sx={{ 
+              bgcolor: 'rgba(255,255,255,0.2)', 
+              '&:hover': { bgcolor: 'rgba(255,255,255,0.3)' },
+              borderRadius: 2,
                 px: 3,
                 color: 'white',
                 fontWeight: 'bold'
-              }}
-            >
-              Login
-            </Button>
+            }}
+          >
+            Login
+          </Button>
           )}
         </Toolbar>
       </AppBar>
@@ -411,48 +411,48 @@ export default function LandingPage() {
                   </>
                 ) : (
                   <>
-                    <Button
-                      variant="contained"
-                      size="large"
-                      onClick={() => setShowContactForm(true)}
-                      sx={{
-                        bgcolor: '#4CAF50',
-                        '&:hover': { bgcolor: '#45a049' },
-                        px: 4,
-                        py: 1.5,
-                        borderRadius: 3,
-                        textTransform: 'none',
-                        fontSize: '1.1rem',
-                        fontWeight: 'bold',
-                        boxShadow: '0 4px 15px rgba(76, 175, 80, 0.3)'
-                      }}
-                      startIcon={<SecurityIcon />}
-                    >
-                      Get Started Free
-                    </Button>
-                    <Button
-                      variant="outlined"
-                      size="large"
-                      onClick={() => document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' })}
-                      sx={{
-                        borderColor: 'white',
-                        color: 'white',
-                        borderWidth: 2,
-                        '&:hover': { 
-                          borderColor: 'white', 
-                          bgcolor: 'rgba(255,255,255,0.2)',
-                          borderWidth: 2
-                        },
-                        px: 4,
-                        py: 1.5,
-                        borderRadius: 3,
-                        textTransform: 'none',
-                        fontSize: '1.1rem',
-                        fontWeight: 'bold'
-                      }}
-                    >
-                      Learn More
-                    </Button>
+                <Button
+                  variant="contained"
+                  size="large"
+                  onClick={() => setShowContactForm(true)}
+                  sx={{
+                    bgcolor: '#4CAF50',
+                    '&:hover': { bgcolor: '#45a049' },
+                    px: 4,
+                    py: 1.5,
+                    borderRadius: 3,
+                    textTransform: 'none',
+                    fontSize: '1.1rem',
+                    fontWeight: 'bold',
+                    boxShadow: '0 4px 15px rgba(76, 175, 80, 0.3)'
+                  }}
+                  startIcon={<SecurityIcon />}
+                >
+                  Get Started Free
+                </Button>
+                <Button
+                  variant="outlined"
+                  size="large"
+                  onClick={() => document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' })}
+                  sx={{
+                    borderColor: 'white',
+                    color: 'white',
+                    borderWidth: 2,
+                    '&:hover': { 
+                      borderColor: 'white', 
+                      bgcolor: 'rgba(255,255,255,0.2)',
+                      borderWidth: 2
+                    },
+                    px: 4,
+                    py: 1.5,
+                    borderRadius: 3,
+                    textTransform: 'none',
+                    fontSize: '1.1rem',
+                    fontWeight: 'bold'
+                  }}
+                >
+                  Learn More
+                </Button>
                   </>
                 )}
               </Box>
