@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useDispatch } from 'react-redux';
 import { setCredentials } from '../store/slices/authSlice';
+import { sessionManager } from '../services/sessionManager';
 import Cookies from 'js-cookie';
 
 interface AuthProviderProps {
@@ -51,6 +52,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
               user: data.user,
               token: data.token
             }));
+            
+            // Start session monitoring if user is authenticated
+            sessionManager.startSessionMonitoring();
             
             console.log('AuthProvider: User session restored successfully:', data.user.username);
           } else {

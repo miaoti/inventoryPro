@@ -77,8 +77,11 @@ api.interceptors.response.use(
 );
 
 export const authAPI = {
-  login: (credentials: { username: string; password: string }) =>
-    api.post('/auth/login', credentials),
+  login: (credentials: { username: string; password: string }) => {
+    // Generate a unique session ID for this login
+    const sessionId = Date.now().toString() + Math.random().toString(36).substr(2, 9);
+    return api.post('/auth/login', { ...credentials, sessionId });
+  },
   register: (userData: {
     username: string;
     password: string;
@@ -103,8 +106,18 @@ export const authAPI = {
   // Add utility to clear authentication
   clearAuth: () => {
     Cookies.remove('token');
+    Cookies.remove('user');
+    localStorage.removeItem('sessionId');
+    localStorage.removeItem('isAdmin');
+    localStorage.removeItem('userRole');
+    localStorage.removeItem('userName');
+    sessionStorage.clear();
     window.location.href = '/';
-  }
+  },
+  // Check if session is still valid (for multi-device logout)
+  checkSession: () => api.get('/auth/check-session'),
+  // Refresh token and session
+  refreshSession: () => api.post('/auth/refresh-session')
 };
 
 export const itemsAPI = {

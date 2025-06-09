@@ -1,5 +1,6 @@
 import { createSlice, PayloadAction, createAsyncThunk } from '@reduxjs/toolkit';
 import { authAPI } from '@/services/api';
+import { sessionManager } from '@/services/sessionManager';
 import Cookies from 'js-cookie';
 
 interface User {
@@ -30,10 +31,21 @@ export const login = createAsyncThunk(
   'auth/login',
   async (credentials: { username: string; password: string }) => {
     const response: any = await authAPI.login(credentials);
-    const { token, user } = response; // response already contains the data due to interceptor
+    const { token, user, sessionId } = response; // response already contains the data due to interceptor
+    
     // Set cookie with token
     Cookies.set('token', token, { expires: 7 }); // Expires in 7 days
-    return { token, user };
+    Cookies.set('user', JSON.stringify(user), { expires: 7 }); // Store user data
+    
+    // Store session ID and start monitoring
+    if (sessionId) {
+      sessionManager.setSessionId(sessionId);
+    }
+    
+    // Start session monitoring for multi-device logout detection
+    sessionManager.startSessionMonitoring();
+    
+    return { token, user, sessionId };
   }
 );
 
@@ -66,18 +78,25 @@ const authSlice = createSlice({
       state.user = null;
       state.token = null;
       state.isAuthenticated = false;
-      // Remove cookie
+      
+      // Stop session monitoring
+      sessionManager.stopSessionMonitoring();
+      sessionManager.clearSession();
+      
+      // Remove cookies
       Cookies.remove('token');
+      Cookies.remove('user');
+      
       // Clear all localStorage items that might contain authentication data
       localStorage.removeItem('isAdmin');
       localStorage.removeItem('userRole');
       localStorage.removeItem('userName');
       localStorage.removeItem('authToken');
+      localStorage.removeItem('sessionId');
+      localStorage.removeItem('cameraPermissionGranted');
+      
       // Clear all sessionStorage items that might contain authentication data
-      sessionStorage.removeItem('isAdmin');
-      sessionStorage.removeItem('userRole');
-      sessionStorage.removeItem('userName');
-      sessionStorage.removeItem('authToken');
+      sessionStorage.clear();
     },
     clearError: (state) => {
       state.error = null;
