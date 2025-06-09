@@ -53,6 +53,7 @@ import {
 import { BrowserMultiFormatReader, BarcodeFormat, DecodeHintType } from '@zxing/library';
 import { barcodeAPI, itemsAPI, purchaseOrderAPI } from '../services/api';
 import { PurchaseOrder } from '../types/purchaseOrder';
+import Layout from '../components/Layout';
 // import { TrackingDisplay } from '../../../components/TrackingDisplay';
 
 interface ScannedItem {
@@ -96,7 +97,7 @@ interface UsageRecord {
 }
 
 export default function BarcodeScanner() {
-  const { user } = useSelector((state: RootState) => state.auth);
+  const { user, isAuthenticated } = useSelector((state: RootState) => state.auth);
   const theme = useTheme();
   const isXsScreen = useMediaQuery(theme.breakpoints.down('sm'));
   const [isScanning, setIsScanning] = useState(false);
@@ -396,7 +397,7 @@ export default function BarcodeScanner() {
         
         console.log('Device detection:', { isIOS, isMobile, isIOSSafari, userAgent: navigator.userAgent });
         
-        // Check if mediaDevices is available, with fallback for older browsers
+        // Ensure navigator.mediaDevices exists (most modern browsers support this)
         if (!navigator.mediaDevices) {
           // Try to polyfill for older browsers
           const nav = navigator as any;
@@ -411,12 +412,13 @@ export default function BarcodeScanner() {
               }
             };
           } else {
-            throw new Error('Camera API not supported on this device/browser');
+            console.warn('No camera API available, will try to continue anyway');
           }
         }
         
-        if (!navigator.mediaDevices.getUserMedia) {
-          throw new Error('Camera API not supported on this device/browser');
+        // More permissive check - just warn if no getUserMedia but still try
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          console.warn('navigator.mediaDevices.getUserMedia not available, but will try anyway');
         }
         
         // For iOS Safari, we need special handling due to permission restrictions
@@ -434,10 +436,14 @@ export default function BarcodeScanner() {
           
           try {
             console.log('Requesting camera access for iOS Safari with constraints:', iosConstraints);
-            const testStream = await navigator.mediaDevices.getUserMedia(iosConstraints);
-            console.log('✅ iOS Safari camera access granted');
-            testStream.getTracks().forEach(track => track.stop());
-            hasPermission = true;
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+              const testStream = await navigator.mediaDevices.getUserMedia(iosConstraints);
+              console.log('✅ iOS Safari camera access granted');
+              testStream.getTracks().forEach(track => track.stop());
+              hasPermission = true;
+            } else {
+              throw new Error('Camera API not available on this iOS device');
+            }
           } catch (iosError) {
             console.error('iOS Safari camera access failed:', iosError);
             throw iosError;
@@ -480,13 +486,17 @@ export default function BarcodeScanner() {
           console.log('Requesting camera access with standard constraints:', standardConstraints);
           
           // This will trigger the permission dialog if needed
-          const testStream = await navigator.mediaDevices.getUserMedia(standardConstraints);
-          console.log('✅ Standard camera access granted');
-          testStream.getTracks().forEach(track => track.stop());
-          hasPermission = true;
-          
-          // Store permission in localStorage for future use (but not for iOS)
-          localStorage.setItem('cameraPermissionGranted', 'true');
+          if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+            const testStream = await navigator.mediaDevices.getUserMedia(standardConstraints);
+            console.log('✅ Standard camera access granted');
+            testStream.getTracks().forEach(track => track.stop());
+            hasPermission = true;
+            
+            // Store permission in localStorage for future use (but not for iOS)
+            localStorage.setItem('cameraPermissionGranted', 'true');
+          } else {
+            throw new Error('Camera API not available on this device');
+          }
         }
         
       } catch (permError) {
@@ -1050,7 +1060,7 @@ export default function BarcodeScanner() {
     }
   };
 
-  return (
+  const scannerContent = (
     <Box sx={{ p: 3 }}>
       <Typography variant="h4" gutterBottom>
         Barcode Scanner - Item Usage Tracker
@@ -2407,4 +2417,12 @@ export default function BarcodeScanner() {
 
     </Box>
   );
+
+  // Conditionally wrap with Layout if user is authenticated
+  if (isAuthenticated) {
+    return <Layout>{scannerContent}</Layout>;
+  }
+
+  // Return content without layout for non-authenticated users
+  return scannerContent;
 } 
