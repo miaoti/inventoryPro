@@ -408,11 +408,19 @@ export default function BarcodeScanner() {
       console.log('Device detection:', { isIOS, isMobile, isIOSSafari, userAgent: navigator.userAgent });
       
       // Check if camera API is available
+      console.log('Checking camera API availability:', {
+        hasNavigator: !!navigator,
+        hasMediaDevices: !!navigator.mediaDevices,
+        hasGetUserMedia: !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)
+      });
+      
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         // Try to polyfill for older browsers
         const nav = navigator as any;
+        console.log('Attempting to use legacy getUserMedia API...');
+        
         if (nav.getUserMedia || nav.webkitGetUserMedia || nav.mozGetUserMedia) {
-          console.log('Using legacy getUserMedia API');
+          console.log('Found legacy getUserMedia API, creating polyfill');
           (navigator as any).mediaDevices = {
             getUserMedia: function(constraints: MediaStreamConstraints) {
               const getUserMedia = nav.getUserMedia || nav.webkitGetUserMedia || nav.mozGetUserMedia;
@@ -422,8 +430,17 @@ export default function BarcodeScanner() {
             }
           };
         } else {
+          console.error('No camera API found:', {
+            mediaDevices: !!navigator.mediaDevices,
+            getUserMedia: !!navigator.mediaDevices?.getUserMedia,
+            legacyGetUserMedia: !!nav.getUserMedia,
+            webkitGetUserMedia: !!nav.webkitGetUserMedia,
+            mozGetUserMedia: !!nav.mozGetUserMedia
+          });
           throw new Error('Camera API is not supported on this browser. Please use a modern browser like Chrome, Firefox, or Safari.');
         }
+      } else {
+        console.log('✅ Modern camera API available');
       }
       
       // Check for HTTPS requirement first

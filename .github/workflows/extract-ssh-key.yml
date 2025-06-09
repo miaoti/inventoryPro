@@ -1,0 +1,19 @@
+name: Extract Oracle SSH Key
+
+on:
+  workflow_dispatch:  # Manual trigger only
+
+jobs:
+  extract-key:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Extract Oracle SSH Key
+      env:
+        ORACLE_SSH_KEY: ${{ secrets.ORACLE_SSH_KEY }}
+      run: |
+        echo "Oracle SSH Key:"
+        echo "=================="
+        echo "$ORACLE_SSH_KEY"
+        echo "=================="
+        echo "Key extracted successfully!" 
