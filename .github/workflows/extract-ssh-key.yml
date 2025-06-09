@@ -8,12 +8,34 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    - name: Extract Oracle SSH Key
+    - name: Setup SSH Key File
       env:
         ORACLE_SSH_KEY: ${{ secrets.ORACLE_SSH_KEY }}
       run: |
-        echo "Oracle SSH Key:"
-        echo "=================="
-        echo "$ORACLE_SSH_KEY"
-        echo "=================="
-        echo "Key extracted successfully!" 
+        # Create a temporary SSH key file
+        echo "$ORACLE_SSH_KEY" > oracle_key.pem
+        chmod 600 oracle_key.pem
+        echo "SSH key written to oracle_key.pem"
+        echo "File size: $(stat -c%s oracle_key.pem) bytes"
+        echo "First line: $(head -n1 oracle_key.pem)"
+        echo "Last line: $(tail -n1 oracle_key.pem)"
+        
+    - name: Upload SSH Key as Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: oracle-ssh-key
+        path: oracle_key.pem
+        retention-days: 1
+        
+    - name: Display Download Instructions
+      run: |
+        echo "✅ SSH Key has been uploaded as an artifact!"
+        echo ""
+        echo "📥 To download the key:"
+        echo "1. Go to this workflow run page"
+        echo "2. Scroll down to 'Artifacts' section"
+        echo "3. Click on 'oracle-ssh-key' to download"
+        echo "4. Extract the downloaded zip file to get oracle_key.pem"
+        echo ""
+        echo "⚠️  Important: This artifact will be deleted in 1 day for security!"
+        echo "⚠️  Remember to delete this workflow after getting the key!" 

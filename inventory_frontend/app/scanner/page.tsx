@@ -407,12 +407,30 @@ export default function BarcodeScanner() {
       
       console.log('Device detection:', { isIOS, isMobile, isIOSSafari, userAgent: navigator.userAgent });
       
+      // Check secure context first
+      const isSecureContext = window.isSecureContext;
+      const protocol = window.location.protocol;
+      const hostname = window.location.hostname;
+      
+      console.log('Security context check:', {
+        isSecureContext,
+        protocol,
+        hostname,
+        location: window.location.href
+      });
+      
       // Check if camera API is available
       console.log('Checking camera API availability:', {
         hasNavigator: !!navigator,
         hasMediaDevices: !!navigator.mediaDevices,
-        hasGetUserMedia: !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)
+        hasGetUserMedia: !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia),
+        isSecureContext
       });
+      
+      // MediaDevices API requires secure context (HTTPS or localhost)
+      if (!isSecureContext && hostname !== 'localhost' && hostname !== '127.0.0.1') {
+        throw new Error('Camera access requires a secure context (HTTPS). Please use HTTPS or localhost.');
+      }
       
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         // Try to polyfill for older browsers
@@ -435,9 +453,12 @@ export default function BarcodeScanner() {
             getUserMedia: !!navigator.mediaDevices?.getUserMedia,
             legacyGetUserMedia: !!nav.getUserMedia,
             webkitGetUserMedia: !!nav.webkitGetUserMedia,
-            mozGetUserMedia: !!nav.mozGetUserMedia
+            mozGetUserMedia: !!nav.mozGetUserMedia,
+            isSecureContext,
+            protocol,
+            hostname
           });
-          throw new Error('Camera API is not supported on this browser. Please use a modern browser like Chrome, Firefox, or Safari.');
+          throw new Error(`Camera API is not supported. Details: Secure context: ${isSecureContext}, Protocol: ${protocol}, Browser: ${navigator.userAgent.split(' ').pop()}`);
         }
       } else {
         console.log('✅ Modern camera API available');
