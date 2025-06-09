@@ -1253,7 +1253,7 @@ export default function ItemsPage() {
             <ListItemIcon>
               <LocalShippingIcon fontSize="small" color="warning" />
             </ListItemIcon>
-            <ListItemText primary={`Manage POs${actionMenuItem.pendingPO > 0 ? ` (${actionMenuItem.pendingPO})` : ''}`} />
+            <ListItemText primary={`Manage POs${actionMenuItem.pendingPO > 0 ? ` (${actionMenuItem.pendingPO})` : 'None'}`} />
           </MenuItem>
         )}
         
