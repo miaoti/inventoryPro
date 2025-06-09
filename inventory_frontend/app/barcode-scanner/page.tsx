@@ -107,89 +107,93 @@ export default function BarcodeScannerPage() {
 
   const requestCameraPermission = async () => {
     try {
-      // For iOS/iPhone, we need to directly trigger getUserMedia to show permission dialog
-      // Don't check stored permissions first on mobile to ensure dialog shows
       const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
       const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
       
-      console.log('Requesting camera permission for device:', { isIOS, isMobile });
+      console.log('Requesting camera permission for device:', { isIOS, isMobile, userAgent: navigator.userAgent });
       
-      // On iOS and mobile devices, always request permission directly
-      if (!isIOS && !isMobile && typeof navigator !== 'undefined' && 'permissions' in navigator) {
-        try {
-          const permission = await navigator.permissions.query({ name: 'camera' as PermissionName });
-          if (permission.state === 'granted') {
-            console.log('Camera permission already granted');
-            setCameraPermission(true);
-            return true;
-          } else if (permission.state === 'denied') {
-            console.log('Camera permission was previously denied');
-            setCameraPermission(false);
-            setError('Camera access was denied. Please allow camera permissions in your browser settings.');
-            return false;
-          }
-        } catch (permError) {
-          console.log('Permission API not supported, proceeding with getUserMedia');
-        }
-      }
-
-      // Mobile-optimized camera constraints for better barcode scanning
-      const constraints = {
+      // Clear any previous error messages
+      setError(null);
+      
+      // For mobile devices, especially iOS, use simpler constraints to avoid issues
+      const constraints = isMobile ? {
         video: {
-          facingMode: { ideal: 'environment' }, // Prefer back camera but allow front if needed
-          width: { 
-            ideal: 1280,
-            max: 1920,
-            min: 640
-          },
-          height: { 
-            ideal: 720,
-            max: 1080,
-            min: 480
-          },
-          aspectRatio: { ideal: 16/9 },
-          frameRate: { ideal: 30, max: 60 },
+          facingMode: 'environment', // Force back camera on mobile
+          width: { ideal: 640, max: 1280 },
+          height: { ideal: 480, max: 720 }
+        }
+      } : {
+        video: {
+          facingMode: { ideal: 'environment' },
+          width: { ideal: 1280, max: 1920 },
+          height: { ideal: 720, max: 1080 },
+          frameRate: { ideal: 30 }
         }
       };
       
-      console.log('Requesting camera access with constraints:', constraints);
+      console.log('Using camera constraints:', constraints);
       
-      // This will trigger the permission dialog on iOS/iPhone
+      // For iOS, we must trigger the permission request directly
+      // Don't check permissions API on iOS as it's unreliable
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      console.log('Camera access granted successfully');
+      console.log('✅ Camera access granted successfully');
       
       setCameraPermission(true);
       
-      // Store permission in localStorage for future use (but don't rely on it for iOS)
+      // Test the stream briefly to ensure it's working
+      if (stream && stream.getVideoTracks().length > 0) {
+        const videoTrack = stream.getVideoTracks()[0];
+        console.log('Video track capabilities:', videoTrack.getCapabilities?.());
+        console.log('Video track settings:', videoTrack.getSettings?.());
+      }
+      
+      // Store permission success (but don't rely on it for iOS)
       if (!isIOS) {
         localStorage.setItem('cameraPermissionGranted', 'true');
       }
       
-      stream.getTracks().forEach(track => track.stop()); // Stop the test stream
+      // Clean up test stream
+      stream.getTracks().forEach(track => track.stop());
       return true;
-    } catch (err) {
-      console.error('Camera permission error:', err);
-      setCameraPermission(false);
       
-      // Clear any stored permission as it's not valid
+    } catch (err) {
+      console.error('❌ Camera permission error:', err);
+      setCameraPermission(false);
       localStorage.removeItem('cameraPermissionGranted');
       
-      // Provide specific error messages for different scenarios
-      let errorMessage = 'Camera permission denied. Please allow camera access to scan barcodes.';
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      
+      let errorMessage = 'Camera access denied.';
       
       if (err instanceof Error) {
-        if (err.name === 'NotAllowedError') {
-          errorMessage = 'Camera access denied. Please tap "Allow" when prompted for camera access, then try again.';
-        } else if (err.name === 'NotFoundError') {
-          errorMessage = 'No camera found on this device.';
-        } else if (err.name === 'NotSupportedError') {
-          errorMessage = 'Camera is not supported on this device/browser.';
-        } else if (err.name === 'NotReadableError') {
-          errorMessage = 'Camera is being used by another application. Please close other camera apps and try again.';
-        } else if (err.name === 'AbortError') {
-          errorMessage = 'Camera access request was cancelled. Please try again.';
-        } else if (err.name === 'OverconstrainedError') {
-          errorMessage = 'Camera constraints not supported. Please try again.';
+        switch (err.name) {
+          case 'NotAllowedError':
+            if (isIOS) {
+              errorMessage = `🍎 iPhone Users: Please go to Settings > Safari > Camera and enable camera access. Then refresh this page and try again.`;
+            } else if (isMobile) {
+              errorMessage = `📱 Mobile Users: Please allow camera access when prompted, or check your browser settings to enable camera access for this site.`;
+            } else {
+              errorMessage = `🖥️ Desktop Users: Please click "Allow" when prompted for camera access, or check your browser settings.`;
+            }
+            break;
+          case 'NotFoundError':
+            errorMessage = '📷 No camera found on this device. Please ensure your device has a working camera.';
+            break;
+          case 'NotSupportedError':
+            errorMessage = '❌ Camera is not supported on this device/browser. Try using a different browser.';
+            break;
+          case 'NotReadableError':
+            errorMessage = '🔒 Camera is being used by another application. Please close other camera apps and try again.';
+            break;
+          case 'AbortError':
+            errorMessage = '⏹️ Camera access request was cancelled. Please try again.';
+            break;
+          case 'OverconstrainedError':
+            errorMessage = '⚙️ Camera settings not supported. We\'ll try simpler settings on next attempt.';
+            break;
+          default:
+            errorMessage = `❌ Camera error: ${err.message}. Please try again or use manual barcode entry.`;
         }
       }
       
