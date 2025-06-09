@@ -3,6 +3,21 @@ import Cookies from 'js-cookie';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api';
 
+// Session management - Generate a unique session ID for this browser tab/window
+const generateSessionId = () => {
+  return Math.random().toString(36).substring(2) + Date.now().toString(36);
+};
+
+// Store session ID in sessionStorage (unique per tab)
+const getSessionId = () => {
+  let sessionId = sessionStorage.getItem('session_id');
+  if (!sessionId) {
+    sessionId = generateSessionId();
+    sessionStorage.setItem('session_id', sessionId);
+  }
+  return sessionId;
+};
+
 const api = axios.create({
   baseURL: API_URL,
   // Don't set default Content-Type - let each request set it appropriately
@@ -13,6 +28,8 @@ api.interceptors.request.use(
     const token = Cookies.get('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+      // Add session ID to track concurrent sessions
+      config.headers['X-Session-ID'] = getSessionId();
       // Debug: Log token status for troubleshooting
       console.log('Token found and attached to request:', token.substring(0, 20) + '...');
     } else {
@@ -42,26 +59,38 @@ api.interceptors.response.use(
       status: response.status,
       data: response.data
     });
+
+    // Check for concurrent session header
+    const concurrentSession = response.headers['x-concurrent-session'];
+    if (concurrentSession === 'detected') {
+      console.log('Concurrent session detected - user logged in elsewhere');
+      handleConcurrentSession();
+      return Promise.reject(new Error('You have been logged out because your account was accessed from another location.'));
+    }
+
     return response.data; // Return only the data portion
   },
   (error) => {
+    // Handle concurrent session detection
+    if (error.response?.headers?.['x-concurrent-session'] === 'detected') {
+      console.log('Concurrent session detected in error response');
+      handleConcurrentSession();
+      return Promise.reject(new Error('You have been logged out because your account was accessed from another location.'));
+    }
+
     // Handle authentication errors more specifically
     if (error.response?.status === 401) {
       console.log('Authentication error detected (401 Unauthorized)');
       console.log('Current token:', Cookies.get('token') ? 'exists' : 'missing');
+      console.log('Current URL:', window.location.pathname);
+      
       // Clear all authentication data
-      Cookies.remove('token');
-      localStorage.removeItem('isAdmin');
-      localStorage.removeItem('userRole');
-      localStorage.removeItem('userName');
-      localStorage.removeItem('authToken');
-      sessionStorage.removeItem('isAdmin');
-      sessionStorage.removeItem('userRole');
-      sessionStorage.removeItem('userName');
-      sessionStorage.removeItem('authToken');
-      // Only redirect if we're not already on the login page
-      if (window.location.pathname !== '/') {
-        window.location.href = '/';
+      clearAuthenticationData();
+      
+      // Only redirect if we're not already on the login page or landing page
+      if (window.location.pathname !== '/' && window.location.pathname !== '/login') {
+        console.log('Redirecting to login page due to authentication error');
+        window.location.href = '/?error=session_expired';
       }
     } else if (error.response?.status === 403) {
       // 403 Forbidden - user is authenticated but not authorized
@@ -76,11 +105,78 @@ api.interceptors.response.use(
   }
 );
 
+// Function to handle concurrent session detection
+const handleConcurrentSession = () => {
+  // Clear all authentication data
+  clearAuthenticationData();
+  
+  // Show alert and redirect
+  alert('You have been logged out because your account was accessed from another location.');
+  window.location.href = '/?error=concurrent_session';
+};
+
+// Function to clear all authentication data
+const clearAuthenticationData = () => {
+  // Remove cookie
+  Cookies.remove('token');
+  Cookies.remove('user');
+  
+  // Clear localStorage items
+  localStorage.removeItem('isAdmin');
+  localStorage.removeItem('userRole');
+  localStorage.removeItem('userName');
+  localStorage.removeItem('authToken');
+  localStorage.removeItem('cameraPermissionGranted');
+  
+  // Clear sessionStorage items
+  sessionStorage.removeItem('isAdmin');
+  sessionStorage.removeItem('userRole');
+  sessionStorage.removeItem('userName');
+  sessionStorage.removeItem('authToken');
+  sessionStorage.removeItem('session_id');
+  
+  // Trigger logout event for other tabs
+  localStorage.setItem('logout-event', Date.now().toString());
+  localStorage.removeItem('logout-event');
+  
+  console.log('All authentication data cleared');
+};
+
+// Function to validate token and redirect if invalid
+const validateTokenAndRedirect = async () => {
+  const token = Cookies.get('token');
+  
+  if (!token) {
+    console.log('No token found - redirecting to login');
+    clearAuthenticationData();
+    window.location.href = '/';
+    return false;
+  }
+
+  try {
+    // Make a simple API call to validate token
+    const response = await api.get('/auth/validate');
+    console.log('Token validation successful');
+    return true;
+  } catch (error) {
+    console.log('Token validation failed:', error);
+    clearAuthenticationData();
+    
+    // Only redirect if not already on login/landing page
+    if (window.location.pathname !== '/' && window.location.pathname !== '/login') {
+      window.location.href = '/?error=invalid_token';
+    }
+    return false;
+  }
+};
+
 export const authAPI = {
   login: (credentials: { username: string; password: string }) => {
-    // Generate a unique session ID for this login
-    const sessionId = Date.now().toString() + Math.random().toString(36).substr(2, 9);
-    return api.post('/auth/login', { ...credentials, sessionId });
+    // Include session ID in login request
+    return api.post('/auth/login', {
+      ...credentials,
+      sessionId: getSessionId()
+    });
   },
   register: (userData: {
     username: string;
@@ -88,8 +184,22 @@ export const authAPI = {
     email: string;
     fullName: string;
   }) => api.post('/auth/register', userData),
-  logout: () => api.post('/auth/logout'),
-  // Add utility to check authentication status
+  logout: () => {
+    const result = api.post('/auth/logout', { sessionId: getSessionId() });
+    clearAuthenticationData();
+    return result;
+  },
+  // Validate token with server
+  validateToken: async () => {
+    try {
+      const response = await api.get('/auth/validate');
+      return { valid: true, data: response };
+    } catch (error) {
+      console.error('Token validation failed:', error);
+      return { valid: false, error };
+    }
+  },
+  // Check authentication status
   checkAuth: () => {
     const token = Cookies.get('token');
     if (!token) {
@@ -103,21 +213,17 @@ export const authAPI = {
       return false;
     }
   },
-  // Add utility to clear authentication
+  // Clear authentication and redirect
   clearAuth: () => {
-    Cookies.remove('token');
-    Cookies.remove('user');
-    localStorage.removeItem('sessionId');
-    localStorage.removeItem('isAdmin');
-    localStorage.removeItem('userRole');
-    localStorage.removeItem('userName');
-    sessionStorage.clear();
+    clearAuthenticationData();
     window.location.href = '/';
   },
-  // Check if session is still valid (for multi-device logout)
-  checkSession: () => api.get('/auth/check-session'),
-  // Refresh token and session
-  refreshSession: () => api.post('/auth/refresh-session')
+  // Validate token and redirect if needed
+  validateAndRedirect: validateTokenAndRedirect,
+  // Get current session ID
+  getSessionId: getSessionId,
+  // Clear all auth data
+  clearAuthData: clearAuthenticationData
 };
 
 export const itemsAPI = {

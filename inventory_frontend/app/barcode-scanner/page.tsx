@@ -70,10 +70,13 @@ export default function BarcodeScannerPage() {
       setSearchHistory(JSON.parse(savedHistory));
     }
 
-    // Check if camera permission was previously granted
-    const previousPermission = localStorage.getItem('cameraPermissionGranted');
-    if (previousPermission === 'true') {
-      setCameraPermission(true);
+    // Don't rely on stored camera permission for iOS devices
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    if (!isIOS) {
+      const previousPermission = localStorage.getItem('cameraPermissionGranted');
+      if (previousPermission === 'true') {
+        setCameraPermission(true);
+      }
     }
 
     // Initialize code reader with more comprehensive format support
@@ -104,50 +107,87 @@ export default function BarcodeScannerPage() {
 
   const requestCameraPermission = async () => {
     try {
-      // Clear any previous error messages
-      setError(null);
+      // For iOS/iPhone, we need to directly trigger getUserMedia to show permission dialog
+      // Don't check stored permissions first on mobile to ensure dialog shows
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
       
-      // For mobile devices, we need to be more explicit about the constraints
-      // Start with basic constraints that work across all devices
-      const basicConstraints = {
-        video: true
+      console.log('Requesting camera permission for device:', { isIOS, isMobile });
+      
+      // On iOS and mobile devices, always request permission directly
+      if (!isIOS && !isMobile && typeof navigator !== 'undefined' && 'permissions' in navigator) {
+        try {
+          const permission = await navigator.permissions.query({ name: 'camera' as PermissionName });
+          if (permission.state === 'granted') {
+            console.log('Camera permission already granted');
+            setCameraPermission(true);
+            return true;
+          } else if (permission.state === 'denied') {
+            console.log('Camera permission was previously denied');
+            setCameraPermission(false);
+            setError('Camera access was denied. Please allow camera permissions in your browser settings.');
+            return false;
+          }
+        } catch (permError) {
+          console.log('Permission API not supported, proceeding with getUserMedia');
+        }
+      }
+
+      // Mobile-optimized camera constraints for better barcode scanning
+      const constraints = {
+        video: {
+          facingMode: { ideal: 'environment' }, // Prefer back camera but allow front if needed
+          width: { 
+            ideal: 1280,
+            max: 1920,
+            min: 640
+          },
+          height: { 
+            ideal: 720,
+            max: 1080,
+            min: 480
+          },
+          aspectRatio: { ideal: 16/9 },
+          frameRate: { ideal: 30, max: 60 },
+        }
       };
       
-      console.log('Requesting basic camera access first...');
+      console.log('Requesting camera access with constraints:', constraints);
       
-      // First, try with the most basic constraints to trigger permission
-      const testStream = await navigator.mediaDevices.getUserMedia(basicConstraints);
-      console.log('Basic camera access granted!');
-      
-      // Stop the test stream immediately
-      testStream.getTracks().forEach(track => track.stop());
+      // This will trigger the permission dialog on iOS/iPhone
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      console.log('Camera access granted successfully');
       
       setCameraPermission(true);
-      // Store permission in localStorage for future use
-      localStorage.setItem('cameraPermissionGranted', 'true');
       
-      console.log('Camera permission stored in localStorage');
+      // Store permission in localStorage for future use (but don't rely on it for iOS)
+      if (!isIOS) {
+        localStorage.setItem('cameraPermissionGranted', 'true');
+      }
+      
+      stream.getTracks().forEach(track => track.stop()); // Stop the test stream
       return true;
-      
     } catch (err) {
       console.error('Camera permission error:', err);
       setCameraPermission(false);
       
-      // Clear localStorage permission if it fails
+      // Clear any stored permission as it's not valid
       localStorage.removeItem('cameraPermissionGranted');
       
       // Provide specific error messages for different scenarios
-      let errorMessage = 'Camera access is required to scan barcodes.';
+      let errorMessage = 'Camera permission denied. Please allow camera access to scan barcodes.';
       
       if (err instanceof Error) {
         if (err.name === 'NotAllowedError') {
-          errorMessage = 'Camera permission was denied. Please click "Allow" when prompted, or check your browser settings to allow camera access for this site.';
+          errorMessage = 'Camera access denied. Please tap "Allow" when prompted for camera access, then try again.';
         } else if (err.name === 'NotFoundError') {
-          errorMessage = 'No camera found on this device. Please ensure your device has a camera.';
+          errorMessage = 'No camera found on this device.';
         } else if (err.name === 'NotSupportedError') {
-          errorMessage = 'Camera is not supported on this browser. Please try using Chrome or Safari.';
+          errorMessage = 'Camera is not supported on this device/browser.';
         } else if (err.name === 'NotReadableError') {
-          errorMessage = 'Camera is currently being used by another application. Please close other camera apps and try again.';
+          errorMessage = 'Camera is being used by another application. Please close other camera apps and try again.';
+        } else if (err.name === 'AbortError') {
+          errorMessage = 'Camera access request was cancelled. Please try again.';
         } else if (err.name === 'OverconstrainedError') {
           errorMessage = 'Camera constraints not supported. Please try again.';
         }
@@ -168,11 +208,10 @@ export default function BarcodeScannerPage() {
       setIsScanning(true);
       setError(null);
 
-      // Now use optimized constraints for barcode scanning
-      // Try environment camera first, then fall back to user camera
-      let constraints = {
+      // Mobile-optimized camera constraints for better barcode detection
+      const constraints = {
         video: {
-          facingMode: { ideal: 'environment' }, // Prefer back camera
+          facingMode: { ideal: 'environment' },
           width: { 
             ideal: 1280, 
             max: 1920, 
@@ -183,32 +222,12 @@ export default function BarcodeScannerPage() {
             max: 1080, 
             min: 480 
           },
+          aspectRatio: { ideal: 16/9 },
+          frameRate: { ideal: 30, max: 60 },
         }
       };
 
-      let stream;
-      try {
-        stream = await navigator.mediaDevices.getUserMedia(constraints);
-      } catch (envCameraError) {
-        console.log('Environment camera not available, trying user camera...');
-        // Fallback to front camera if back camera is not available
-        constraints = {
-          video: {
-            facingMode: { ideal: 'user' },
-            width: { 
-              ideal: 1280, 
-              max: 1920, 
-              min: 640 
-            },
-            height: { 
-              ideal: 720, 
-              max: 1080, 
-              min: 480 
-            },
-          }
-        };
-        stream = await navigator.mediaDevices.getUserMedia(constraints);
-      }
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
       
       if (videoRef.current) {
         videoRef.current.srcObject = stream;

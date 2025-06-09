@@ -1,9 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useDispatch } from 'react-redux';
-import { setCredentials } from '../store/slices/authSlice';
-import { sessionManager } from '../services/sessionManager';
+import { useEffect, useState, useRef } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
+import { useRouter } from 'next/navigation';
+import { setCredentials, forceLogout } from '../store/slices/authSlice';
+import { authAPI } from '../services/api';
+import type { RootState } from '../store';
 import Cookies from 'js-cookie';
 
 interface AuthProviderProps {
@@ -16,7 +18,50 @@ let authInitializing = false;
 
 export function AuthProvider({ children }: AuthProviderProps) {
   const dispatch = useDispatch();
+  const router = useRouter();
+  const { isAuthenticated, user } = useSelector((state: RootState) => state.auth);
   const [loading, setLoading] = useState(true);
+  const validateIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const lastValidationRef = useRef<number>(0);
+
+  // Function to validate token with backend
+  const validateToken = async () => {
+    const currentTime = Date.now();
+    // Only validate every 30 seconds to avoid too many requests
+    if (currentTime - lastValidationRef.current < 30000) {
+      return true;
+    }
+
+    lastValidationRef.current = currentTime;
+
+    try {
+      const result = await authAPI.validateToken();
+      if (!result.valid) {
+        console.log('Token validation failed, logging out user');
+        dispatch(forceLogout({ reason: 'Session expired. Please log in again.' }));
+        authAPI.clearAuthData();
+        return false;
+      }
+      return true;
+    } catch (error: any) {
+      console.error('Token validation error:', error);
+      
+      // Handle concurrent session detection
+      if (error.message?.includes('another location')) {
+        console.log('Concurrent session detected');
+        dispatch(forceLogout({ reason: 'You have been logged out because your account was accessed from another location.' }));
+        if (window.location.pathname !== '/') {
+          router.push('/?error=concurrent_session');
+        }
+        return false;
+      }
+      
+      // Handle other authentication errors
+      dispatch(forceLogout({ reason: 'Session expired. Please log in again.' }));
+      authAPI.clearAuthData();
+      return false;
+    }
+  };
 
   useEffect(() => {
     // Check for existing authentication on app startup
@@ -26,57 +71,33 @@ export function AuthProvider({ children }: AuthProviderProps) {
       authInitializing = true;
 
       const token = Cookies.get('token');
+      const userCookie = Cookies.get('user');
       
       console.log('AuthProvider: Initializing auth, token present:', !!token);
       
-      if (token) {
+      if (token && userCookie) {
         try {
-          console.log('AuthProvider: Attempting to verify token...');
+          // First try to restore from cookies
+          const parsedUser = JSON.parse(userCookie);
+          dispatch(setCredentials({ user: parsedUser, token }));
           
-          // Verify token with backend
-          const response = await fetch('/api/auth/me', {
-            method: 'GET',
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json',
-            },
-          });
-
-          console.log('AuthProvider: Auth/me response status:', response.status);
-
-          if (response.ok) {
-            const data = await response.json();
-            
-            // Set the authentication state with real user data
-            dispatch(setCredentials({
-              user: data.user,
-              token: data.token
-            }));
-            
-            // Start session monitoring if user is authenticated
-            sessionManager.startSessionMonitoring();
-            
-            console.log('AuthProvider: User session restored successfully:', data.user.username);
-          } else {
-            const errorText = await response.text();
-            console.log('AuthProvider: Token validation failed:', response.status, errorText);
-            
-            // Instead of immediately removing token, try a fallback approach
-            if (response.status === 401) {
-              console.log('AuthProvider: Token appears to be expired or invalid, removing...');
-              Cookies.remove('token');
-            } else {
-              console.log('AuthProvider: Server error, keeping token for retry...');
-              // Could implement retry logic here
-            }
+          console.log('AuthProvider: Restored auth from cookies for user:', parsedUser.username);
+          
+          // Then validate with backend
+          const isValid = await validateToken();
+          if (!isValid) {
+            console.log('AuthProvider: Token validation failed during init');
           }
         } catch (error) {
-          console.error('AuthProvider: Token validation request failed:', error);
-          // Don't remove token on network errors, just log the issue
-          console.log('AuthProvider: Network error during auth check, will retry later');
+          console.error('AuthProvider: Failed to restore auth from cookies:', error);
+          authAPI.clearAuthData();
         }
       } else {
-        console.log('AuthProvider: No token found in cookies');
+        console.log('AuthProvider: No valid auth data found in cookies');
+        if (token && !userCookie) {
+          // Token exists but no user data - clear everything
+          authAPI.clearAuthData();
+        }
       }
 
       authInitialized = true;
@@ -90,6 +111,50 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setLoading(false);
     }
   }, [dispatch]);
+
+  // Set up periodic token validation for authenticated users
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      console.log('Setting up periodic token validation for user:', user.username);
+      
+      // Set up periodic token validation (every 5 minutes)
+      validateIntervalRef.current = setInterval(validateToken, 5 * 60 * 1000);
+      
+      return () => {
+        if (validateIntervalRef.current) {
+          clearInterval(validateIntervalRef.current);
+          validateIntervalRef.current = null;
+        }
+      };
+    }
+  }, [isAuthenticated, user]);
+
+  // Listen for storage events (for multi-tab logout)
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'logout-event') {
+        console.log('Logout event detected from another tab');
+        dispatch(forceLogout({ reason: 'You have been logged out from another tab.' }));
+        if (window.location.pathname !== '/') {
+          router.push('/');
+        }
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, [dispatch, router]);
+
+  // Handle beforeunload to clean up sessions
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      // Clear session ID when tab/window is closing
+      sessionStorage.removeItem('session_id');
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, []);
 
   // Show loading during auth initialization to prevent premature redirects
   if (loading) {

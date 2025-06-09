@@ -70,12 +70,36 @@ export default function LandingPage() {
   const [formError, setFormError] = useState('');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [authError, setAuthError] = useState<string | null>(null);
 
   // Get auth state from Redux
   const { isAuthenticated, user } = useSelector((state: RootState) => state.auth);
 
-  // Check authentication status
+  // Check authentication status and URL parameters
   useEffect(() => {
+    // Check for error parameters in URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const errorParam = urlParams.get('error');
+    
+    if (errorParam) {
+      switch (errorParam) {
+        case 'session_expired':
+          setAuthError('Your session has expired. Please log in again.');
+          break;
+        case 'concurrent_session':
+          setAuthError('You have been logged out because your account was accessed from another location.');
+          break;
+        case 'invalid_token':
+          setAuthError('Your session is invalid. Please log in again.');
+          break;
+        default:
+          setAuthError('Please log in to continue.');
+      }
+      
+      // Clear the error parameter from URL
+      router.replace('/', undefined);
+    }
+
     const token = Cookies.get('token');
     const userData = Cookies.get('user');
     
@@ -96,7 +120,7 @@ export default function LandingPage() {
       setIsLoggedIn(false);
       setCurrentUser(null);
     }
-  }, [isAuthenticated, user]);
+  }, [isAuthenticated, user, router]);
 
   const handleFormChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({
@@ -215,6 +239,27 @@ export default function LandingPage() {
         py: 8
       }}>
         <Container maxWidth="lg" sx={{ pt: 8, pb: 6 }}>
+          {/* Auth Error Alert */}
+          {authError && (
+            <Box sx={{ mb: 4, display: 'flex', justifyContent: 'center' }}>
+              <Alert 
+                severity="warning" 
+                onClose={() => setAuthError(null)}
+                sx={{ 
+                  maxWidth: '600px',
+                  bgcolor: 'rgba(255, 193, 7, 0.9)',
+                  color: 'black',
+                  fontWeight: 'bold',
+                  '& .MuiAlert-icon': {
+                    color: 'black'
+                  }
+                }}
+              >
+                {authError}
+              </Alert>
+            </Box>
+          )}
+          
           <Fade in timeout={1000}>
             <Box textAlign="center" sx={{ mb: 8 }}>
               <Typography 

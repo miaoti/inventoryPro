@@ -1,11 +1,16 @@
 'use client';
 
-import Layout from '../components/Layout'; // Corrected import path
+import Layout from '../components/Layout';
+import AuthGuard from '../components/AuthGuard';
 
 export default function AuthenticatedLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  return <Layout>{children}</Layout>;
+  return (
+    <AuthGuard requireAuth={true}>
+      <Layout>{children}</Layout>
+    </AuthGuard>
+  );
 } 

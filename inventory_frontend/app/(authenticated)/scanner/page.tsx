@@ -175,10 +175,13 @@ export default function BarcodeScanner() {
       setUserName(''); // Clear userName if no user
     }
 
-    // Check if camera permission was previously granted
-    const previousPermission = localStorage.getItem('cameraPermissionGranted');
-    if (previousPermission === 'true') {
-      console.log('Camera permission was previously granted');
+    // Don't rely on stored camera permission for iOS devices
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    if (!isIOS) {
+      const previousPermission = localStorage.getItem('cameraPermissionGranted');
+      if (previousPermission === 'true') {
+        console.log('Camera permission was previously granted');
+      }
     }
 
     return () => {
@@ -383,43 +386,92 @@ export default function BarcodeScanner() {
       setError('');
       setCameraError('');
 
-      // Request camera permission with basic constraints first
+      // Check camera permissions first
+      let hasPermission = false;
       try {
-        console.log('Requesting basic camera access for authenticated scanner...');
+        // For iOS/iPhone, we need to directly trigger getUserMedia to show permission dialog
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
         
-        // Use basic constraints to trigger permission prompt
-        const basicConstraints = {
-          video: true
+        console.log('Requesting camera permission for device:', { isIOS, isMobile });
+        
+        // On iOS and mobile devices, always request permission directly
+        if (!isIOS && !isMobile && typeof navigator !== 'undefined' && 'permissions' in navigator) {
+          try {
+            const permission = await navigator.permissions.query({ name: 'camera' as PermissionName });
+            if (permission.state === 'granted') {
+              hasPermission = true;
+            } else if (permission.state === 'denied') {
+              setCameraError('Camera access was denied. Please allow camera permissions in your browser settings.');
+              return;
+            }
+          } catch (permError) {
+            console.log('Permission API not supported, proceeding with getUserMedia');
+          }
+        }
+
+        // Try to get camera access with mobile-optimized constraints
+        const constraints = {
+          video: {
+            facingMode: { ideal: 'environment' },
+            width: { 
+              ideal: 1280, 
+              max: 1920, 
+              min: 640 
+            },
+            height: { 
+              ideal: 720, 
+              max: 1080, 
+              min: 480 
+            },
+            aspectRatio: { ideal: 16/9 },
+            frameRate: { ideal: 30, max: 60 },
+          }
         };
+
+        console.log('Requesting camera access with constraints:', constraints);
         
-        const testStream = await navigator.mediaDevices.getUserMedia(basicConstraints);
-        console.log('Camera permission granted for authenticated scanner!');
-        
-        // Stop the test stream immediately
+        // This will trigger the permission dialog on iOS/iPhone
+        const testStream = await navigator.mediaDevices.getUserMedia(constraints);
+        console.log('Camera access granted successfully');
         testStream.getTracks().forEach(track => track.stop());
+        hasPermission = true;
         
-        // Store permission in localStorage for future use
-        localStorage.setItem('cameraPermissionGranted', 'true');
+        // Store permission in localStorage for future use (but don't rely on it for iOS)
+        if (!isIOS) {
+          localStorage.setItem('cameraPermissionGranted', 'true');
+        }
         
       } catch (permError) {
         console.error('Camera permission error:', permError);
-        let errorMessage = 'Camera access is required to scan barcodes.';
+        
+        // Clear any stored permission as it's not valid
+        localStorage.removeItem('cameraPermissionGranted');
+        
+        let errorMessage = 'Camera access denied. Please allow camera permissions in your browser settings.';
         
         if (permError instanceof Error) {
           if (permError.name === 'NotAllowedError') {
-            errorMessage = 'Camera permission was denied. Please click "Allow" when prompted, or check your browser settings to allow camera access for this site.';
+            errorMessage = 'Camera access denied. Please tap "Allow" when prompted for camera access, then try again.';
           } else if (permError.name === 'NotFoundError') {
-            errorMessage = 'No camera found on this device. Please ensure your device has a camera.';
+            errorMessage = 'No camera found on this device.';
           } else if (permError.name === 'NotSupportedError') {
-            errorMessage = 'Camera is not supported on this browser. Please try using Chrome or Safari.';
+            errorMessage = 'Camera is not supported on this device/browser.';
           } else if (permError.name === 'NotReadableError') {
-            errorMessage = 'Camera is currently being used by another application. Please close other camera apps and try again.';
+            errorMessage = 'Camera is being used by another application. Please close other camera apps and try again.';
+          } else if (permError.name === 'AbortError') {
+            errorMessage = 'Camera access request was cancelled. Please try again.';
           } else if (permError.name === 'OverconstrainedError') {
             errorMessage = 'Camera constraints not supported. Please try again.';
           }
         }
         
         setCameraError(errorMessage);
+        return;
+      }
+
+      if (!hasPermission) {
+        setCameraError('Camera permission required. Please allow camera access to scan barcodes.');
         return;
       }
 

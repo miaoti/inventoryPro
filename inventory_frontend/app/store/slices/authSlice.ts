@@ -1,6 +1,5 @@
 import { createSlice, PayloadAction, createAsyncThunk } from '@reduxjs/toolkit';
 import { authAPI } from '@/services/api';
-import { sessionManager } from '@/services/sessionManager';
 import Cookies from 'js-cookie';
 
 interface User {
@@ -31,21 +30,12 @@ export const login = createAsyncThunk(
   'auth/login',
   async (credentials: { username: string; password: string }) => {
     const response: any = await authAPI.login(credentials);
-    const { token, user, sessionId } = response; // response already contains the data due to interceptor
-    
+    const { token, user } = response; // response already contains the data due to interceptor
     // Set cookie with token
     Cookies.set('token', token, { expires: 7 }); // Expires in 7 days
-    Cookies.set('user', JSON.stringify(user), { expires: 7 }); // Store user data
-    
-    // Store session ID and start monitoring
-    if (sessionId) {
-      sessionManager.setSessionId(sessionId);
-    }
-    
-    // Start session monitoring for multi-device logout detection
-    sessionManager.startSessionMonitoring();
-    
-    return { token, user, sessionId };
+    // Store user data in cookie for persistence
+    Cookies.set('user', JSON.stringify(user), { expires: 7 });
+    return { token, user };
   }
 );
 
@@ -61,6 +51,8 @@ export const register = createAsyncThunk(
     const { token, user } = response; // response already contains the data due to interceptor
     // Set cookie with token
     Cookies.set('token', token, { expires: 7 }); // Expires in 7 days
+    // Store user data in cookie for persistence
+    Cookies.set('user', JSON.stringify(user), { expires: 7 });
     return { token, user };
   }
 );
@@ -78,25 +70,16 @@ const authSlice = createSlice({
       state.user = null;
       state.token = null;
       state.isAuthenticated = false;
-      
-      // Stop session monitoring
-      sessionManager.stopSessionMonitoring();
-      sessionManager.clearSession();
-      
-      // Remove cookies
-      Cookies.remove('token');
-      Cookies.remove('user');
-      
-      // Clear all localStorage items that might contain authentication data
-      localStorage.removeItem('isAdmin');
-      localStorage.removeItem('userRole');
-      localStorage.removeItem('userName');
-      localStorage.removeItem('authToken');
-      localStorage.removeItem('sessionId');
-      localStorage.removeItem('cameraPermissionGranted');
-      
-      // Clear all sessionStorage items that might contain authentication data
-      sessionStorage.clear();
+      // Use the centralized auth clear function
+      authAPI.clearAuthData();
+    },
+    forceLogout: (state, action: PayloadAction<{ reason?: string }>) => {
+      state.user = null;
+      state.token = null;
+      state.isAuthenticated = false;
+      state.error = action.payload.reason || 'You have been logged out';
+      // Use the centralized auth clear function
+      authAPI.clearAuthData();
     },
     clearError: (state) => {
       state.error = null;
@@ -135,5 +118,5 @@ const authSlice = createSlice({
   },
 });
 
-export const { setCredentials, logout, clearError } = authSlice.actions;
+export const { setCredentials, logout, forceLogout, clearError } = authSlice.actions;
 export default authSlice.reducer; 
