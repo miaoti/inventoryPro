@@ -54,6 +54,7 @@ import { BrowserMultiFormatReader, BarcodeFormat, DecodeHintType } from '@zxing/
 import { barcodeAPI, itemsAPI, purchaseOrderAPI } from '../services/api';
 import { PurchaseOrder } from '../types/purchaseOrder';
 import Layout from '../components/Layout';
+import HTTPSRedirect from '../components/HTTPSRedirect';
 // import { TrackingDisplay } from '../../../components/TrackingDisplay';
 
 interface ScannedItem {
@@ -176,8 +177,20 @@ export default function BarcodeScanner() {
       setUserName(''); // Clear userName if no user
     }
 
-    // Don't rely on stored camera permission for iOS devices
+    // Check for HTTPS requirement on mobile devices
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    const isHTTPS = window.location.protocol === 'https:';
+    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    
+    console.log('Security check:', { isIOS, isMobile, isHTTPS, isLocalhost, protocol: window.location.protocol, hostname: window.location.hostname });
+    
+    if ((isIOS || isMobile) && !isHTTPS && !isLocalhost) {
+      console.warn('⚠️ HTTPS required for camera access on mobile devices');
+      setCameraError('HTTPS is required for camera access on mobile devices. Please use a secure connection.');
+    }
+
+    // Don't rely on stored camera permission for iOS devices
     if (!isIOS) {
       const previousPermission = localStorage.getItem('cameraPermissionGranted');
       if (previousPermission === 'true') {
@@ -387,125 +400,96 @@ export default function BarcodeScanner() {
       setError('');
       setCameraError('');
 
-      // Check camera permissions first
-      let hasPermission = false;
-      try {
-        // Detect device type for better camera handling
-        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-        const isIOSSafari = isIOS && /Safari/.test(navigator.userAgent) && !/CriOS|FxiOS/.test(navigator.userAgent);
-        
-        console.log('Device detection:', { isIOS, isMobile, isIOSSafari, userAgent: navigator.userAgent });
-        
-        // Ensure navigator.mediaDevices exists (most modern browsers support this)
-        if (!navigator.mediaDevices) {
-          // Try to polyfill for older browsers
-          const nav = navigator as any;
-          if (nav.getUserMedia || nav.webkitGetUserMedia || nav.mozGetUserMedia) {
-            console.log('Using legacy getUserMedia API');
-            (navigator as any).mediaDevices = {
-              getUserMedia: function(constraints: MediaStreamConstraints) {
-                const getUserMedia = nav.getUserMedia || nav.webkitGetUserMedia || nav.mozGetUserMedia;
-                return new Promise<MediaStream>((resolve, reject) => {
-                  getUserMedia.call(navigator, constraints, resolve, reject);
-                });
-              }
-            };
-          } else {
-            console.warn('No camera API available, will try to continue anyway');
-          }
-        }
-        
-        // More permissive check - just warn if no getUserMedia but still try
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-          console.warn('navigator.mediaDevices.getUserMedia not available, but will try anyway');
-        }
-        
-        // For iOS Safari, we need special handling due to permission restrictions
-        if (isIOSSafari) {
-          console.log('iOS Safari detected - using optimized camera access');
-          
-          // iOS Safari requires user interaction and specific constraints
-          const iosConstraints = {
-            video: {
-              facingMode: 'environment', // Use string instead of object for better iOS compatibility
-              width: { ideal: 1280 },
-              height: { ideal: 720 }
+      // Detect device type for better camera handling
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      const isIOSSafari = isIOS && /Safari/.test(navigator.userAgent) && !/CriOS|FxiOS/.test(navigator.userAgent);
+      
+      console.log('Device detection:', { isIOS, isMobile, isIOSSafari, userAgent: navigator.userAgent });
+      
+      // Check if camera API is available
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        // Try to polyfill for older browsers
+        const nav = navigator as any;
+        if (nav.getUserMedia || nav.webkitGetUserMedia || nav.mozGetUserMedia) {
+          console.log('Using legacy getUserMedia API');
+          (navigator as any).mediaDevices = {
+            getUserMedia: function(constraints: MediaStreamConstraints) {
+              const getUserMedia = nav.getUserMedia || nav.webkitGetUserMedia || nav.mozGetUserMedia;
+              return new Promise<MediaStream>((resolve, reject) => {
+                getUserMedia.call(navigator, constraints, resolve, reject);
+              });
             }
           };
-          
-          try {
-            console.log('Requesting camera access for iOS Safari with constraints:', iosConstraints);
-            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-              const testStream = await navigator.mediaDevices.getUserMedia(iosConstraints);
-              console.log('✅ iOS Safari camera access granted');
-              testStream.getTracks().forEach(track => track.stop());
-              hasPermission = true;
-            } else {
-              throw new Error('Camera API not available on this iOS device');
-            }
-          } catch (iosError) {
-            console.error('iOS Safari camera access failed:', iosError);
-            throw iosError;
-          }
         } else {
-          // For non-iOS devices, check permissions API first if available (but don't block on denied)
-          if (!isMobile && typeof navigator !== 'undefined' && 'permissions' in navigator) {
-            try {
-              const permission = await navigator.permissions.query({ name: 'camera' as PermissionName });
-              console.log('Permission API result:', permission.state);
-              
-              if (permission.state === 'granted') {
-                hasPermission = true;
-              }
-              // Don't return early on 'denied' - still try to request access as user might grant it
-            } catch (permError) {
-              console.log('Permission API not supported, proceeding with getUserMedia');
-            }
+          throw new Error('Camera API is not supported on this browser. Please use a modern browser like Chrome, Firefox, or Safari.');
+        }
+      }
+      
+      // Check for HTTPS requirement first
+      const isHTTPS = window.location.protocol === 'https:';
+      const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      
+      if ((isIOS || isMobile) && !isHTTPS && !isLocalhost) {
+        throw new Error('HTTPS is required for camera access on mobile devices. Please use a secure connection.');
+      }
+      
+      // Define constraints based on device
+      let constraints: MediaStreamConstraints;
+      
+      if (isIOS) {
+        // iOS-specific constraints - start with minimal for better compatibility
+        constraints = {
+          video: {
+            facingMode: 'environment',
+            // Don't specify too many constraints initially for iOS
+            width: { ideal: 640 },
+            height: { ideal: 480 }
           }
-
-          // Always try to get camera access - either we have permission or we'll prompt for it
-          const standardConstraints = {
-            video: {
-              facingMode: { ideal: 'environment' },
-              width: { 
-                ideal: 1280, 
-                max: 1920, 
-                min: 640 
-              },
-              height: { 
-                ideal: 720, 
-                max: 1080, 
-                min: 480 
-              },
-              aspectRatio: { ideal: 16/9 },
-              frameRate: { ideal: 30, max: 60 },
-            }
-          };
-
-          console.log('Requesting camera access with standard constraints:', standardConstraints);
-          
-          // This will trigger the permission dialog if needed
-          if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-            const testStream = await navigator.mediaDevices.getUserMedia(standardConstraints);
-            console.log('✅ Standard camera access granted');
-            testStream.getTracks().forEach(track => track.stop());
-            hasPermission = true;
-            
-            // Store permission in localStorage for future use (but not for iOS)
-            localStorage.setItem('cameraPermissionGranted', 'true');
-          } else {
-            throw new Error('Camera API not available on this device');
+        };
+        console.log('Using iOS-optimized constraints:', constraints);
+      } else {
+        // Standard constraints for other devices
+        constraints = {
+          video: {
+            facingMode: { ideal: 'environment' },
+            width: { 
+              ideal: 1280, 
+              max: 1920, 
+              min: 640 
+            },
+            height: { 
+              ideal: 720, 
+              max: 1080, 
+              min: 480 
+            },
+            aspectRatio: { ideal: 16/9 },
+            frameRate: { ideal: 30, max: 60 },
           }
+        };
+        console.log('Using standard constraints:', constraints);
+      }
+
+      // Request camera access
+      try {
+        console.log('Requesting camera access...');
+        const testStream = await navigator.mediaDevices.getUserMedia(constraints);
+        console.log('✅ Camera access granted successfully');
+        
+        // Stop the test stream immediately
+        testStream.getTracks().forEach(track => track.stop());
+        
+        // Store permission in localStorage for future use (but not for iOS as it's unreliable)
+        if (!isIOS) {
+          localStorage.setItem('cameraPermissionGranted', 'true');
         }
         
-      } catch (permError) {
+      } catch (permError: any) {
         console.error('Camera permission error:', permError);
         
         // Clear any stored permission as it's not valid
         localStorage.removeItem('cameraPermissionGranted');
         
-        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
         let errorMessage = 'Camera access denied. Please allow camera permissions in your browser settings.';
         
         if (permError instanceof Error) {
@@ -515,9 +499,7 @@ export default function BarcodeScanner() {
             isIOS: isIOS 
           });
           
-          if (permError.message.includes('Camera API not supported')) {
-            errorMessage = 'Camera API is not supported on this browser. Please use a modern browser like Chrome, Firefox, or Safari.';
-          } else if (permError.name === 'NotAllowedError') {
+          if (permError.name === 'NotAllowedError') {
             if (isIOS) {
               errorMessage = 'Camera access denied. On iPhone:\n1. Tap "Allow" when prompted\n2. If no prompt appears, go to Settings > Safari > Camera and select "Allow"\n3. Refresh this page and try again';
             } else {
@@ -533,7 +515,53 @@ export default function BarcodeScanner() {
             errorMessage = 'Camera access request was cancelled. Please try again.';
           } else if (permError.name === 'OverconstrainedError') {
             if (isIOS) {
-              errorMessage = 'Camera setup failed on iPhone. Please ensure you have a rear camera and try again.';
+              // Try multiple fallback strategies for iOS
+              console.log('Trying fallback constraints for iOS...');
+              let fallbackWorked = false;
+              
+              // Strategy 1: Basic video constraints
+              try {
+                const fallbackConstraints1 = { video: { facingMode: 'environment' } };
+                const fallbackStream1 = await navigator.mediaDevices.getUserMedia(fallbackConstraints1);
+                console.log('✅ iOS fallback strategy 1 worked (basic environment)');
+                fallbackStream1.getTracks().forEach(track => track.stop());
+                fallbackWorked = true;
+              } catch (fallbackError1) {
+                console.log('iOS fallback strategy 1 failed, trying strategy 2...');
+                
+                // Strategy 2: Minimal video constraints
+                try {
+                  const fallbackConstraints2 = { video: true };
+                  const fallbackStream2 = await navigator.mediaDevices.getUserMedia(fallbackConstraints2);
+                  console.log('✅ iOS fallback strategy 2 worked (minimal)');
+                  fallbackStream2.getTracks().forEach(track => track.stop());
+                  fallbackWorked = true;
+                } catch (fallbackError2) {
+                  console.log('iOS fallback strategy 2 failed, trying strategy 3...');
+                  
+                  // Strategy 3: Try with specific width/height only
+                  try {
+                    const fallbackConstraints3 = { 
+                      video: { 
+                        width: 640, 
+                        height: 480 
+                      } 
+                    };
+                    const fallbackStream3 = await navigator.mediaDevices.getUserMedia(fallbackConstraints3);
+                    console.log('✅ iOS fallback strategy 3 worked (basic dimensions)');
+                    fallbackStream3.getTracks().forEach(track => track.stop());
+                    fallbackWorked = true;
+                  } catch (fallbackError3) {
+                    console.error('All iOS fallback strategies failed:', { fallbackError1, fallbackError2, fallbackError3 });
+                  }
+                }
+              }
+              
+              if (!fallbackWorked) {
+                errorMessage = 'Camera setup failed on iPhone. Please ensure you have a camera and Safari has camera permissions enabled in Settings > Safari > Camera > Allow.';
+                setCameraError(errorMessage);
+                return;
+              }
             } else {
               errorMessage = 'Camera constraints not supported. Please try again.';
             }
@@ -542,13 +570,10 @@ export default function BarcodeScanner() {
           }
         }
         
-        setCameraError(errorMessage);
-        return;
-      }
-
-      if (!hasPermission) {
-        setCameraError('Camera permission required. Please allow camera access to scan barcodes.');
-        return;
+        if (permError.name !== 'OverconstrainedError' || !isIOS) {
+          setCameraError(errorMessage);
+          return;
+        }
       }
 
       setIsScanning(true);
@@ -570,17 +595,23 @@ export default function BarcodeScanner() {
       ]);
       codeReader.hints = hints;
 
-      // Start continuous scanning
-      codeReader.decodeFromVideoDevice(null, 'video-element', (result, error) => {
-        if (result) {
-          console.log('Barcode detected:', result.getText());
-          stopScanning();
-          handleBarcodeScanned(result.getText());
-        }
-        if (error && !(error.name === 'NotFoundException')) {
-          console.error('Scan error:', error);
-        }
-      });
+      // Start continuous scanning with device-specific constraints
+      try {
+        await codeReader.decodeFromVideoDevice(null, 'video-element', (result, error) => {
+          if (result) {
+            console.log('Barcode detected:', result.getText());
+            stopScanning();
+            handleBarcodeScanned(result.getText());
+          }
+          if (error && !(error.name === 'NotFoundException')) {
+            console.error('Scan error:', error);
+          }
+        });
+      } catch (scanError) {
+        console.error('Scanner initialization error:', scanError);
+        setCameraError('Failed to initialize camera scanner. Please try again.');
+        setIsScanning(false);
+      }
 
     } catch (err) {
       console.error('Camera error:', err);
@@ -1065,6 +1096,12 @@ export default function BarcodeScanner() {
       <Typography variant="h4" gutterBottom>
         Barcode Scanner - Item Usage Tracker
       </Typography>
+
+      {/* HTTPS Redirect Warning for Camera Functionality */}
+      <HTTPSRedirect 
+        requireHTTPS={false} 
+        message="HTTPS is required for camera functionality on mobile devices. Please use a secure connection to enable barcode scanning."
+      />
 
       {/* User Name Display (Auto-filled from Account) */}
       <Card sx={{ mb: 3 }}>
