@@ -194,7 +194,7 @@ export default function BarcodeScannerPage() {
         // Fallback to front camera if back camera is not available
         constraints = {
           video: {
-            facingMode: 'user',
+            facingMode: { ideal: 'user' },
             width: { 
               ideal: 1280, 
               max: 1920, 
