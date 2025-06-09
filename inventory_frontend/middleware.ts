@@ -5,24 +5,19 @@ export function middleware(request: NextRequest) {
   const token = request.cookies.get('token')?.value;
   const isAuthPage = request.nextUrl.pathname.startsWith('/login');
   const isPublicPage = request.nextUrl.pathname === '/' || 
-                      request.nextUrl.pathname.startsWith('/barcode-scanner') ||
-                      request.nextUrl.pathname === '/redirect-scanner'; // Allow public scanner redirect page
+                      request.nextUrl.pathname.startsWith('/scanner');
 
-  // Special handling for /scanner route
-  if (request.nextUrl.pathname === '/scanner') {
-    if (token) {
-      // User is authenticated, redirect to the scan router page which will handle further routing
-      return NextResponse.redirect(new URL('/redirect-scanner', request.url));
-    } else {
-      // User is not authenticated, redirect to public barcode scanner
-      return NextResponse.redirect(new URL('/barcode-scanner', request.url));
-    }
-  }
-
-  // Protected routes that require authentication
+  // Protected routes that require authentication (excluding /scanner)
   const isProtectedRoute = request.nextUrl.pathname.startsWith('/dashboard') ||
                           request.nextUrl.pathname.startsWith('/inventory') ||
-                          request.nextUrl.pathname.startsWith('/reports');
+                          request.nextUrl.pathname.startsWith('/reports') ||
+                          request.nextUrl.pathname.startsWith('/admin') ||
+                          request.nextUrl.pathname.startsWith('/profile') ||
+                          request.nextUrl.pathname.startsWith('/settings') ||
+                          request.nextUrl.pathname.startsWith('/items') ||
+                          request.nextUrl.pathname.startsWith('/alerts') ||
+                          request.nextUrl.pathname.startsWith('/usage-reports') ||
+                          request.nextUrl.pathname.startsWith('/quick-stats');
 
   if (!token && isProtectedRoute) {
     // Redirect to main page '/' if trying to access protected route without token

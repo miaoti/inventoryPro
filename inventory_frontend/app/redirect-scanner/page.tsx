@@ -22,7 +22,7 @@ export default function ScannerRedirectPage() {
       if (hasAuth) {
         // User is authenticated, redirect to authenticated scanner
         console.log('User is authenticated, redirecting to authenticated scanner');
-        router.replace('/scan'); // Redirect to the authenticated scanner page
+        router.replace('/dashboard'); // Redirect to dashboard where they can access the authenticated scanner
       } else {
         // User is not authenticated, redirect to public scanner
         console.log('User is not authenticated, redirecting to public scanner');
