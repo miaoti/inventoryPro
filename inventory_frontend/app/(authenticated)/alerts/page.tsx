@@ -119,7 +119,10 @@ export default function AlertsPage() {
     }
     return alerts.map((alert: any) => {
       const currentStockLevel = alert.currentInventory;
-      const daysOld = Math.floor((new Date().getTime() - new Date(alert.createdAt).getTime()) / (1000 * 60 * 60 * 24));
+      const createdDate = new Date(alert.createdAt);
+      const currentDate = new Date();
+      const timeDiff = currentDate.getTime() - createdDate.getTime();
+      const daysOld = Math.max(0, Math.floor(timeDiff / (1000 * 60 * 60 * 24)));
       
       // Determine urgency level based on alert type from backend
       let urgencyLevel: 'critical' | 'warning' = 'warning';
@@ -188,7 +191,10 @@ export default function AlertsPage() {
     }
     return ignoredAlerts.map((alert: any) => {
       const currentStockLevel = alert.currentInventory;
-      const daysOld = Math.floor((new Date().getTime() - new Date(alert.createdAt).getTime()) / (1000 * 60 * 60 * 24));
+      const createdDate = new Date(alert.createdAt);
+      const currentDate = new Date();
+      const timeDiff = currentDate.getTime() - createdDate.getTime();
+      const daysOld = Math.max(0, Math.floor(timeDiff / (1000 * 60 * 60 * 24)));
       
       // Determine urgency level based on alert type from backend
       let urgencyLevel: 'critical' | 'warning' = 'warning';
@@ -219,7 +225,10 @@ export default function AlertsPage() {
     }
     return resolvedAlerts.map((alert: any) => {
       const currentStockLevel = alert.currentInventory;
-      const daysOld = Math.floor((new Date().getTime() - new Date(alert.createdAt).getTime()) / (1000 * 60 * 60 * 24));
+      const createdDate = new Date(alert.createdAt);
+      const currentDate = new Date();
+      const timeDiff = currentDate.getTime() - createdDate.getTime();
+      const daysOld = Math.max(0, Math.floor(timeDiff / (1000 * 60 * 60 * 24)));
       
       // Determine urgency level based on alert type from backend
       let urgencyLevel: 'critical' | 'warning' = 'warning';

@@ -1248,12 +1248,12 @@ export default function ItemsPage() {
           <ListItemText primary="Create Purchase Order" />
         </MenuItem>
 
-        {actionMenuItem && actionMenuItem.pendingPO && Number(actionMenuItem.pendingPO) > 0 && (
+        {actionMenuItem && actionMenuItem.pendingPO && actionMenuItem.pendingPO > 0 && (
           <MenuItem onClick={() => handleMenuAction('managePO')}>
             <ListItemIcon>
               <LocalShippingIcon fontSize="small" color="warning" />
             </ListItemIcon>
-            <ListItemText primary={`Manage POs (${actionMenuItem.pendingPO})`} />
+            <ListItemText primary={`Manage POs${actionMenuItem.pendingPO > 0 ? ` (${actionMenuItem.pendingPO})` : ''}`} />
           </MenuItem>
         )}
         
@@ -1489,12 +1489,12 @@ export default function ItemsPage() {
           }} variant="outlined" color="info">
             Create PO
           </Button>
-          {selectedItem && selectedItem.pendingPO && Number(selectedItem.pendingPO) > 0 && (
+          {selectedItem && selectedItem.pendingPO && selectedItem.pendingPO > 0 && (
             <Button onClick={() => {
               handleCloseDetailDialog();
               if (selectedItem) handleOpenPODialog(selectedItem);
             }} variant="outlined" color="warning">
-              Manage POs ({selectedItem.pendingPO})
+              Manage POs{selectedItem.pendingPO > 0 ? ` (${selectedItem.pendingPO})` : ''}
             </Button>
           )}
           <Button onClick={() => {
