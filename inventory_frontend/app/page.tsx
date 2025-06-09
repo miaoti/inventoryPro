@@ -14,8 +14,6 @@ import {
   Card,
   CardContent,
   CardActions,
-  AppBar,
-  Toolbar,
   Chip,
   Paper,
   List,
@@ -53,6 +51,7 @@ import {
   Close as CloseIcon,
   Dashboard as DashboardIcon,
   AccountCircle as AccountIcon,
+  Login as LoginIcon,
 } from '@mui/icons-material';
 
 export default function LandingPage() {
@@ -208,124 +207,8 @@ export default function LandingPage() {
     "Admin and user role management"
   ];
 
-  const pricingPlans = [
-    {
-      name: "Starter",
-      price: "Free",
-      description: "Perfect for small teams getting started",
-      features: [
-        "Up to 100 items",
-        "Basic barcode scanning",
-        "2 user accounts",
-        "Email support"
-      ],
-      highlighted: false
-    },
-    {
-      name: "Professional",
-      price: "$29/month",
-      description: "Ideal for growing businesses",
-      features: [
-        "Unlimited items",
-        "Advanced analytics",
-        "Up to 20 users",
-        "Priority support",
-        "Custom reports",
-        "API access"
-      ],
-      highlighted: true
-    },
-    {
-      name: "Enterprise",
-      price: "Contact Us",
-      description: "For large organizations",
-      features: [
-        "Everything in Professional",
-        "Unlimited users",
-        "Custom integrations",
-        "Dedicated support",
-        "On-premise deployment",
-        "SLA guarantee"
-      ],
-      highlighted: false
-    }
-  ];
-
-  const testimonials = [
-    {
-      name: "Sarah Johnson",
-      company: "TechCorp Solutions",
-      rating: 5,
-      comment: "Smart Inventory Pro transformed our warehouse operations. The barcode scanning feature saved us hours of manual work every day."
-    },
-    {
-      name: "Michael Chen",
-      company: "Manufacturing Plus",
-      rating: 5,
-      comment: "The real-time alerts have prevented countless stockouts. Our efficiency has improved by 40% since implementing this system."
-    },
-    {
-      name: "Emily Rodriguez",
-      company: "Retail Dynamics",
-      rating: 5,
-      comment: "Easy to use, powerful features, and excellent customer support. Highly recommended for any business managing inventory."
-    }
-  ];
-
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
-      {/* Navigation */}
-      <AppBar position="static" sx={{ bgcolor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(10px)' }}>
-        <Toolbar>
-          <InventoryIcon sx={{ mr: 2, color: 'white' }} />
-          <Typography variant="h6" component="div" sx={{ flexGrow: 1, color: 'white', fontWeight: 'bold' }}>
-            Smart Inventory Pro
-          </Typography>
-          
-          {isLoggedIn && currentUser ? (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Avatar sx={{ bgcolor: 'primary.main', width: 32, height: 32 }}>
-                  <AccountIcon />
-                </Avatar>
-                <Typography variant="body1" sx={{ color: 'white', fontWeight: 'bold' }}>
-                  Welcome, {currentUser.username}!
-                </Typography>
-              </Box>
-              <Button 
-                variant="contained"
-                startIcon={<DashboardIcon />}
-                onClick={() => router.push('/dashboard')}
-                sx={{ 
-                  bgcolor: 'primary.main', 
-                  '&:hover': { bgcolor: 'primary.dark' },
-                  borderRadius: 2,
-                  px: 3,
-                  fontWeight: 'bold'
-                }}
-              >
-                Dashboard
-              </Button>
-            </Box>
-          ) : (
-          <Button 
-            color="inherit" 
-            onClick={() => router.push('/login')}
-            sx={{ 
-              bgcolor: 'rgba(255,255,255,0.2)', 
-              '&:hover': { bgcolor: 'rgba(255,255,255,0.3)' },
-              borderRadius: 2,
-                px: 3,
-                color: 'white',
-                fontWeight: 'bold'
-            }}
-          >
-            Login
-          </Button>
-          )}
-        </Toolbar>
-      </AppBar>
-
       {/* Hero Section */}
       <Box sx={{ 
         background: 'linear-gradient(135deg, rgba(102, 126, 234, 0.9) 0%, rgba(118, 75, 162, 0.9) 100%), linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
@@ -353,7 +236,7 @@ export default function LandingPage() {
               <Typography 
                 variant="h5" 
                 sx={{ 
-                  mb: 4, 
+                  mb: 6, 
                   color: 'white',
                   textShadow: '2px 2px 4px rgba(0,0,0,0.3)',
                   maxWidth: '800px',
@@ -410,165 +293,62 @@ export default function LandingPage() {
                     </Button>
                   </>
                 ) : (
-                  <>
-                <Button
-                  variant="contained"
-                  size="large"
-                  onClick={() => setShowContactForm(true)}
-                  sx={{
-                    bgcolor: '#4CAF50',
-                    '&:hover': { bgcolor: '#45a049' },
-                    px: 4,
-                    py: 1.5,
-                    borderRadius: 3,
-                    textTransform: 'none',
-                    fontSize: '1.1rem',
-                    fontWeight: 'bold',
-                    boxShadow: '0 4px 15px rgba(76, 175, 80, 0.3)'
-                  }}
-                  startIcon={<SecurityIcon />}
-                >
-                  Get Started Free
-                </Button>
-                <Button
-                  variant="outlined"
-                  size="large"
-                  onClick={() => document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' })}
-                  sx={{
-                    borderColor: 'white',
-                    color: 'white',
-                    borderWidth: 2,
-                    '&:hover': { 
-                      borderColor: 'white', 
-                      bgcolor: 'rgba(255,255,255,0.2)',
-                      borderWidth: 2
-                    },
-                    px: 4,
-                    py: 1.5,
-                    borderRadius: 3,
-                    textTransform: 'none',
-                    fontSize: '1.1rem',
-                    fontWeight: 'bold'
-                  }}
-                >
-                  Learn More
-                </Button>
-                  </>
+                  <Button
+                    variant="contained"
+                    size="large"
+                    onClick={() => router.push('/login')}
+                    sx={{
+                      bgcolor: '#4CAF50',
+                      '&:hover': { bgcolor: '#45a049' },
+                      px: 6,
+                      py: 2,
+                      borderRadius: 3,
+                      textTransform: 'none',
+                      fontSize: '1.2rem',
+                      fontWeight: 'bold',
+                      boxShadow: '0 6px 20px rgba(76, 175, 80, 0.4)'
+                    }}
+                    startIcon={<LoginIcon />}
+                  >
+                    Login to Get Started
+                  </Button>
                 )}
               </Box>
             </Box>
           </Fade>
-
-          {/* Stats Section */}
-          <Grid container spacing={4} sx={{ mb: 8 }}>
-            <Grid item xs={12} md={4}>
-              <Paper 
-                sx={{ 
-                  p: 3, 
-                  textAlign: 'center',
-                  bgcolor: 'rgba(255,255,255,0.95)',
-                  boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
-                  borderRadius: 3,
-                  border: '1px solid rgba(255,255,255,0.3)'
-                }}
-              >
-                <TrendingUpIcon sx={{ fontSize: 50, color: '#4CAF50', mb: 2 }} />
-                <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#333' }}>
-                  Real-Time
-                </Typography>
-                <Typography variant="body1" sx={{ color: '#666' }}>
-                  Inventory Tracking
-                </Typography>
-              </Paper>
-            </Grid>
-            <Grid item xs={12} md={4}>
-              <Paper 
-                sx={{ 
-                  p: 3, 
-                  textAlign: 'center',
-                  bgcolor: 'rgba(255,255,255,0.95)',
-                  boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
-                  borderRadius: 3,
-                  border: '1px solid rgba(255,255,255,0.3)'
-                }}
-              >
-                <PeopleIcon sx={{ fontSize: 50, color: '#2196F3', mb: 2 }} />
-                <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#333' }}>
-                  Multi-User
-                </Typography>
-                <Typography variant="body1" sx={{ color: '#666' }}>
-                  Access Control
-                </Typography>
-              </Paper>
-            </Grid>
-            <Grid item xs={12} md={4}>
-              <Paper 
-                sx={{ 
-                  p: 3, 
-                  textAlign: 'center',
-                  bgcolor: 'rgba(255,255,255,0.95)',
-                  boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
-                  borderRadius: 3,
-                  border: '1px solid rgba(255,255,255,0.3)'
-                }}
-              >
-                <SpeedIcon sx={{ fontSize: 50, color: '#FF9800', mb: 2 }} />
-                <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#333' }}>
-                  Lightning
-                </Typography>
-                <Typography variant="body1" sx={{ color: '#666' }}>
-                  Fast & Efficient
-                </Typography>
-              </Paper>
-            </Grid>
-          </Grid>
         </Container>
       </Box>
 
       {/* Contact Form Dialog */}
       <Dialog 
         open={showContactForm} 
-        onClose={() => setShowContactForm(false)} 
-        maxWidth="md" 
+        onClose={() => setShowContactForm(false)}
+        maxWidth="sm"
         fullWidth
         PaperProps={{
           sx: { borderRadius: 3 }
         }}
       >
-        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1 }}>
-          <Box>
-            <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#333' }}>
-              Get Started with Smart Inventory Pro
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Fill out the form below and we'll get back to you within 24 hours
-            </Typography>
-          </Box>
-          <Button 
-            onClick={() => setShowContactForm(false)}
-            sx={{ minWidth: 'auto', p: 1 }}
-          >
-            <CloseIcon />
-          </Button>
+        <DialogTitle sx={{ bgcolor: '#667eea', color: 'white', textAlign: 'center' }}>
+          Contact Us
         </DialogTitle>
         <form onSubmit={handleFormSubmit}>
-          <DialogContent sx={{ pt: 2 }}>
+          <DialogContent sx={{ p: 3 }}>
             {formSuccess && (
-              <Alert severity="success" sx={{ mb: 3 }}>
-                Thank you for your interest! We'll contact you within 24 hours at {formData.email}
+              <Alert severity="success" sx={{ mb: 2 }}>
+                Thank you! Your message has been sent successfully. We'll get back to you soon.
               </Alert>
             )}
             {formError && (
-              <Alert severity="error" sx={{ mb: 3 }}>
+              <Alert severity="error" sx={{ mb: 2 }}>
                 {formError}
               </Alert>
             )}
-            
-            <Grid container spacing={3}>
+            <Grid container spacing={2}>
               <Grid item xs={12} md={6}>
                 <TextField
                   fullWidth
-                  label="Full Name *"
+                  label="Name *"
                   name="name"
                   value={formData.name}
                   onChange={handleFormChange}
@@ -579,7 +359,7 @@ export default function LandingPage() {
               <Grid item xs={12} md={6}>
                 <TextField
                   fullWidth
-                  label="Email Address *"
+                  label="Email *"
                   name="email"
                   type="email"
                   value={formData.email}
@@ -591,7 +371,7 @@ export default function LandingPage() {
               <Grid item xs={12} md={6}>
                 <TextField
                   fullWidth
-                  label="Company Name"
+                  label="Company"
                   name="company"
                   value={formData.company}
                   onChange={handleFormChange}
@@ -775,53 +555,6 @@ export default function LandingPage() {
         </Container>
       </Box>
 
-      
-      {/* <Box sx={{ bgcolor: 'rgba(255,255,255,0.95)', py: 8 }}>
-        <Container maxWidth="lg">
-          <Typography 
-            variant="h3" 
-            component="h2" 
-            textAlign="center" 
-            gutterBottom 
-            sx={{ fontWeight: 'bold', color: '#333', mb: 6 }}
-          >
-            What Our Customers Say
-          </Typography>
-          
-          <Grid container spacing={4}>
-            {testimonials.map((testimonial, index) => (
-              <Grid item xs={12} md={4} key={index}>
-                <Paper 
-                  sx={{ 
-                    p: 4, 
-                    height: '100%',
-                    bgcolor: 'white',
-                    boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
-                    borderRadius: 3,
-                    border: '1px solid rgba(0,0,0,0.05)'
-                  }}
-                >
-                  <Box sx={{ display: 'flex', mb: 2 }}>
-                    {[...Array(testimonial.rating)].map((_, i) => (
-                      <StarIcon key={i} sx={{ color: '#FFD700', fontSize: 20 }} />
-                    ))}
-                  </Box>
-                  <Typography variant="body1" sx={{ color: '#333', mb: 3, fontStyle: 'italic', lineHeight: 1.6 }}>
-                    "{testimonial.comment}"
-                  </Typography>
-                  <Typography variant="subtitle1" sx={{ color: '#333', fontWeight: 'bold' }}>
-                    {testimonial.name}
-                  </Typography>
-                  <Typography variant="body2" sx={{ color: '#666' }}>
-                    {testimonial.company}
-                  </Typography>
-                </Paper>
-              </Grid>
-            ))}
-          </Grid>
-        </Container>
-      </Box> */}
-
       {/* Contact Section */}
       <Box sx={{ bgcolor: 'rgba(255,255,255,0.95)', py: 8 }}>
         <Container maxWidth="lg">
@@ -835,115 +568,80 @@ export default function LandingPage() {
             Get In Touch
           </Typography>
           
-          <Grid container spacing={6}>
-            <Grid item xs={12} md={6}>
-              <Typography variant="h5" sx={{ fontWeight: 'bold', mb: 3 }}>
-                Contact Information
-              </Typography>
-              <List>
-                <ListItem>
-                  <ListItemIcon>
-                    <EmailIcon sx={{ color: '#4CAF50' }} />
-                  </ListItemIcon>
-                  <ListItemText 
-                    primary="Email"
-                    secondary="miaotingshuo@gmail.com"
-                  />
-                </ListItem>
-                <ListItem>
-                  <ListItemIcon>
-                    <SupportIcon sx={{ color: '#4CAF50' }} />
-                  </ListItemIcon>
-                  <ListItemText 
-                    primary="Support Hours"
-                    secondary="Monday - Friday, 9:00 AM - 6:00 PM EST"
-                  />
-                </ListItem>
-                <ListItem>
-                  <ListItemIcon>
-                    <BusinessIcon sx={{ color: '#4CAF50' }} />
-                  </ListItemIcon>
-                  <ListItemText 
-                    primary="Business Inquiries"
-                    secondary="For enterprise solutions and partnerships"
-                  />
-                </ListItem>
-              </List>
-            </Grid>
-            <Grid item xs={12} md={6}>
-              <Paper sx={{ p: 4, borderRadius: 3 }}>
-                <Typography variant="h5" sx={{ fontWeight: 'bold', mb: 3 }}>
-                  Why Choose Us?
+          <Grid container spacing={6} justifyContent="center">
+            <Grid item xs={12} md={8}>
+              <Paper 
+                sx={{ 
+                  p: 6, 
+                  borderRadius: 3,
+                  textAlign: 'center',
+                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  color: 'white'
+                }}
+              >
+                <Typography variant="h4" sx={{ fontWeight: 'bold', mb: 4 }}>
+                  Contact Information
                 </Typography>
-                <List>
-                  <ListItem sx={{ py: 1 }}>
-                    <ListItemIcon>
-                      <CheckIcon sx={{ color: '#4CAF50' }} />
-                    </ListItemIcon>
-                    <ListItemText primary="24/7 Customer Support" />
-                  </ListItem>
-                  <ListItem sx={{ py: 1 }}>
-                    <ListItemIcon>
-                      <CheckIcon sx={{ color: '#4CAF50' }} />
-                    </ListItemIcon>
-                    <ListItemText primary="99.9% Uptime Guarantee" />
-                  </ListItem>
-                  <ListItem sx={{ py: 1 }}>
-                    <ListItemIcon>
-                      <CheckIcon sx={{ color: '#4CAF50' }} />
-                    </ListItemIcon>
-                    <ListItemText primary="Free Migration Support" />
-                  </ListItem>
-                  <ListItem sx={{ py: 1 }}>
-                    <ListItemIcon>
-                      <CheckIcon sx={{ color: '#4CAF50' }} />
-                    </ListItemIcon>
-                    <ListItemText primary="Regular Updates & New Features" />
-                  </ListItem>
-                </List>
+                <Grid container spacing={4}>
+                  <Grid item xs={12} md={4}>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                      <EmailIcon sx={{ fontSize: 50, mb: 2, color: 'rgba(255,255,255,0.9)' }} />
+                      <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 1 }}>
+                        Email
+                      </Typography>
+                      <Typography variant="body1">
+                        miaotingshuo@gmail.com
+                      </Typography>
+                    </Box>
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                      <SupportIcon sx={{ fontSize: 50, mb: 2, color: 'rgba(255,255,255,0.9)' }} />
+                      <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 1 }}>
+                        Support Hours
+                      </Typography>
+                      <Typography variant="body1" sx={{ textAlign: 'center' }}>
+                        Monday - Friday<br />9:00 AM - 6:00 PM EST
+                      </Typography>
+                    </Box>
+                  </Grid>
+                  <Grid item xs={12} md={4}>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                      <BusinessIcon sx={{ fontSize: 50, mb: 2, color: 'rgba(255,255,255,0.9)' }} />
+                      <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 1 }}>
+                        Business Inquiries
+                      </Typography>
+                      <Typography variant="body1" sx={{ textAlign: 'center' }}>
+                        Enterprise solutions<br />& partnerships
+                      </Typography>
+                    </Box>
+                  </Grid>
+                </Grid>
+                <Box sx={{ mt: 4 }}>
+                  <Button
+                    variant="contained"
+                    size="large"
+                    onClick={() => setShowContactForm(true)}
+                    sx={{
+                      bgcolor: 'rgba(255,255,255,0.2)',
+                      '&:hover': { bgcolor: 'rgba(255,255,255,0.3)' },
+                      px: 4,
+                      py: 1.5,
+                      borderRadius: 3,
+                      textTransform: 'none',
+                      fontSize: '1.1rem',
+                      fontWeight: 'bold',
+                      color: 'white',
+                      border: '2px solid rgba(255,255,255,0.3)'
+                    }}
+                    startIcon={<EmailIcon />}
+                  >
+                    Send Message
+                  </Button>
+                </Box>
               </Paper>
             </Grid>
           </Grid>
-        </Container>
-      </Box>
-
-      {/* CTA Section */}
-      <Box sx={{ bgcolor: 'rgba(0,0,0,0.3)', py: 6 }}>
-        <Container maxWidth="md">
-          <Box textAlign="center">
-            <Typography 
-              variant="h4" 
-              component="h2" 
-              gutterBottom 
-              sx={{ fontWeight: 'bold', color: 'white', mb: 3 }}
-            >
-              Ready to Transform Your Inventory Management?
-            </Typography>
-            <Typography 
-              variant="h6" 
-              sx={{ mb: 4, color: 'rgba(255,255,255,0.9)' }}
-            >
-              Join thousands of organizations using Smart Inventory Pro to streamline their operations.
-            </Typography>
-            <Button
-              variant="contained"
-              size="large"
-              onClick={() => setShowContactForm(true)}
-              sx={{
-                bgcolor: '#4CAF50',
-                '&:hover': { bgcolor: '#45a049' },
-                px: 6,
-                py: 2,
-                borderRadius: 3,
-                textTransform: 'none',
-                fontSize: '1.2rem',
-                fontWeight: 'bold',
-                boxShadow: '0 6px 20px rgba(76, 175, 80, 0.4)'
-              }}
-            >
-              Start Your Free Trial Today
-            </Button>
-          </Box>
         </Container>
       </Box>
 

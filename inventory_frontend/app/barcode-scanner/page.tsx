@@ -70,6 +70,12 @@ export default function BarcodeScannerPage() {
       setSearchHistory(JSON.parse(savedHistory));
     }
 
+    // Check if camera permission was previously granted
+    const previousPermission = localStorage.getItem('cameraPermissionGranted');
+    if (previousPermission === 'true') {
+      setCameraPermission(true);
+    }
+
     // Initialize code reader with more comprehensive format support
     const hints = new Map();
     hints.set(DecodeHintType.POSSIBLE_FORMATS, [
@@ -98,26 +104,67 @@ export default function BarcodeScannerPage() {
 
   const requestCameraPermission = async () => {
     try {
-      // Try different camera constraints for better barcode scanning
+      // Check if camera permissions are already stored
+      if (typeof navigator !== 'undefined' && 'permissions' in navigator) {
+        try {
+          const permission = await navigator.permissions.query({ name: 'camera' as PermissionName });
+          if (permission.state === 'granted') {
+            setCameraPermission(true);
+            return true;
+          }
+        } catch (permError) {
+          console.log('Permission API not supported, proceeding with getUserMedia');
+        }
+      }
+
+      // Mobile-optimized camera constraints for better barcode scanning
       const constraints = {
         video: {
-          facingMode: 'environment', // Use back camera
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-          focusMode: 'continuous',
-          focusDistance: { ideal: 0.3 }, // Good for barcode scanning
-          zoom: { ideal: 1.0 }
+          facingMode: { ideal: 'environment' }, // Prefer back camera but allow front if needed
+          width: { 
+            ideal: 1280,
+            max: 1920,
+            min: 640
+          },
+          height: { 
+            ideal: 720,
+            max: 1080,
+            min: 480
+          },
+          aspectRatio: { ideal: 16/9 },
+          frameRate: { ideal: 30, max: 60 },
+          // Remove iOS-incompatible properties
         }
       };
       
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
       setCameraPermission(true);
+      
+      // Store permission in localStorage for future use
+      localStorage.setItem('cameraPermissionGranted', 'true');
+      
       stream.getTracks().forEach(track => track.stop()); // Stop the test stream
       return true;
     } catch (err) {
       console.error('Camera permission denied:', err);
       setCameraPermission(false);
-      setError('Camera permission denied. Please allow camera access to scan barcodes.');
+      
+      // Provide specific error messages for different scenarios
+      let errorMessage = 'Camera permission denied. Please allow camera access to scan barcodes.';
+      
+      if (err instanceof Error) {
+        if (err.name === 'NotAllowedError') {
+          errorMessage = 'Camera access denied. Please allow camera permissions in your browser settings and refresh the page.';
+        } else if (err.name === 'NotFoundError') {
+          errorMessage = 'No camera found on this device.';
+        } else if (err.name === 'NotSupportedError') {
+          errorMessage = 'Camera is not supported on this device/browser.';
+        } else if (err.name === 'NotReadableError') {
+          errorMessage = 'Camera is being used by another application. Please close other camera apps and try again.';
+        }
+      }
+      
+      setError(errorMessage);
       return false;
     }
   };
@@ -132,14 +179,22 @@ export default function BarcodeScannerPage() {
       setIsScanning(true);
       setError(null);
 
-      // Enhanced camera constraints for better barcode detection
+      // Mobile-optimized camera constraints for better barcode detection
       const constraints = {
         video: {
-          facingMode: 'environment',
-          width: { ideal: 1280, max: 1920 },
-          height: { ideal: 720, max: 1080 },
-          focusMode: 'continuous',
-          torch: false, // Disable flash initially
+          facingMode: { ideal: 'environment' },
+          width: { 
+            ideal: 1280, 
+            max: 1920, 
+            min: 640 
+          },
+          height: { 
+            ideal: 720, 
+            max: 1080, 
+            min: 480 
+          },
+          aspectRatio: { ideal: 16/9 },
+          frameRate: { ideal: 30, max: 60 },
         }
       };
 
