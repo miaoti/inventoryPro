@@ -396,6 +396,29 @@ export default function BarcodeScanner() {
         
         console.log('Device detection:', { isIOS, isMobile, isIOSSafari, userAgent: navigator.userAgent });
         
+        // Check if mediaDevices is available, with fallback for older browsers
+        if (!navigator.mediaDevices) {
+          // Try to polyfill for older browsers
+          const nav = navigator as any;
+          if (nav.getUserMedia || nav.webkitGetUserMedia || nav.mozGetUserMedia) {
+            console.log('Using legacy getUserMedia API');
+            (navigator as any).mediaDevices = {
+              getUserMedia: function(constraints: MediaStreamConstraints) {
+                const getUserMedia = nav.getUserMedia || nav.webkitGetUserMedia || nav.mozGetUserMedia;
+                return new Promise<MediaStream>((resolve, reject) => {
+                  getUserMedia.call(navigator, constraints, resolve, reject);
+                });
+              }
+            };
+          } else {
+            throw new Error('Camera API not supported on this device/browser');
+          }
+        }
+        
+        if (!navigator.mediaDevices.getUserMedia) {
+          throw new Error('Camera API not supported on this device/browser');
+        }
+        
         // For iOS Safari, we need special handling due to permission restrictions
         if (isIOSSafari) {
           console.log('iOS Safari detected - using optimized camera access');
@@ -420,7 +443,7 @@ export default function BarcodeScanner() {
             throw iosError;
           }
         } else {
-          // For non-iOS devices, check permissions API first if available
+          // For non-iOS devices, check permissions API first if available (but don't block on denied)
           if (!isMobile && typeof navigator !== 'undefined' && 'permissions' in navigator) {
             try {
               const permission = await navigator.permissions.query({ name: 'camera' as PermissionName });
@@ -428,16 +451,14 @@ export default function BarcodeScanner() {
               
               if (permission.state === 'granted') {
                 hasPermission = true;
-              } else if (permission.state === 'denied') {
-                setCameraError('Camera access was denied. Please allow camera permissions in your browser settings.');
-                return;
               }
+              // Don't return early on 'denied' - still try to request access as user might grant it
             } catch (permError) {
               console.log('Permission API not supported, proceeding with getUserMedia');
             }
           }
 
-          // Standard constraints for non-iOS devices
+          // Always try to get camera access - either we have permission or we'll prompt for it
           const standardConstraints = {
             video: {
               facingMode: { ideal: 'environment' },
@@ -458,7 +479,7 @@ export default function BarcodeScanner() {
 
           console.log('Requesting camera access with standard constraints:', standardConstraints);
           
-          // This will trigger the permission dialog
+          // This will trigger the permission dialog if needed
           const testStream = await navigator.mediaDevices.getUserMedia(standardConstraints);
           console.log('✅ Standard camera access granted');
           testStream.getTracks().forEach(track => track.stop());
@@ -484,11 +505,13 @@ export default function BarcodeScanner() {
             isIOS: isIOS 
           });
           
-          if (permError.name === 'NotAllowedError') {
+          if (permError.message.includes('Camera API not supported')) {
+            errorMessage = 'Camera API is not supported on this browser. Please use a modern browser like Chrome, Firefox, or Safari.';
+          } else if (permError.name === 'NotAllowedError') {
             if (isIOS) {
               errorMessage = 'Camera access denied. On iPhone:\n1. Tap "Allow" when prompted\n2. If no prompt appears, go to Settings > Safari > Camera and select "Allow"\n3. Refresh this page and try again';
             } else {
-              errorMessage = 'Camera access denied. Please tap "Allow" when prompted for camera access, then try again.';
+              errorMessage = 'Camera access denied. Please:\n1. Click the camera icon in your browser\'s address bar\n2. Select "Allow" for camera access\n3. Refresh the page and try again';
             }
           } else if (permError.name === 'NotFoundError') {
             errorMessage = 'No camera found on this device.';
@@ -504,6 +527,8 @@ export default function BarcodeScanner() {
             } else {
               errorMessage = 'Camera constraints not supported. Please try again.';
             }
+          } else if (permError.name === 'TypeError' && permError.message.includes('getUserMedia')) {
+            errorMessage = 'Camera API not available. Please ensure you\'re using HTTPS and a supported browser.';
           }
         }
         
