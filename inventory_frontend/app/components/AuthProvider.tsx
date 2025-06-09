@@ -35,14 +35,28 @@ export function AuthProvider({ children }: AuthProviderProps) {
     lastValidationRef.current = currentTime;
 
     try {
-      const result = await authAPI.validateToken();
-      if (!result.valid) {
-        console.log('Token validation failed, logging out user');
+      // Use a simpler endpoint that already exists to validate token
+      // Try to fetch user profile which requires authentication
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api'}/profile`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${Cookies.get('token')}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        console.log('Token validation successful');
+        return true;
+      } else if (response.status === 401) {
+        console.log('Token validation failed - 401 Unauthorized');
         dispatch(forceLogout({ reason: 'Session expired. Please log in again.' }));
         authAPI.clearAuthData();
         return false;
+      } else {
+        console.log('Token validation failed with status:', response.status);
+        return true; // Don't logout on server errors, just log the issue
       }
-      return true;
     } catch (error: any) {
       console.error('Token validation error:', error);
       
@@ -56,10 +70,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
         return false;
       }
       
-      // Handle other authentication errors
-      dispatch(forceLogout({ reason: 'Session expired. Please log in again.' }));
-      authAPI.clearAuthData();
-      return false;
+      // Don't logout on network errors, just log them
+      console.log('Network error during token validation, keeping user logged in');
+      return true;
     }
   };
 
@@ -83,11 +96,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
           
           console.log('AuthProvider: Restored auth from cookies for user:', parsedUser.username);
           
-          // Then validate with backend
-          const isValid = await validateToken();
-          if (!isValid) {
-            console.log('AuthProvider: Token validation failed during init');
-          }
+          // Don't validate token during initialization to avoid blocking access
+          // Token validation will happen periodically once user is authenticated
         } catch (error) {
           console.error('AuthProvider: Failed to restore auth from cookies:', error);
           authAPI.clearAuthData();
@@ -117,10 +127,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
     if (isAuthenticated && user) {
       console.log('Setting up periodic token validation for user:', user.username);
       
-      // Set up periodic token validation (every 5 minutes)
-      validateIntervalRef.current = setInterval(validateToken, 5 * 60 * 1000);
+      // Start validation after a delay to avoid conflicts during initialization
+      const timeoutId = setTimeout(() => {
+        // Set up periodic token validation (every 10 minutes to reduce frequency)
+        validateIntervalRef.current = setInterval(validateToken, 10 * 60 * 1000);
+      }, 5000); // Wait 5 seconds before starting validation
       
       return () => {
+        clearTimeout(timeoutId);
         if (validateIntervalRef.current) {
           clearInterval(validateIntervalRef.current);
           validateIntervalRef.current = null;

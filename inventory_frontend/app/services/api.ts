@@ -154,8 +154,8 @@ const validateTokenAndRedirect = async () => {
   }
 
   try {
-    // Make a simple API call to validate token
-    const response = await api.get('/auth/validate');
+    // Make a simple API call to validate token using existing endpoint
+    const response = await api.get('/profile');
     console.log('Token validation successful');
     return true;
   } catch (error) {
@@ -189,10 +189,10 @@ export const authAPI = {
     clearAuthenticationData();
     return result;
   },
-  // Validate token with server
+  // Validate token with server using profile endpoint
   validateToken: async () => {
     try {
-      const response = await api.get('/auth/validate');
+      const response = await api.get('/profile');
       return { valid: true, data: response };
     } catch (error) {
       console.error('Token validation failed:', error);
