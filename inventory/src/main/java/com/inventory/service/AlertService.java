@@ -225,23 +225,37 @@ public class AlertService {
 
     private void sendNotificationToUsers(Alert alert) {
         try {
+            System.out.println("=== EMAIL NOTIFICATION DEBUG ===");
+            
             // Get all users who have email alerts enabled
             List<User> users = userService.findUsersWithEmailAlertsEnabled();
+            System.out.println("Found " + users.size() + " users with email alerts enabled");
             
             if (users.isEmpty()) {
                 // Fallback to global notification email if no users have alerts enabled
+                System.out.println("No users with alerts enabled, sending to fallback email: " + fallbackNotificationEmail);
                 emailService.sendAlertNotification(alert, fallbackNotificationEmail);
                 System.out.println("ALERT EMAIL SENT (fallback): " + alert.getMessage());
             } else {
                 // Send alert to each user who wants email notifications
                 for (User user : users) {
                     String alertEmail = user.getEffectiveAlertEmail();
+                    
+                    // Validate email address before sending
+                    if (alertEmail == null || alertEmail.trim().isEmpty()) {
+                        System.err.println("Warning: User " + user.getUsername() + " has email alerts enabled but no valid email address");
+                        continue;
+                    }
+                    
+                    System.out.println("Sending alert to user: " + user.getUsername() + " (" + alertEmail + ")");
                     emailService.sendAlertNotification(alert, alertEmail);
                     System.out.println("ALERT EMAIL SENT to " + alertEmail + ": " + alert.getMessage());
                 }
             }
+            System.out.println("================================");
         } catch (Exception e) {
             System.err.println("Failed to send alert notification: " + e.getMessage());
+            e.printStackTrace();
             // Continue operation even if email fails
         }
     }

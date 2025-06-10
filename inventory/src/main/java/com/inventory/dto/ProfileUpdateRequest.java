@@ -13,13 +13,6 @@ public class ProfileUpdateRequest {
     @Email(message = "Email should be valid")
     private String email;
     
-    @Email(message = "Alert email should be valid")
-    private String alertEmail;
-    
-    private Boolean enableEmailAlerts;
-    
-    private Boolean enableDailyDigest;
-    
     @Size(min = 6, message = "Password must be at least 6 characters long")
     private String currentPassword; // Required when changing password
     

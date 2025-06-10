@@ -64,22 +64,43 @@ public class UserController {
                 return ResponseEntity.status(404).body(Map.of("message", "User not found"));
             }
             
-            // Update user settings
-            user.setAlertEmail(settingsRequest.getAlertEmail());
-            user.setEnableEmailAlerts(settingsRequest.getEnableEmailAlerts());
-            user.setEnableDailyDigest(settingsRequest.getEnableDailyDigest());
+            logger.info("Updating settings for user: {}", username);
+            logger.info("Settings request: alertEmail={}, enableEmailAlerts={}, enableDailyDigest={}", 
+                settingsRequest.getAlertEmail(), 
+                settingsRequest.getEnableEmailAlerts(), 
+                settingsRequest.getEnableDailyDigest());
+            
+            // Update user settings with validation
+            if (settingsRequest.getAlertEmail() != null) {
+                String alertEmail = settingsRequest.getAlertEmail().trim();
+                user.setAlertEmail(alertEmail.isEmpty() ? null : alertEmail);
+                logger.info("Alert email set to: {}", user.getAlertEmail());
+            }
+            
+            if (settingsRequest.getEnableEmailAlerts() != null) {
+                user.setEnableEmailAlerts(settingsRequest.getEnableEmailAlerts());
+                logger.info("Email alerts enabled: {}", user.getEnableEmailAlerts());
+            }
+            
+            if (settingsRequest.getEnableDailyDigest() != null) {
+                user.setEnableDailyDigest(settingsRequest.getEnableDailyDigest());
+                logger.info("Daily digest enabled: {}", user.getEnableDailyDigest());
+            }
             
             // Save updated user
             userService.save(user);
             
-            logger.info("User settings updated successfully for user: {}", username);
+            // Log the effective alert email for debugging
+            String effectiveEmail = user.getEffectiveAlertEmail();
+            logger.info("User settings updated successfully for user: {}. Effective alert email: {}", username, effectiveEmail);
             
             return ResponseEntity.ok(Map.of(
                 "message", "Settings saved successfully",
                 "settings", Map.of(
                     "alertEmail", user.getAlertEmail() != null ? user.getAlertEmail() : user.getEmail(),
                     "enableEmailAlerts", user.getEnableEmailAlerts(),
-                    "enableDailyDigest", user.getEnableDailyDigest()
+                    "enableDailyDigest", user.getEnableDailyDigest(),
+                    "effectiveAlertEmail", effectiveEmail
                 )
             ));
             

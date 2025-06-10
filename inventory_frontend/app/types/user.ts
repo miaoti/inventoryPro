@@ -33,7 +33,4 @@ export interface ProfileUpdateRequest {
   fullName?: string;
   currentPassword?: string;
   newPassword?: string;
-  alertEmail?: string;
-  enableEmailAlerts?: boolean;
-  enableDailyDigest?: boolean;
 } 

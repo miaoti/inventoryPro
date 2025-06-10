@@ -145,18 +145,7 @@ public class UserManagementService {
             user.setEmail(request.getEmail().trim());
         }
         
-        // Update alert settings
-        if (request.getAlertEmail() != null) {
-            user.setAlertEmail(request.getAlertEmail().trim().isEmpty() ? null : request.getAlertEmail().trim());
-        }
-        
-        if (request.getEnableEmailAlerts() != null) {
-            user.setEnableEmailAlerts(request.getEnableEmailAlerts());
-        }
-        
-        if (request.getEnableDailyDigest() != null) {
-            user.setEnableDailyDigest(request.getEnableDailyDigest());
-        }
+        // Note: Email alert settings are managed separately through /user/settings endpoint
         
         // Update password if both current and new passwords are provided
         if (request.getCurrentPassword() != null && request.getNewPassword() != null) {

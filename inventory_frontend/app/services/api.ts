@@ -462,12 +462,22 @@ export const alertsAPI = {
 };
 
 export const userAPI = {
-  getSettings: () => api.get('/user/settings'),
+  getSettings: () => {
+    if (!ensureAuthenticated()) {
+      return Promise.reject(new Error('Authentication required'));
+    }
+    return api.get('/user/settings');
+  },
   updateSettings: (settings: {
     alertEmail: string;
     enableEmailAlerts: boolean;
     enableDailyDigest: boolean;
-  }) => api.put('/user/settings', settings),
+  }) => {
+    if (!ensureAuthenticated()) {
+      return Promise.reject(new Error('Authentication required'));
+    }
+    return api.put('/user/settings', settings);
+  },
 };
 
 export const barcodeAPI = {
