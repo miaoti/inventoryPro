@@ -6,76 +6,60 @@ on:
   workflow_dispatch:
     inputs:
       gcp_instance_ip:
-        description: 'GCP Instance IP Address'
+        description: 'GCP Instance IP Address (for reference)'
         required: true
         default: '34.72.157.206'
       gcp_ssh_user:
-        description: 'SSH User for GCP Instance'
+        description: 'SSH User for GCP Instance (for reference)'
         required: true
         default: 'gcp-github-actions-no-pass'
-      gcp_ssh_private_key:
-        description: 'SSH Private Key for GCP Instance'
-        required: true
 
 env:
   REGISTRY: ghcr.io
   FRONTEND_IMAGE_NAME: ${{ github.repository }}/frontend
   BACKEND_IMAGE_NAME: ${{ github.repository }}/backend
-  GCP_INSTANCE_IP: ${{ github.event.inputs.gcp_instance_ip ||  '34.72.157.206' }}
+  GCP_INSTANCE_IP: ${{ github.event.inputs.gcp_instance_ip || '34.72.157.206' }}
 
 jobs:
-  setup-and-deploy:
-    runs-on: ubuntu-latest
-    
-    steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-
-    - name: 🛠️ Setup Debian Server for Deployment
-      uses: appleboy/ssh-action@master
-      with:
-        host: ${{ env.GCP_INSTANCE_IP }}
-        username: ${{ github.event.inputs.gcp_ssh_user || 'gcp-github-actions-no-pass' }}
-        key: ${{ github.event.inputs.gcp_ssh_private_key || secrets.GCP_SSH_PRIVATE_KEY }}
-        script: |
-          echo "🚀 Starting setup on Debian instance..."
-          
-          # Update package list and install dependencies
-          sudo apt-get update -y
-          sudo apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release git
-          
-          # Install Docker if not present
-          if ! [ -x "$(command -v docker)" ]; then
-            echo "🔧 Installing Docker..."
-            sudo curl -fsSL https://download.docker.com/linux/debian/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
-            echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-            sudo apt-get update -y
-            sudo apt-get install -y docker-ce docker-ce-cli containerd.io
-            sudo usermod -aG docker ${{ github.event.inputs.gcp_ssh_user || 'gcp-github-actions-no-pass' }}
-            echo "✅ Docker installed."
-          else
-            echo "✅ Docker is already installed."
-          fi
-
-          # Install Docker Compose if not present
-          if ! [ -x "$(command -v docker-compose)" ]; then
-            echo "🔧 Installing Docker Compose..."
-            sudo curl -L "https://github.com/docker/compose/releases/download/1.29.2/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-            sudo chmod +x /usr/local/bin/docker-compose
-            echo "✅ Docker Compose installed."
-          else
-            echo "✅ Docker Compose is already installed."
-          fi
-          
-          echo "✅ Debian server setup complete."
-
   build-and-deploy:
-    needs: setup-and-deploy
     runs-on: self-hosted
     
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
+
+    - name: 🛠️ Verify and Install Dependencies on Self-Hosted Runner
+      run: |
+        echo "🚀 Verifying dependencies on self-hosted runner..."
+        
+        # Update package list and install dependencies
+        sudo apt-get update -y
+        sudo apt-get install -y --no-install-recommends apt-transport-https ca-certificates curl gnupg lsb-release git openssl
+        
+        # Install Docker if not present
+        if ! [ -x "$(command -v docker)" ]; then
+          echo "🔧 Installing Docker..."
+          curl -fsSL https://download.docker.com/linux/debian/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+          echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+          sudo apt-get update -y
+          sudo apt-get install -y docker-ce docker-ce-cli containerd.io
+          sudo usermod -aG docker $USER
+          echo "✅ Docker installed. NOTE: A new shell session or restart is needed for group changes to apply. Using sudo."
+        else
+          echo "✅ Docker is already installed."
+        fi
+
+        # Install Docker Compose if not present
+        if ! [ -x "$(command -v docker-compose)" ]; then
+          echo "🔧 Installing Docker Compose..."
+          sudo curl -L "https://github.com/docker/compose/releases/download/1.29.2/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+          sudo chmod +x /usr/local/bin/docker-compose
+          echo "✅ Docker Compose installed."
+        else
+          echo "✅ Docker Compose is already installed."
+        fi
+        
+        echo "✅ Runner setup complete."
 
     - name: Set up environment variables
       run: |
@@ -108,7 +92,7 @@ jobs:
               echo "✅ Valid SSL certificate for ${{ env.GCP_INSTANCE_IP }} already exists."
               CERT_VALID=true
             else
-              echo " IP address has changed. Regenerating certificate."
+              echo "🔄 IP address has changed. Regenerating certificate."
             fi
           else
             echo "🔄 SSL certificate expired, regenerating..."
@@ -126,75 +110,46 @@ jobs:
             -in nginx/ssl/server.csr \
             -signkey nginx/ssl/server.key \
             -out nginx/ssl/server.crt
-          
-          # Set proper permissions
           chmod 600 nginx/ssl/server.key
           chmod 644 nginx/ssl/server.crt
-          
-          # Clean up CSR file
           rm nginx/ssl/server.csr
-          
           echo "✅ SSL certificates generated successfully"
-          echo "Certificate info:"
-          openssl x509 -in nginx/ssl/server.crt -text -noout | grep -E "(Subject:|Not Before|Not After)"
         fi
-
-    - name: Set up SSH access for debugging
-      run: |
-        echo "Setting up SSH access for post-deployment debugging..."
-        mkdir -p ~/.ssh
-        echo "${{ secrets.ORACLE_SSH_KEY }}" > ~/.ssh/oracle_key
-        chmod 600 ~/.ssh/oracle_key
-        echo "SSH key configured for oracle_key"
-        
-        # Add Oracle instance to known hosts
-        ssh-keyscan -H ${{ env.GCP_INSTANCE_IP }} >> ~/.ssh/known_hosts
-        
-        # Test SSH connection with verbose output for debugging
-        echo "Testing SSH connection..."
-        ssh -i ~/.ssh/oracle_key -o ConnectTimeout=10 -o StrictHostKeyChecking=no ${{ github.event.inputs.gcp_ssh_user || 'gcp-github-actions-no-pass' }}@${{ env.GCP_INSTANCE_IP }} "echo 'SSH connection successful'" 2>&1 || {
-          echo "SSH test failed, but continuing deployment"
-          echo "To fix SSH access:"
-          echo "1. Extract public key from your private key:"
-          echo "   ssh-keygen -y -f ssh-key-2025-06-06.key > ssh-key-2025-06-06.key.pub"
-          echo "2. Add the public key to your Oracle instance:"
-          echo "   cat ssh-key-2025-06-06.key.pub >> ~/.ssh/authorized_keys"
-        }
 
     - name: Stop existing containers and repair failed migration
       run: |
         echo "Stopping existing containers..."
-        docker stop $(docker ps -aq) 2>/dev/null || true
-        docker system prune -f
+        sudo docker stop $(sudo docker ps -aq) 2>/dev/null || true
+        sudo docker system prune -af
         
         echo "Starting MySQL to repair failed migration..."
-        docker-compose -f docker-compose.prod.yml up -d mysql
+        sudo docker-compose -f docker-compose.prod.yml up -d mysql
         sleep 20
         
         echo "Repairing failed migrations..."
-        docker-compose -f docker-compose.prod.yml exec -T mysql mysql -u root -p${{ secrets.MYSQL_ROOT_PASSWORD }} -e "
+        sudo docker-compose -f docker-compose.prod.yml exec -T mysql mysql -u root -p${{ secrets.MYSQL_ROOT_PASSWORD }} -e "
         USE inventory_db;
         DELETE FROM flyway_schema_history WHERE version = '17' AND success = 0;
         DELETE FROM flyway_schema_history WHERE version = '19' AND success = 0;
         " 2>/dev/null || echo "Migration repair attempted"
         
-        docker-compose -f docker-compose.prod.yml stop mysql
+        sudo docker-compose -f docker-compose.prod.yml stop mysql
 
     - name: Apply database migrations
       run: |
         echo "🔄 Applying database migrations..."
         
         # Start MySQL for migration
-        docker-compose -f docker-compose.prod.yml up -d mysql
+        sudo docker-compose -f docker-compose.prod.yml up -d mysql
         sleep 20
         
         echo "Applying V19 migration to create owner account..."
-        docker-compose -f docker-compose.prod.yml exec -T mysql mysql -u root -p${{ secrets.MYSQL_ROOT_PASSWORD }} -e "
+        sudo docker-compose -f docker-compose.prod.yml exec -T mysql mysql -u root -p${{ secrets.MYSQL_ROOT_PASSWORD }} -e "
         USE inventory_db;
         
         -- Create owner user if not exists (V19 migration)
         INSERT INTO users (username, password, email, full_name, enabled, role, enable_email_alerts, enable_daily_digest, alert_email, created_at, updated_at) 
-        VALUES ('zoe', '$2a$12$2x2e3UQT/Zisuh0uNs6jVOVQdnBl0DrpUxvAvpTcglwD.iCItAqmi', 'zhongqi0728@gmail.com', 'Zoe (Owner)', TRUE, 'OWNER', TRUE, TRUE, 'zhongqi0728@gmail.com', NOW(), NOW())
+        VALUES ('zoe', '\$2a\$12\$2x2e3UQT/Zisuh0uNs6jVOVQdnBl0DrpUxvAvpTcglwD.iCItAqmi', 'zhongqi0728@gmail.com', 'Zoe (Owner)', TRUE, 'OWNER', TRUE, TRUE, 'zhongqi0728@gmail.com', NOW(), NOW())
         ON DUPLICATE KEY UPDATE 
           password = VALUES(password),
           email = VALUES(email),
@@ -213,53 +168,31 @@ jobs:
         
         echo "✅ Database migrations applied"
         
-        docker-compose -f docker-compose.prod.yml stop mysql
+        sudo docker-compose -f docker-compose.prod.yml stop mysql
 
     - name: Verify source code structure
       run: |
         echo "Checking source code structure..."
-        echo "Backend (Spring Boot):"
-        if [ -f ./inventory/pom.xml ]; then
-          echo "✅ Found Spring Boot backend"
-          ls -la ./inventory/
-        else
-          echo "❌ No Spring Boot backend found"
-        fi
+        ls -la
         
-        echo "Frontend (Next.js):"
-        if [ -f ./inventory_frontend/package.json ]; then
-          echo "✅ Found Next.js frontend"
-          ls -la ./inventory_frontend/
-        else
-          echo "❌ No Next.js frontend found"
-        fi
-        
-        echo "SSL Certificates:"
-        if [ -f ./nginx/ssl/server.crt ] && [ -f ./nginx/ssl/server.key ]; then
-          echo "✅ SSL certificates are ready"
-          ls -la ./nginx/ssl/
-        else
-          echo "❌ SSL certificates missing"
-        fi
-
     - name: Build application with correct configuration
       run: |
         echo "Building application with production settings and HTTPS support..."
         export DOCKER_BUILDKIT=1
         
         # Build with no cache to ensure fresh build with /api and HTTPS support
-        docker-compose -f docker-compose.prod.yml build --no-cache --pull \
+        sudo docker-compose -f docker-compose.prod.yml build --no-cache --pull \
           --build-arg NEXT_PUBLIC_API_URL=/api \
           --build-arg NODE_ENV=production
 
     - name: Start application services with HTTPS
       run: |
         echo "Starting application services with HTTPS support..."
-        docker-compose -f docker-compose.prod.yml up -d
+        sudo docker-compose -f docker-compose.prod.yml up -d
         
         echo "Force restarting nginx to pick up SSL certificates and config changes..."
         sleep 5
-        docker-compose -f docker-compose.prod.yml restart nginx
+        sudo docker-compose -f docker-compose.prod.yml restart nginx
         sleep 10
 
     - name: Wait for services to be ready
@@ -270,7 +203,7 @@ jobs:
         echo "Checking service health..."
         # Check MySQL
         for i in {1..12}; do
-          if docker-compose -f docker-compose.prod.yml exec -T mysql mysqladmin ping -h localhost -u root -p${{ secrets.MYSQL_ROOT_PASSWORD }} 2>/dev/null; then
+          if sudo docker-compose -f docker-compose.prod.yml exec -T mysql mysqladmin ping -h localhost -u root -p${{ secrets.MYSQL_ROOT_PASSWORD }} 2>/dev/null; then
             echo "✅ MySQL is healthy"
             break
           fi
@@ -310,7 +243,7 @@ jobs:
           echo "⏳ Waiting for Nginx HTTP... ($i/8)"
           sleep 10
         done
-        
+
         # Check Nginx HTTPS
         for i in {1..8}; do
           # Use --insecure because we are using a self-signed certificate
@@ -321,172 +254,28 @@ jobs:
           echo "⏳ Waiting for Nginx HTTPS... ($i/8)"
           sleep 10
         done
-
-    - name: Verify database migration and owner account creation
-      run: |
-        echo "🔍 Verifying database migration and owner account creation..."
         
-        # Wait for backend to be fully ready for database operations
-        sleep 10
-        
-        echo "Checking database tables and users..."
-        docker-compose -f docker-compose.prod.yml exec -T mysql mysql -u root -p${{ secrets.MYSQL_ROOT_PASSWORD }} -e "
-        USE inventory_db;
-        
-        -- Check if users table exists and has the correct structure
-        DESCRIBE users;
-        
-        -- Check existing users
-        SELECT username, email, role, enable_email_alerts FROM users;
-        
-        -- Verify owner account exists
-        SELECT 'Owner account verification:' as check_type, 
-               COUNT(*) as count,
-               CASE WHEN COUNT(*) > 0 THEN 'SUCCESS' ELSE 'FAILED' END as status
-        FROM users 
-        WHERE username = 'zoe' AND role = 'OWNER' AND email = 'zhongqi0728@gmail.com';
-        
-        -- Check total user count by role
-        SELECT role, COUNT(*) as count FROM users GROUP BY role;
-        " 2>/dev/null || echo "⚠️ Database verification failed, but continuing deployment"
-        
-        echo "✅ Database verification completed"
-
-    - name: Verify nginx configuration and SSL setup
-      run: |
-        echo "🔍 Checking nginx configuration and SSL setup..."
-        
-        # Wait for nginx to be stable
-        for i in {1..10}; do
-          if docker ps | grep inventory_nginx_prod | grep -q "Up"; then
-            echo "✅ Nginx container is running"
-            break
-          fi
-          echo "⏳ Waiting for nginx container to be stable... ($i/10)"
-          sleep 5
-        done
-        
-        # Test nginx configuration
-        echo "Testing nginx config syntax:"
-        if docker exec inventory_nginx_prod nginx -t 2>/dev/null; then
-          echo "✅ Nginx configuration is valid"
-        else
-          echo "⚠️ Nginx configuration test failed, but continuing..."
-        fi
-        
-        # Check SSL certificate mounting
-        echo "Checking SSL certificate availability in container:"
-        if docker exec inventory_nginx_prod test -f /etc/nginx/ssl/server.crt; then
-          echo "✅ SSL certificate mounted correctly"
-          docker exec inventory_nginx_prod ls -la /etc/nginx/ssl/
-        else
-          echo "❌ SSL certificate not found in container"
-        fi
-        
-        # Show nginx configuration sample
-        echo "Sample nginx configuration:"
-        docker exec inventory_nginx_prod cat /etc/nginx/nginx.conf | head -30 || echo "Could not read config"
-
-    - name: Final deployment verification with HTTPS
-      run: |
-        echo "🔍 Final deployment verification with HTTPS support..."
-        echo "Container status:"
-        docker-compose -f docker-compose.prod.yml ps
-        
-        echo "Testing endpoints:"
-        echo "HTTP main site (port 80):"
-        curl -I http://localhost:80 && echo "✅ HTTP site OK" || echo "❌ HTTP site FAILED"
-        
-        echo "HTTPS main site (port 443):"
-        curl -k -I https://localhost:443 && echo "✅ HTTPS site OK" || echo "❌ HTTPS site FAILED"
-        
-        echo "HTTP to HTTPS redirect test for scanner:"
-        HTTP_RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:80/scanner)
-        if [ "$HTTP_RESPONSE" = "301" ]; then
-          echo "✅ Scanner HTTP to HTTPS redirect working (HTTP 301)"
-        else
-          echo "⚠️ Scanner redirect not working (got HTTP $HTTP_RESPONSE)"
-        fi
-        
-        echo "HTTPS scanner page:"
-        curl -k -I https://localhost:443/scanner && echo "✅ HTTPS scanner OK" || echo "❌ HTTPS scanner FAILED"
-        
-        echo "Frontend (port 3000):"
-        curl -I http://localhost:3000 && echo "✅ Frontend OK" || echo "❌ Frontend FAILED"  
-        
-        echo "Backend (port 8080):"
-        curl -I http://localhost:8080/api/actuator/health && echo "✅ Backend OK" || echo "❌ Backend FAILED"
-        
-        echo "🎉 Deployment Summary:"
-        if curl -s http://localhost:80 >/dev/null && curl -k -s https://localhost:443 >/dev/null; then
-          echo "✅ SUCCESS: Your inventory application is live with HTTPS support!"
-          echo "🌐 HTTP Access: http://${{ env.GCP_INSTANCE_IP }}"
-          echo "🔒 HTTPS Access: https://${{ env.GCP_INSTANCE_IP }}"
-          echo "📱 Camera Scanner: https://${{ env.GCP_INSTANCE_IP }}/scanner (HTTPS required for camera)"
-          echo "📋 Other Pages: Work on both HTTP and HTTPS"
-          echo "🔧 Backend API: Accessible via both protocols"
-          echo "💾 Database: MySQL with your schema"
-          echo ""
-          echo "📷 Camera Access Instructions:"
-          echo "1. Visit: http://${{ env.GCP_INSTANCE_IP }}/scanner (will auto-redirect to HTTPS)"
-          echo "2. Accept the self-signed certificate warning"
-          echo "3. Camera should now work properly!"
-        else
-          echo "❌ Deployment verification failed - running enhanced diagnostics..."
-          echo "=== Nginx logs ==="
-          docker-compose -f docker-compose.prod.yml logs nginx --tail=30
-          echo "=== Frontend logs ==="
-          docker-compose -f docker-compose.prod.yml logs frontend --tail=10
-          echo "=== SSL Certificate check ==="
-          docker exec inventory_nginx_prod openssl x509 -in /etc/nginx/ssl/server.crt -text -noout | head -20 || echo "SSL cert check failed"
-          echo "=== Network connectivity test ==="
-          echo "Testing internal connectivity:"
-          docker-compose -f docker-compose.prod.yml exec nginx curl -I http://frontend:3000 || echo "Nginx -> Frontend failed"
-          exit 1
-        fi
-
-    - name: Cleanup on failure
-      if: failure()
-      run: |
-        echo "🚨 Deployment failed, showing debug information..."
-        echo "Container status:"
-        docker-compose -f docker-compose.prod.yml ps
-        
-        echo "Recent logs:"
-        echo "=== Frontend logs ==="
-        docker-compose -f docker-compose.prod.yml logs frontend --tail=10
-        echo "=== Backend logs ==="
-        docker-compose -f docker-compose.prod.yml logs backend --tail=10
-        echo "=== Nginx logs ==="
-        docker-compose -f docker-compose.prod.yml logs nginx --tail=20
-        
-        echo "=== SSL Setup Debug ==="
-        echo "SSL directory contents:"
-        ls -la nginx/ssl/ 2>/dev/null || echo "No SSL directory"
-        echo "SSL files in container:"
-        docker exec inventory_nginx_prod ls -la /etc/nginx/ssl/ 2>/dev/null || echo "No SSL files in container"
-
     - name: Final Database State Verification
       run: |
         echo "🔍 Verifying final database state..."
-        docker-compose -f docker-compose.prod.yml exec -T mysql mysql -u root -p${{ secrets.MYSQL_ROOT_PASSWORD }} -e "
+        sudo docker-compose -f docker-compose.prod.yml exec -T mysql mysql -u root -p${{ secrets.MYSQL_ROOT_PASSWORD }} -e "
         USE inventory_db;
         
-        echo 'Current Users and Roles:';
+        SELECT 'Current Users and Roles:' as ' ';
         SELECT username, email, role, enable_email_alerts FROM users;
         
-        echo 'Verifying Owner Account:';
+        SELECT 'Verifying Owner Account:' as ' ';
         SELECT IF(COUNT(*) = 1, 'SUCCESS', 'FAILURE') as status 
         FROM users WHERE username = 'zoe' AND role = 'OWNER';
         
-        echo 'User Role Counts:';
+        SELECT 'User Role Counts:' as ' ';
         SELECT role, COUNT(*) as count FROM users GROUP BY role;
         "
         
-    - name: Display Application Logs
+    - name: Display Application Logs for Debugging
       run: |
-        echo "📜 Displaying application logs..."
-        docker-compose -f docker-compose.prod.yml logs --tail=100
+        echo "📜 Displaying application logs for debugging..."
+        sudo docker-compose -f docker-compose.prod.yml logs --tail=150
         
     - name: Deployment Summary
       run: |
