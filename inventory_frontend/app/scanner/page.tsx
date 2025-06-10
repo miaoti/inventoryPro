@@ -731,17 +731,33 @@ export default function BarcodeScanner() {
             };
           });
           
-          // Now decode from the video element
-          await codeReader.decodeFromVideoElement(videoElement, (result, error) => {
-            if (result) {
-              console.log('✅ Barcode detected via manual setup:', result.getText());
-              stopScanning();
-              handleBarcodeScanned(result.getText());
-            }
-            if (error && !(error.name === 'NotFoundException')) {
-              console.debug('Manual scan attempt error:', error.message);
-            }
-          });
+                     // Now decode from the video element - use continuous scanning
+           const scanVideo = async () => {
+             if (!codeReaderRef.current || !isScanning) return;
+             
+             try {
+               const result = await codeReader.decodeFromVideoElement(videoElement);
+               if (result) {
+                 console.log('✅ Barcode detected via manual setup:', result.getText());
+                 stopScanning();
+                 handleBarcodeScanned(result.getText());
+                 return;
+               }
+             } catch (error) {
+               // Ignore "not found" errors and continue scanning
+               if (error instanceof Error && !error.message.includes('No MultiFormat Readers were able to detect the code')) {
+                 console.debug('Manual scan attempt error:', error.message);
+               }
+             }
+             
+             // Continue scanning if no result found
+             if (isScanning) {
+               setTimeout(scanVideo, 100); // Scan every 100ms
+             }
+           };
+           
+           // Start the scanning loop
+           scanVideo();
           
           console.log('✅ Manual camera setup successful');
         }
