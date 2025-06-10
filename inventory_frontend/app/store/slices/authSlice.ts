@@ -28,14 +28,60 @@ const initialState: AuthState = {
 
 export const login = createAsyncThunk(
   'auth/login',
-  async (credentials: { username: string; password: string }) => {
-    const response: any = await authAPI.login(credentials);
-    const { token, user } = response; // response already contains the data due to interceptor
-    // Set cookie with token
-    Cookies.set('token', token, { expires: 7 }); // Expires in 7 days
-    // Store user data in cookie for persistence
-    Cookies.set('user', JSON.stringify(user), { expires: 7 });
-    return { token, user };
+  async (credentials: { username: string; password: string }, { rejectWithValue }) => {
+    try {
+      console.log('🔐 Starting login request for username:', credentials.username);
+      const response: any = await authAPI.login(credentials);
+      console.log('✅ Login response received:', response);
+      
+      const { token, user, debug, message } = response; 
+      
+      // Log debug information if available
+      if (debug) {
+        console.log('🐛 Login debug info:', debug);
+      }
+      
+      if (message) {
+        console.log('📄 Login message:', message);
+      }
+      
+      // Set cookie with token
+      Cookies.set('token', token, { expires: 7 }); // Expires in 7 days
+      // Store user data in cookie for persistence
+      Cookies.set('user', JSON.stringify(user), { expires: 7 });
+      
+      console.log('✅ Login successful, user:', user.username, 'role:', user.role);
+      return { token, user };
+    } catch (error: any) {
+      console.error('❌ Login error:', error);
+      
+      // Extract detailed error information
+      let errorMessage = 'Login failed';
+      let debugInfo = null;
+      
+      if (error.response?.data) {
+        const errorData = error.response.data;
+        console.log('🐛 Backend error response:', errorData);
+        
+        errorMessage = errorData.message || errorMessage;
+        debugInfo = errorData.debug || null;
+        
+        // Include debug information in error for troubleshooting
+        if (debugInfo) {
+          errorMessage = `${errorMessage} (Debug: ${debugInfo})`;
+        }
+        
+        // Add specific error details if available
+        if (errorData.error) {
+          errorMessage = `${errorMessage} - ${errorData.error}`;
+        }
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      console.error('❌ Final error message:', errorMessage);
+      return rejectWithValue({ message: errorMessage, debug: debugInfo });
+    }
   }
 );
 
@@ -99,7 +145,13 @@ const authSlice = createSlice({
       })
       .addCase(login.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.error.message || 'Login failed';
+        // Handle enhanced error information
+        if (action.payload && typeof action.payload === 'object' && 'message' in action.payload) {
+          state.error = action.payload.message as string;
+        } else {
+          state.error = action.error.message || 'Login failed';
+        }
+        console.log('🔴 Login rejected, error set to:', state.error);
       })
       .addCase(register.pending, (state) => {
         state.loading = true;
