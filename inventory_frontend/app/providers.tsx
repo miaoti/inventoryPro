@@ -4,7 +4,7 @@ import { Provider } from 'react-redux';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { store } from './store';
-import { AuthProvider } from './components/AuthProvider';
+import AuthProvider from './components/AuthProvider';
 
 const theme = createTheme({
   palette: {

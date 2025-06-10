@@ -26,14 +26,47 @@ const api = axios.create({
 api.interceptors.request.use(
   (config) => {
     const token = Cookies.get('token');
+    
+    // Skip token validation for public endpoints
+    const publicEndpoints = ['/auth/login', '/auth/register', '/public/'];
+    const isPublicEndpoint = publicEndpoints.some(endpoint => 
+      config.url?.includes(endpoint)
+    );
+    
+    if (!isPublicEndpoint) {
+      if (!token) {
+        console.log('No token found for protected endpoint:', config.url);
+        // Clear any stale auth data and redirect
+        clearAuthenticationData();
+        if (typeof window !== 'undefined' && 
+            window.location.pathname !== '/' && 
+            window.location.pathname !== '/login') {
+          window.location.href = '/login?error=authentication_required';
+        }
+        return Promise.reject(new Error('Authentication required'));
+      }
+      
+      // Validate token format (basic check)
+      if (token.length < 10 || !token.includes('.')) {
+        console.log('Invalid token format detected');
+        clearAuthenticationData();
+        if (typeof window !== 'undefined' && 
+            window.location.pathname !== '/' && 
+            window.location.pathname !== '/login') {
+          window.location.href = '/login?error=invalid_token';
+        }
+        return Promise.reject(new Error('Invalid token'));
+      }
+    }
+    
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
       // Add session ID to track concurrent sessions
       config.headers['X-Session-ID'] = getSessionId();
       // Debug: Log token status for troubleshooting
       console.log('Token found and attached to request:', token.substring(0, 20) + '...');
-    } else {
-      console.log('No token found in cookies');
+    } else if (!isPublicEndpoint) {
+      console.log('No token found for protected endpoint');
     }
     
     // Set appropriate Content-Type based on data type
@@ -142,6 +175,18 @@ const clearAuthenticationData = () => {
   console.log('All authentication data cleared');
 };
 
+// Function to decode JWT token and check expiry
+const isTokenExpired = (token: string): boolean => {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    const currentTime = Math.floor(Date.now() / 1000);
+    return payload.exp && payload.exp < currentTime;
+  } catch (error) {
+    console.error('Error decoding token:', error);
+    return true; // Consider malformed tokens as expired
+  }
+};
+
 // Function to validate token and redirect if invalid
 const validateTokenAndRedirect = async () => {
   const token = Cookies.get('token');
@@ -149,25 +194,71 @@ const validateTokenAndRedirect = async () => {
   if (!token) {
     console.log('No token found - redirecting to login');
     clearAuthenticationData();
-    window.location.href = '/';
+    window.location.href = '/login?error=no_token';
+    return false;
+  }
+
+  // Check if token is expired locally first
+  if (isTokenExpired(token)) {
+    console.log('Token is expired - redirecting to login');
+    clearAuthenticationData();
+    window.location.href = '/login?error=token_expired';
     return false;
   }
 
   try {
-    // Make a simple API call to validate token using existing endpoint
+    // Make a simple API call to validate token with server
     const response = await api.get('/profile');
     console.log('Token validation successful');
     return true;
-  } catch (error) {
+  } catch (error: any) {
     console.log('Token validation failed:', error);
-    clearAuthenticationData();
     
-    // Only redirect if not already on login/landing page
-    if (window.location.pathname !== '/' && window.location.pathname !== '/login') {
-      window.location.href = '/?error=invalid_token';
+    // Check if it's an authentication error
+    if (error.response?.status === 401 || error.message?.includes('Authentication')) {
+      console.log('Authentication failed - token may be revoked or invalid');
+      clearAuthenticationData();
+      
+      // Only redirect if not already on login/landing page
+      if (window.location.pathname !== '/' && window.location.pathname !== '/login') {
+        window.location.href = '/login?error=invalid_token';
+      }
+      return false;
+    }
+    
+    // For other errors (network, server), don't redirect but return false
+    console.log('Server error during token validation, but not redirecting');
+    return false;
+  }
+};
+
+// Function to ensure user is authenticated before API calls
+const ensureAuthenticated = (): boolean => {
+  const token = Cookies.get('token');
+  
+  if (!token) {
+    console.log('No token found - authentication required');
+    clearAuthenticationData();
+    if (typeof window !== 'undefined' && 
+        window.location.pathname !== '/' && 
+        window.location.pathname !== '/login') {
+      window.location.href = '/login?error=authentication_required';
     }
     return false;
   }
+  
+  if (isTokenExpired(token)) {
+    console.log('Token expired - authentication required');
+    clearAuthenticationData();
+    if (typeof window !== 'undefined' && 
+        window.location.pathname !== '/' && 
+        window.location.pathname !== '/login') {
+      window.location.href = '/login?error=token_expired';
+    }
+    return false;
+  }
+  
+  return true;
 };
 
 export const authAPI = {
@@ -191,11 +282,17 @@ export const authAPI = {
   },
   // Validate token with server using profile endpoint
   validateToken: async () => {
+    if (!ensureAuthenticated()) {
+      return { valid: false, error: 'No valid token' };
+    }
+    
     try {
       const response = await api.get('/profile');
       return { valid: true, data: response };
     } catch (error) {
       console.error('Token validation failed:', error);
+      // Clear auth on validation failure
+      clearAuthenticationData();
       return { valid: false, error };
     }
   },
@@ -205,35 +302,71 @@ export const authAPI = {
     if (!token) {
       return false;
     }
-    try {
-      // Simple check if token exists and is not empty
-      return token.length > 10; // Basic validation
-    } catch (error) {
-      console.error('Token validation error:', error);
+    
+    if (isTokenExpired(token)) {
+      clearAuthenticationData();
       return false;
     }
+    
+    return true;
   },
   // Clear authentication and redirect
   clearAuth: () => {
     clearAuthenticationData();
-    window.location.href = '/';
+    window.location.href = '/login';
   },
   // Validate token and redirect if needed
   validateAndRedirect: validateTokenAndRedirect,
   // Get current session ID
   getSessionId: getSessionId,
   // Clear all auth data
-  clearAuthData: clearAuthenticationData
+  clearAuthData: clearAuthenticationData,
+  // Ensure user is authenticated
+  ensureAuthenticated: ensureAuthenticated
 };
 
 export const itemsAPI = {
-  getAll: () => api.get('/items'),
-  getById: (id: number) => api.get(`/items/${id}`),
-  create: (item: any) => api.post('/items', item),
-  update: (id: number, item: any) => api.put(`/items/${id}`, item),
-  delete: (id: number) => api.delete(`/items/${id}`),
-  bulkDelete: (ids: number[]) => api.delete('/items/bulk', { data: ids }),
+  getAll: () => {
+    if (!ensureAuthenticated()) {
+      return Promise.reject(new Error('Authentication required'));
+    }
+    return api.get('/items');
+  },
+  getById: (id: number) => {
+    if (!ensureAuthenticated()) {
+      return Promise.reject(new Error('Authentication required'));
+    }
+    return api.get(`/items/${id}`);
+  },
+  create: (item: any) => {
+    if (!ensureAuthenticated()) {
+      return Promise.reject(new Error('Authentication required'));
+    }
+    return api.post('/items', item);
+  },
+  update: (id: number, item: any) => {
+    if (!ensureAuthenticated()) {
+      return Promise.reject(new Error('Authentication required'));
+    }
+    return api.put(`/items/${id}`, item);
+  },
+  delete: (id: number) => {
+    if (!ensureAuthenticated()) {
+      return Promise.reject(new Error('Authentication required'));
+    }
+    return api.delete(`/items/${id}`);
+  },
+  bulkDelete: (ids: number[]) => {
+    if (!ensureAuthenticated()) {
+      return Promise.reject(new Error('Authentication required'));
+    }
+    return api.delete('/items/bulk', { data: ids });
+  },
   importCSV: (file: File) => {
+    if (!ensureAuthenticated()) {
+      return Promise.reject(new Error('Authentication required'));
+    }
+    
     console.log('=== FRONTEND IMPORT DEBUG ===');
     console.log('File to import:', file);
     console.log('File name:', file.name);
@@ -251,8 +384,16 @@ export const itemsAPI = {
     
     return api.post('/items/import-csv', formData);
   },
-  exportBarcodes: () => api.get('/items/export-barcodes', { responseType: 'blob' }),
+  exportBarcodes: () => {
+    if (!ensureAuthenticated()) {
+      return Promise.reject(new Error('Authentication required'));
+    }
+    return api.get('/items/export-barcodes', { responseType: 'blob' });
+  },
   scanBarcode: (file: File) => {
+    if (!ensureAuthenticated()) {
+      return Promise.reject(new Error('Authentication required'));
+    }
     const formData = new FormData();
     formData.append('file', file);
     return api.post('/items/scan-barcode', formData, {
@@ -261,19 +402,63 @@ export const itemsAPI = {
       },
     });
   },
-  updateInventory: (id: number, quantity: number) =>
-    api.post(`/items/${id}/inventory`, { quantity }),
+  updateInventory: (id: number, quantity: number) => {
+    if (!ensureAuthenticated()) {
+      return Promise.reject(new Error('Authentication required'));
+    }
+    return api.post(`/items/${id}/inventory`, { quantity });
+  },
 };
 
 export const alertsAPI = {
-  getAll: () => api.get('/alerts'),
-  getActive: () => api.get('/alerts/active'),
-  getIgnored: () => api.get('/alerts/ignored'),
-  getResolved: () => api.get('/alerts/resolved'),
-  getUnread: () => api.get('/alerts/unread'),
-  getCounts: () => api.get('/alerts/count'),
-  markAsRead: (id: number) => api.post(`/alerts/${id}/read`),
-  resolve: (id: number) => api.post(`/alerts/${id}/resolve`),
+  getAll: () => {
+    if (!ensureAuthenticated()) {
+      return Promise.reject(new Error('Authentication required'));
+    }
+    return api.get('/alerts');
+  },
+  getActive: () => {
+    if (!ensureAuthenticated()) {
+      return Promise.reject(new Error('Authentication required'));
+    }
+    return api.get('/alerts/active');
+  },
+  getIgnored: () => {
+    if (!ensureAuthenticated()) {
+      return Promise.reject(new Error('Authentication required'));
+    }
+    return api.get('/alerts/ignored');
+  },
+  getResolved: () => {
+    if (!ensureAuthenticated()) {
+      return Promise.reject(new Error('Authentication required'));
+    }
+    return api.get('/alerts/resolved');
+  },
+  getUnread: () => {
+    if (!ensureAuthenticated()) {
+      return Promise.reject(new Error('Authentication required'));
+    }
+    return api.get('/alerts/unread');
+  },
+  getCounts: () => {
+    if (!ensureAuthenticated()) {
+      return Promise.reject(new Error('Authentication required'));
+    }
+    return api.get('/alerts/count');
+  },
+  markAsRead: (id: number) => {
+    if (!ensureAuthenticated()) {
+      return Promise.reject(new Error('Authentication required'));
+    }
+    return api.post(`/alerts/${id}/read`);
+  },
+  resolve: (id: number) => {
+    if (!ensureAuthenticated()) {
+      return Promise.reject(new Error('Authentication required'));
+    }
+    return api.post(`/alerts/${id}/resolve`);
+  },
 };
 
 export const userAPI = {
