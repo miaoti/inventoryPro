@@ -1,17 +1,76 @@
-name: Deploy to Oracle Cloud with HTTPS
+name: Deploy to GCP Debian with HTTPS
 
 on:
   push:
     branches: [ main, master ]
   workflow_dispatch:
+    inputs:
+      gcp_instance_ip:
+        description: 'GCP Instance IP Address'
+        required: true
+        default: '34.72.157.206'
+      gcp_ssh_user:
+        description: 'SSH User for GCP Instance'
+        required: true
+        default: 'ubuntu'
+      gcp_ssh_private_key:
+        description: 'SSH Private Key for GCP Instance'
+        required: true
 
 env:
   REGISTRY: ghcr.io
   FRONTEND_IMAGE_NAME: ${{ github.repository }}/frontend
   BACKEND_IMAGE_NAME: ${{ github.repository }}/backend
+  GCP_INSTANCE_IP: ${{ github.event.inputs.gcp_instance_ip || '34.72.157.206
 
 jobs:
+  setup-and-deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: 🛠️ Setup Debian Server for Deployment
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ env.GCP_INSTANCE_IP }}
+        username: ${{ github.event.inputs.gcp_ssh_user || 'ubuntu' }}
+        key: ${{ github.event.inputs.gcp_ssh_private_key || secrets.GCP_SSH_PRIVATE_KEY }}
+        script: |
+          echo "🚀 Starting setup on Debian instance..."
+          
+          # Update package list and install dependencies
+          sudo apt-get update -y
+          sudo apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release git
+          
+          # Install Docker if not present
+          if ! [ -x "$(command -v docker)" ]; then
+            echo "🔧 Installing Docker..."
+            sudo curl -fsSL https://download.docker.com/linux/debian/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+            echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+            sudo apt-get update -y
+            sudo apt-get install -y docker-ce docker-ce-cli containerd.io
+            sudo usermod -aG docker ${{ github.event.inputs.gcp_ssh_user || 'ubuntu' }}
+            echo "✅ Docker installed."
+          else
+            echo "✅ Docker is already installed."
+          fi
+
+          # Install Docker Compose if not present
+          if ! [ -x "$(command -v docker-compose)" ]; then
+            echo "🔧 Installing Docker Compose..."
+            sudo curl -L "https://github.com/docker/compose/releases/download/1.29.2/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+            sudo chmod +x /usr/local/bin/docker-compose
+            echo "✅ Docker Compose installed."
+          else
+            echo "✅ Docker Compose is already installed."
+          fi
+          
+          echo "✅ Debian server setup complete."
+
   build-and-deploy:
+    needs: setup-and-deploy
     runs-on: self-hosted
     
     steps:
@@ -41,29 +100,28 @@ jobs:
         # Create SSL directory if it doesn't exist
         mkdir -p nginx/ssl
         
-        # Check if certificates already exist and are valid
-        if [ -f "nginx/ssl/server.crt" ] && [ -f "nginx/ssl/server.key" ]; then
-          # Check if certificate is still valid (not expired)
+        # Check if certificates already exist and are valid for the target IP
+        CERT_VALID=false
+        if [ -f "nginx/ssl/server.crt" ]; then
           if openssl x509 -in nginx/ssl/server.crt -checkend 86400 -noout 2>/dev/null; then
-            echo "✅ Valid SSL certificates already exist"
+            if openssl x509 -in nginx/ssl/server.crt -text -noout | grep -q "CN=${{ env.GCP_INSTANCE_IP }}"; then
+              echo "✅ Valid SSL certificate for ${{ env.GCP_INSTANCE_IP }} already exists."
+              CERT_VALID=true
+            else
+              echo " IP address has changed. Regenerating certificate."
+            fi
           else
-            echo "🔄 SSL certificates expired, regenerating..."
-            rm -f nginx/ssl/server.crt nginx/ssl/server.key
+            echo "🔄 SSL certificate expired, regenerating..."
           fi
         fi
         
-        # Generate new certificates if they don't exist or were invalid
-        if [ ! -f "nginx/ssl/server.crt" ] || [ ! -f "nginx/ssl/server.key" ]; then
-          echo "🔧 Generating new SSL certificates..."
-          
-          # Generate private key
+        # Generate new certificates if they don't exist, are invalid, or IP changed
+        if [ "$CERT_VALID" = false ]; then
+          echo "🔧 Generating new SSL certificates for IP: ${{ env.GCP_INSTANCE_IP }}"
+          rm -f nginx/ssl/server.*
           openssl genrsa -out nginx/ssl/server.key 2048
-          
-          # Generate certificate signing request with Oracle Cloud IP
           openssl req -new -key nginx/ssl/server.key -out nginx/ssl/server.csr \
-            -subj "/C=US/ST=State/L=City/O=Inventory-System/CN=129.146.49.129"
-          
-          # Generate self-signed certificate (valid for 365 days)
+            -subj "/C=US/ST=State/L=City/O=Inventory-System/CN=${{ env.GCP_INSTANCE_IP }}"
           openssl x509 -req -days 365 \
             -in nginx/ssl/server.csr \
             -signkey nginx/ssl/server.key \
@@ -90,11 +148,11 @@ jobs:
         echo "SSH key configured for oracle_key"
         
         # Add Oracle instance to known hosts
-        ssh-keyscan -H 129.146.49.129 >> ~/.ssh/known_hosts
+        ssh-keyscan -H ${{ env.GCP_INSTANCE_IP }} >> ~/.ssh/known_hosts
         
         # Test SSH connection with verbose output for debugging
         echo "Testing SSH connection..."
-        ssh -i ~/.ssh/oracle_key -o ConnectTimeout=10 -o StrictHostKeyChecking=no ubuntu@129.146.49.129 "echo 'SSH connection successful'" 2>&1 || {
+        ssh -i ~/.ssh/oracle_key -o ConnectTimeout=10 -o StrictHostKeyChecking=no ${{ github.event.inputs.gcp_ssh_user || 'ubuntu' }}@${{ env.GCP_INSTANCE_IP }} "echo 'SSH connection successful'" 2>&1 || {
           echo "SSH test failed, but continuing deployment"
           echo "To fix SSH access:"
           echo "1. Extract public key from your private key:"
@@ -250,12 +308,13 @@ jobs:
             break
           fi
           echo "⏳ Waiting for Nginx HTTP... ($i/8)"
-          sleep 5
+          sleep 10
         done
         
         # Check Nginx HTTPS
         for i in {1..8}; do
-          if curl -k -f https://localhost:443/health 2>/dev/null; then
+          # Use --insecure because we are using a self-signed certificate
+          if curl --insecure -f https://localhost:443/health 2>/dev/null; then
             echo "✅ Nginx HTTPS is healthy"
             break
           fi
@@ -361,15 +420,15 @@ jobs:
         echo "🎉 Deployment Summary:"
         if curl -s http://localhost:80 >/dev/null && curl -k -s https://localhost:443 >/dev/null; then
           echo "✅ SUCCESS: Your inventory application is live with HTTPS support!"
-          echo "🌐 HTTP Access: http://129.146.49.129"
-          echo "🔒 HTTPS Access: https://129.146.49.129"
-          echo "📱 Camera Scanner: https://129.146.49.129/scanner (HTTPS required for camera)"
+          echo "🌐 HTTP Access: http://${{ env.GCP_INSTANCE_IP }}"
+          echo "🔒 HTTPS Access: https://${{ env.GCP_INSTANCE_IP }}"
+          echo "📱 Camera Scanner: https://${{ env.GCP_INSTANCE_IP }}/scanner (HTTPS required for camera)"
           echo "📋 Other Pages: Work on both HTTP and HTTPS"
           echo "🔧 Backend API: Accessible via both protocols"
           echo "💾 Database: MySQL with your schema"
           echo ""
           echo "📷 Camera Access Instructions:"
-          echo "1. Visit: http://129.146.49.129/scanner (will auto-redirect to HTTPS)"
+          echo "1. Visit: http://${{ env.GCP_INSTANCE_IP }}/scanner (will auto-redirect to HTTPS)"
           echo "2. Accept the self-signed certificate warning"
           echo "3. Camera should now work properly!"
         else
@@ -405,4 +464,32 @@ jobs:
         echo "SSL directory contents:"
         ls -la nginx/ssl/ 2>/dev/null || echo "No SSL directory"
         echo "SSL files in container:"
-        docker exec inventory_nginx_prod ls -la /etc/nginx/ssl/ 2>/dev/null || echo "No SSL files in container" 
+        docker exec inventory_nginx_prod ls -la /etc/nginx/ssl/ 2>/dev/null || echo "No SSL files in container"
+
+    - name: Final Database State Verification
+      run: |
+        echo "🔍 Verifying final database state..."
+        docker-compose -f docker-compose.prod.yml exec -T mysql mysql -u root -p${{ secrets.MYSQL_ROOT_PASSWORD }} -e "
+        USE inventory_db;
+        
+        echo 'Current Users and Roles:';
+        SELECT username, email, role, enable_email_alerts FROM users;
+        
+        echo 'Verifying Owner Account:';
+        SELECT IF(COUNT(*) = 1, 'SUCCESS', 'FAILURE') as status 
+        FROM users WHERE username = 'zoe' AND role = 'OWNER';
+        
+        echo 'User Role Counts:';
+        SELECT role, COUNT(*) as count FROM users GROUP BY role;
+        "
+        
+    - name: Display Application Logs
+      run: |
+        echo "📜 Displaying application logs..."
+        docker-compose -f docker-compose.prod.yml logs --tail=100
+        
+    - name: Deployment Summary
+      run: |
+        echo "🎉 Deployment to ${{ env.GCP_INSTANCE_IP }} complete!"
+        echo "Access your application at: https://${{ env.GCP_INSTANCE_IP }}"
+        echo "Check the detailed logs above for verification." 
