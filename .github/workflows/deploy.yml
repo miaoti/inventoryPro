@@ -45,9 +45,16 @@ jobs:
         # Add Oracle instance to known hosts
         ssh-keyscan -H 129.146.49.129 >> ~/.ssh/known_hosts
         
-        # Test SSH connection (this will help verify the key works)
+        # Test SSH connection with verbose output for debugging
         echo "Testing SSH connection..."
-        ssh -i ~/.ssh/oracle_key -o ConnectTimeout=10 ubuntu@129.146.49.129 "echo 'SSH connection successful'" || echo "SSH test failed, but continuing deployment"
+        ssh -i ~/.ssh/oracle_key -o ConnectTimeout=10 -o StrictHostKeyChecking=no ubuntu@129.146.49.129 "echo 'SSH connection successful'" 2>&1 || {
+          echo "SSH test failed, but continuing deployment"
+          echo "To fix SSH access:"
+          echo "1. Extract public key from your private key:"
+          echo "   ssh-keygen -y -f ssh-key-2025-06-06.key > ssh-key-2025-06-06.key.pub"
+          echo "2. Add the public key to your Oracle instance:"
+          echo "   cat ssh-key-2025-06-06.key.pub >> ~/.ssh/authorized_keys"
+        }
 
     - name: Stop existing containers and repair failed migration
       run: |

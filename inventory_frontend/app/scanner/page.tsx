@@ -663,7 +663,8 @@ export default function BarcodeScanner() {
           });
           console.log('✅ ZXing camera initialization successful');
         } catch (zxingError) {
-          console.log('❌ ZXing camera failed, trying manual approach:', zxingError.message);
+          const errorMessage = zxingError instanceof Error ? zxingError.message : String(zxingError);
+          console.log('❌ ZXing camera failed, trying manual approach:', errorMessage);
           
           // Manual approach: get stream manually and connect to video element
           let stream;
@@ -693,10 +694,11 @@ export default function BarcodeScanner() {
               
               console.log('✅ Got camera stream with constraints:', constraints);
               break;
-            } catch (constraintError) {
-              console.log('Failed with constraints:', constraints, constraintError.message);
-              continue;
-            }
+                         } catch (constraintError) {
+               const constraintErrorMessage = constraintError instanceof Error ? constraintError.message : String(constraintError);
+               console.log('Failed with constraints:', constraints, constraintErrorMessage);
+               continue;
+             }
           }
           
           if (!stream) {
@@ -745,7 +747,8 @@ export default function BarcodeScanner() {
         }
       } catch (scanError) {
         console.error('❌ All scanning methods failed:', scanError);
-        setCameraError(`Failed to initialize camera: ${scanError.message}. Try refreshing the page or check camera permissions.`);
+        const scanErrorMessage = scanError instanceof Error ? scanError.message : String(scanError);
+        setCameraError(`Failed to initialize camera: ${scanErrorMessage}. Try refreshing the page or check camera permissions.`);
         setIsScanning(false);
       }
 
