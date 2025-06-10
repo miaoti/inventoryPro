@@ -523,7 +523,6 @@ export default function ItemsPage() {
         setBulkDeleteLoading(true);
         // Use bulk delete API
         const response = await itemsAPI.bulkDelete(selectedItems);
-        console.log('Bulk delete response:', response.data);
         
         setSelectedItems([]);
         fetchItems();
@@ -601,20 +600,6 @@ export default function ItemsPage() {
       setImportLoading(true);
       setImportResult(null); // Clear previous results
       const response = await itemsAPI.importCSV(importFile);
-      
-      console.log('=== IMPORT RESPONSE DEBUG ===');
-      console.log('Full response:', response);
-      console.log('Response data:', response.data);
-      console.log('Response data type:', typeof response.data);
-      console.log('Response data keys:', Object.keys(response.data || {}));
-      console.log('Created count:', response.data?.created);
-      console.log('Skipped count:', response.data?.skippedDuplicates);
-      console.log('Total processed:', response.data?.totalProcessed);
-      console.log('Errors count:', response.data?.errors);
-      console.log('Items array:', response.data?.items);
-      console.log('Items array length:', response.data?.items?.length);
-      console.log('=== END IMPORT RESPONSE DEBUG ===');
-      
       setImportResult(response.data);
       fetchItems(); // Refresh items after import
     } catch (error: any) {

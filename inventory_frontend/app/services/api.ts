@@ -101,7 +101,7 @@ api.interceptors.response.use(
       return Promise.reject(new Error('You have been logged out because your account was accessed from another location.'));
     }
 
-    return response.data; // Return only the data portion
+    return response; // Return the full response object so components can access response.data
   },
   (error) => {
     // Handle concurrent session detection
