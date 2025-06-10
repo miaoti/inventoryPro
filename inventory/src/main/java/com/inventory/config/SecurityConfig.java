@@ -47,7 +47,9 @@ public class SecurityConfig {
                     new AntPathRequestMatcher("/alerts/**"),
                     new AntPathRequestMatcher("/usage/**"),
                     new AntPathRequestMatcher("/public/**"),
-                    new AntPathRequestMatcher("/actuator/health")
+                    new AntPathRequestMatcher("/actuator/health"),
+                    new AntPathRequestMatcher("/health"),
+                    new AntPathRequestMatcher("/api/health")
                 ).permitAll()
                 .requestMatchers(
                     new AntPathRequestMatcher("/user/**"),
