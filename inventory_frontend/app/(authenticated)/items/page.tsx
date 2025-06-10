@@ -1749,14 +1749,31 @@ export default function ItemsPage() {
                 {/* Success Rate Progress */}
                 {importResult.totalProcessed > 0 && (
                   <Box sx={{ mb: 2 }}>
-                    <Typography variant="body2" gutterBottom>
-                      Success Rate: {Math.round((importResult.created / importResult.totalProcessed) * 100)}%
-                    </Typography>
-                    <LinearProgress 
-                      variant="determinate" 
-                      value={(importResult.created / importResult.totalProcessed) * 100}
-                      sx={{ height: 8, borderRadius: 4 }}
-                    />
+                    {(() => {
+                      const created = Number(importResult.created) || 0;
+                      const totalProcessed = Number(importResult.totalProcessed) || 1; // Avoid division by zero
+                      const successRate = Math.round((created / totalProcessed) * 100);
+                      
+                      console.log('Success Rate Calculation:', {
+                        created,
+                        totalProcessed,
+                        successRate,
+                        importResult
+                      });
+                      
+                      return (
+                        <>
+                          <Typography variant="body2" gutterBottom>
+                            Success Rate: {successRate}%
+                          </Typography>
+                          <LinearProgress 
+                            variant="determinate" 
+                            value={successRate}
+                            sx={{ height: 8, borderRadius: 4 }}
+                          />
+                        </>
+                      );
+                    })()}
                   </Box>
                 )}
 

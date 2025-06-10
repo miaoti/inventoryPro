@@ -548,23 +548,23 @@ export const statsAPI = {
 
 // User Management API (Owner only)
 export const userManagementAPI = {
-  getAll: (): Promise<import('../types/user').User[]> => {
+  getAll: (): Promise<any> => {
     return api.get('/admin/users');
   },
 
-  getById: (id: number): Promise<import('../types/user').User> => {
+  getById: (id: number): Promise<any> => {
     return api.get(`/admin/users/${id}`);
   },
 
-  create: (data: import('../types/user').CreateUserRequest): Promise<{ message: string; user: import('../types/user').User }> => {
+  create: (data: import('../types/user').CreateUserRequest): Promise<any> => {
     return api.post('/admin/users', data);
   },
 
-  update: (id: number, data: import('../types/user').UserUpdateRequest): Promise<import('../types/user').User> => {
+  update: (id: number, data: import('../types/user').UserUpdateRequest): Promise<any> => {
     return api.put(`/admin/users/${id}`, data);
   },
 
-  updateUsername: (id: number, data: import('../types/user').UpdateUsernameRequest): Promise<{ message: string; user: import('../types/user').User }> => {
+  updateUsername: (id: number, data: import('../types/user').UpdateUsernameRequest): Promise<any> => {
     return api.put(`/admin/users/${id}/username`, data);
   },
 
@@ -575,30 +575,30 @@ export const userManagementAPI = {
 
 // Profile API (for current user)
 export const profileAPI = {
-  get: (): Promise<import('../types/user').User> => {
+  get: (): Promise<any> => {
     return api.get('/profile');
   },
 
-  update: (data: import('../types/user').ProfileUpdateRequest): Promise<{ message: string; user: import('../types/user').User }> => {
+  update: (data: import('../types/user').ProfileUpdateRequest): Promise<any> => {
     return api.put('/profile', data);
   }
 };
 
 // Purchase Order Statistics API (Owner only)
 export const purchaseOrderStatsAPI = {
-  getAll: (): Promise<import('../types/purchaseOrder').PurchaseOrder[]> => {
+  getAll: (): Promise<any> => {
     return api.get('/admin/purchase-orders/stats');
   },
 
-  getByItem: (itemId: number): Promise<import('../types/purchaseOrder').PurchaseOrder[]> => {
+  getByItem: (itemId: number): Promise<any> => {
     return api.get(`/admin/purchase-orders/stats/item/${itemId}`);
   },
 
-  getPending: (): Promise<import('../types/purchaseOrder').PurchaseOrder[]> => {
+  getPending: (): Promise<any> => {
     return api.get('/admin/purchase-orders/stats/pending');
   },
 
-  getArrived: (): Promise<import('../types/purchaseOrder').PurchaseOrder[]> => {
+  getArrived: (): Promise<any> => {
     return api.get('/admin/purchase-orders/stats/arrived');
   }
 };

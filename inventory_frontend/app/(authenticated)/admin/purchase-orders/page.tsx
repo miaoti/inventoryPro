@@ -116,15 +116,20 @@ export default function PurchaseOrderStatsPage() {
   const fetchPOData = async () => {
     try {
       setLoading(true);
-      const [all, pending, arrived] = await Promise.all([
+      const [allResponse, pendingResponse, arrivedResponse]: any[] = await Promise.all([
         purchaseOrderStatsAPI.getAll(),
         purchaseOrderStatsAPI.getPending(),
         purchaseOrderStatsAPI.getArrived(),
       ]);
       
-      console.log('API Response - All POs:', all);
-      console.log('API Response - Pending POs:', pending);
-      console.log('API Response - Arrived POs:', arrived);
+      console.log('API Response - All POs:', allResponse);
+      console.log('API Response - Pending POs:', pendingResponse);
+      console.log('API Response - Arrived POs:', arrivedResponse);
+      
+      // Extract data from response objects
+      const all = allResponse.data || allResponse;
+      const pending = pendingResponse.data || pendingResponse;
+      const arrived = arrivedResponse.data || arrivedResponse;
       
       // Ensure we always set arrays, even if API returns undefined or null
       const safeAllPOs = Array.isArray(all) ? all : [];
