@@ -93,11 +93,9 @@ app:
 logging:
   level:
     root: INFO
-    com.inventory: DEBUG
+    com.inventory: INFO
     org.springframework.security: WARN
-    org.springframework.mail: DEBUG
-    org.springframework.mail.javamail: DEBUG
-    jakarta.mail: DEBUG
+    org.springframework.mail: WARN
     org.hibernate.SQL: WARN
     org.hibernate.type.descriptor.sql.BasicBinder: WARN
   pattern:

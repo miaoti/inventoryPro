@@ -51,7 +51,7 @@ import {
   ArrowBack as ArrowBackIcon,
 } from '@mui/icons-material';
 import { BrowserMultiFormatReader, BarcodeFormat, DecodeHintType } from '@zxing/library';
-import { barcodeAPI, itemsAPI, purchaseOrderAPI, debugAPI } from '../services/api';
+import { barcodeAPI, itemsAPI, purchaseOrderAPI } from '../services/api';
 import { PurchaseOrder } from '../types/purchaseOrder';
 import Layout from '../components/Layout';
 // import { TrackingDisplay } from '../../../components/TrackingDisplay';
@@ -195,23 +195,6 @@ export default function BarcodeScanner() {
       if (previousPermission === 'true') {
         console.log('Camera permission was previously granted');
       }
-    }
-
-    // Debug email configuration when scanner loads
-    if (user && isAuthenticated) {
-      debugAPI.getEmailConfig()
-        .then((config: any) => {
-          console.log('=== EMAIL CONFIGURATION DEBUG ===');
-          console.log('Mail Username:', config.mailUsername);
-          console.log('Mail Password Configured:', config.mailPasswordConfigured);
-          console.log('Fallback Email:', config.fallbackEmail);
-          console.log('Users with Email Alerts:', config.usersWithEmailAlertsCount);
-          console.log('User Details:', config.usersWithEmailAlerts);
-          console.log('================================');
-        })
-        .catch((error: any) => {
-          console.error('Failed to get email config:', error);
-        });
     }
 
     return () => {
@@ -962,16 +945,6 @@ export default function BarcodeScanner() {
 
       const response = await barcodeAPI.recordUsage(usageData);
       
-      console.log('=== EMAIL NOTIFICATION DEBUG ===');
-      console.log('Item before usage:', scannedItem.name);
-      console.log('Current inventory before usage:', scannedItem.currentInventory);
-      console.log('Safety stock threshold:', scannedItem.safetyStockThreshold);
-      console.log('Quantity being used:', quantityToUse);
-      const newInventoryLevel = (scannedItem.currentInventory || 0) - quantityToUse;
-      console.log('Expected new inventory level:', newInventoryLevel);
-      console.log('Should trigger email alert?', newInventoryLevel <= (scannedItem.safetyStockThreshold || 0) && (scannedItem.safetyStockThreshold || 0) > 0);
-      console.log('=================================');
-      
       setSuccess(`Successfully recorded usage: ${quantityToUse} units used by ${userName} (${department} - ${dNumber})`);
       
       // Reset form but keep dialog open to show updated quantities
@@ -985,12 +958,6 @@ export default function BarcodeScanner() {
       try {
         const refreshResponse = await barcodeAPI.scanBarcode(originalScannedCode);
         const refreshData = (refreshResponse as any)?.data || refreshResponse;
-        console.log('=== POST-USAGE ITEM DATA ===');
-        console.log('Updated item data:', refreshData);
-        console.log('New current inventory:', refreshData.currentInventory);
-        console.log('Safety threshold:', refreshData.safetyStockThreshold);
-        console.log('Alert should have been triggered:', refreshData.currentInventory <= (refreshData.safetyStockThreshold || 0));
-        console.log('============================');
         setScannedItem(refreshData);
       } catch (refreshError) {
         console.error('Error refreshing item data:', refreshError);

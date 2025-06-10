@@ -4,8 +4,6 @@ import com.inventory.entity.Alert;
 import com.inventory.entity.Item;
 import com.inventory.entity.User;
 import com.inventory.repository.AlertRepository;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -17,8 +15,6 @@ import java.util.Optional;
 
 @Service
 public class AlertService {
-
-    private static final Logger logger = LoggerFactory.getLogger(AlertService.class);
 
     @Autowired
     private AlertRepository alertRepository;
@@ -229,34 +225,23 @@ public class AlertService {
 
     private void sendNotificationToUsers(Alert alert) {
         try {
-            logger.info("=== EMAIL NOTIFICATION DEBUG START ===");
-            logger.info("Alert ID: {}", alert.getId());
-            logger.info("Alert Type: {}", alert.getAlertType());
-            logger.info("Item: {} ({})", alert.getItem().getName(), alert.getItem().getCode());
-            logger.info("Current Inventory: {}", alert.getCurrentInventory());
-            logger.info("Safety Threshold: {}", alert.getSafetyStockThreshold());
-            
             // Get all users who have email alerts enabled
             List<User> users = userService.findUsersWithEmailAlertsEnabled();
-            logger.info("Found {} users with email alerts enabled", users.size());
             
             if (users.isEmpty()) {
                 // Fallback to global notification email if no users have alerts enabled
-                logger.info("No users with alerts enabled, using fallback email: {}", fallbackNotificationEmail);
                 emailService.sendAlertNotification(alert, fallbackNotificationEmail);
-                logger.info("✅ ALERT EMAIL SENT (fallback): {}", alert.getMessage());
+                System.out.println("ALERT EMAIL SENT (fallback): " + alert.getMessage());
             } else {
                 // Send alert to each user who wants email notifications
                 for (User user : users) {
                     String alertEmail = user.getEffectiveAlertEmail();
-                    logger.info("Sending alert to user: {} ({}), email: {}", user.getUsername(), user.getFullName(), alertEmail);
                     emailService.sendAlertNotification(alert, alertEmail);
-                    logger.info("✅ ALERT EMAIL SENT to {} ({}): {}", alertEmail, user.getUsername(), alert.getMessage());
+                    System.out.println("ALERT EMAIL SENT to " + alertEmail + ": " + alert.getMessage());
                 }
             }
-            logger.info("=== EMAIL NOTIFICATION DEBUG END ===");
         } catch (Exception e) {
-            logger.error("❌ Failed to send alert notification: {} - {}", e.getMessage(), e.toString(), e);
+            System.err.println("Failed to send alert notification: " + e.getMessage());
             // Continue operation even if email fails
         }
     }

@@ -25,26 +25,12 @@ public class EmailServiceImpl implements EmailService {
     @Value("${spring.mail.username}")
     private String fromEmail;
     
-    @Value("${spring.mail.host:smtp.gmail.com}")
-    private String mailHost;
-    
-    @Value("${spring.mail.port:587}")
-    private String mailPort;
-    
     private static final String COMPANY_NAME = "Smart Inventory Pro";
     private static final String SUPPORT_EMAIL = "miaotingshuo@gmail.com";
     
     @Override
     public void sendAlertNotification(Alert alert, String recipientEmail) {
         try {
-            logger.info("=== EMAIL DEBUG: Alert Notification ===");
-            logger.info("From Email: {}", fromEmail);
-            logger.info("To Email: {}", recipientEmail);
-            logger.info("Mail Host: {}", mailHost);
-            logger.info("Mail Port: {}", mailPort);
-            logger.info("Alert Type: {}", alert.getAlertType());
-            logger.info("Item: {} ({})", alert.getItem().getName(), alert.getItem().getCode());
-            
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
             
@@ -60,12 +46,11 @@ public class EmailServiceImpl implements EmailService {
             helper.setSubject(subject);
             helper.setText(buildAlertEmailTemplate(alert), true);
             
-            logger.info("Sending email with subject: {}", subject);
             mailSender.send(message);
-            logger.info("✅ Alert notification email sent successfully to: {}", recipientEmail);
+            logger.info("Alert notification email sent successfully to: {}", recipientEmail);
             
         } catch (Exception e) {
-            logger.error("❌ Failed to send alert notification email to: {} - Error: {}", recipientEmail, e.getMessage(), e);
+            logger.error("Failed to send alert notification email to: {}", recipientEmail, e);
         }
     }
     
