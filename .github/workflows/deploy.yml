@@ -38,7 +38,7 @@ jobs:
       run: |
         echo "Setting up SSH access for post-deployment debugging..."
         mkdir -p ~/.ssh
-        echo "${{ secrets.ORACLE_SSH_PRIVATE_KEY }}" > ~/.ssh/oracle_key
+        echo "${{ secrets.ORACLE_SSH_KEY }}" > ~/.ssh/oracle_key
         chmod 600 ~/.ssh/oracle_key
         echo "SSH key configured for oracle_key"
         
