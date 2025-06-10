@@ -93,7 +93,7 @@ npm start
 The frontend application will be available at:
 - URL: http://localhost:3000
 
-## Development:
+## Development
 
 ### Backend Development
 
