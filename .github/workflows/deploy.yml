@@ -34,6 +34,21 @@ jobs:
         NEXT_PUBLIC_API_URL=/api
         EOF
 
+    - name: Set up SSH access for debugging
+      run: |
+        echo "Setting up SSH access for post-deployment debugging..."
+        mkdir -p ~/.ssh
+        echo "${{ secrets.ORACLE_SSH_PRIVATE_KEY }}" > ~/.ssh/oracle_key
+        chmod 600 ~/.ssh/oracle_key
+        echo "SSH key configured for oracle_key"
+        
+        # Add Oracle instance to known hosts
+        ssh-keyscan -H 129.146.49.129 >> ~/.ssh/known_hosts
+        
+        # Test SSH connection (this will help verify the key works)
+        echo "Testing SSH connection..."
+        ssh -i ~/.ssh/oracle_key -o ConnectTimeout=10 ubuntu@129.146.49.129 "echo 'SSH connection successful'" || echo "SSH test failed, but continuing deployment"
+
     - name: Stop existing containers and repair failed migration
       run: |
         echo "Stopping existing containers..."

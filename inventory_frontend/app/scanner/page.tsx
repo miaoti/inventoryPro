@@ -49,6 +49,7 @@ import {
   ExpandLess as ExpandLessIcon,
   Edit as EditIcon,
   ArrowBack as ArrowBackIcon,
+  CameraAlt as CameraAltIcon,
 } from '@mui/icons-material';
 import { BrowserMultiFormatReader, BarcodeFormat, DecodeHintType } from '@zxing/library';
 import { barcodeAPI, itemsAPI, purchaseOrderAPI } from '../services/api';
@@ -149,6 +150,10 @@ export default function BarcodeScanner() {
   
   const codeReaderRef = useRef<BrowserMultiFormatReader | null>(null);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Add HTML5 file input fallback for HTTP camera access
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [useFileInput, setUseFileInput] = useState(false);
 
   useEffect(() => {
     // Only use Redux store to determine admin status - no fallbacks for security
@@ -454,7 +459,12 @@ export default function BarcodeScanner() {
             protocol,
             hostname
           });
-          throw new Error(`Camera API is not supported. Details: Secure context: ${isSecureContext}, Protocol: ${protocol}, Browser: ${navigator.userAgent.split(' ').pop()}`);
+          
+          // Fallback to HTML5 file input for HTTP camera access
+          console.log('📱 Falling back to HTML5 file input camera access...');
+          setUseFileInput(true);
+          setCameraError('Direct camera access not available. Using file input method for camera access.');
+          return;
         }
       } else {
         console.log('✅ Modern camera API available');
@@ -682,6 +692,69 @@ export default function BarcodeScanner() {
     }
 
     setTorchEnabled(false);
+  };
+
+  // HTML5 file input handler for HTTP camera access
+  const handleFileInputChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) {
+      return;
+    }
+
+    const file = files[0];
+    if (!file.type.startsWith('image/')) {
+      setCameraError('Please select an image file.');
+      return;
+    }
+
+    try {
+      setError('');
+      setCameraError('');
+      
+      // Create a code reader for file scanning
+      const codeReader = new BrowserMultiFormatReader();
+      
+      // Set up hints for better barcode detection
+      const hints = new Map();
+      hints.set(DecodeHintType.POSSIBLE_FORMATS, [
+        BarcodeFormat.CODE_128,
+        BarcodeFormat.CODE_39,
+        BarcodeFormat.EAN_13,
+        BarcodeFormat.EAN_8,
+        BarcodeFormat.UPC_A,
+        BarcodeFormat.UPC_E,
+        BarcodeFormat.QR_CODE,
+      ]);
+      codeReader.hints = hints;
+
+      // Read the file and decode
+      const result = await codeReader.decodeFromFile(file);
+      
+      if (result) {
+        console.log('Barcode detected from file:', result.getText());
+        handleBarcodeScanned(result.getText());
+        
+        // Clear the file input so the same file can be selected again
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+      }
+    } catch (err) {
+      console.error('File scan error:', err);
+      setCameraError('Could not read barcode from image. Please try another image or ensure the barcode is clearly visible.');
+      
+      // Clear the file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  // Trigger file input for camera capture
+  const triggerFileInput = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
   };
 
   const handleBarcodeScanned = async (barcode: string) => {
@@ -1387,6 +1460,23 @@ export default function BarcodeScanner() {
       {cameraError && (
         <Alert severity="warning" sx={{ mb: 2 }} onClose={() => setCameraError('')}>
           {cameraError}
+          {useFileInput && (
+            <Box sx={{ mt: 2 }}>
+              <Button
+                onClick={triggerFileInput}
+                variant="contained"
+                startIcon={<CameraAltIcon />}
+                sx={{
+                  backgroundColor: '#007bff',
+                  '&:hover': {
+                    backgroundColor: '#0056b3',
+                  }
+                }}
+              >
+                📸 Take Photo / Select Image
+              </Button>
+            </Box>
+          )}
         </Alert>
       )}
 
@@ -2480,9 +2570,35 @@ export default function BarcodeScanner() {
 
   // Conditionally wrap with Layout if user is authenticated
   if (isAuthenticated) {
-    return <Layout>{scannerContent}</Layout>;
+    return (
+      <Layout>
+        {scannerContent}
+        {/* Hidden file input for HTTP camera access */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          style={{ display: 'none' }}
+          onChange={handleFileInputChange}
+        />
+      </Layout>
+    );
   }
 
   // Return content without layout for non-authenticated users
-  return scannerContent;
+  return (
+    <>
+      {scannerContent}
+      {/* Hidden file input for HTTP camera access */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        style={{ display: 'none' }}
+        onChange={handleFileInputChange}
+      />
+    </>
+  );
 } 
