@@ -35,7 +35,7 @@ jobs:
       uses: appleboy/ssh-action@master
       with:
         host: ${{ env.GCP_INSTANCE_IP }}
-        username: ${{ github.event.inputs.gcp_ssh_user || 'ubuntu' }}
+        username: ${{ github.event.inputs.gcp_ssh_user || 'gcp-github-actions-no-pass' }}
         key: ${{ github.event.inputs.gcp_ssh_private_key || secrets.GCP_SSH_PRIVATE_KEY }}
         script: |
           echo "🚀 Starting setup on Debian instance..."
@@ -51,7 +51,7 @@ jobs:
             echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
             sudo apt-get update -y
             sudo apt-get install -y docker-ce docker-ce-cli containerd.io
-            sudo usermod -aG docker ${{ github.event.inputs.gcp_ssh_user || 'ubuntu' }}
+            sudo usermod -aG docker ${{ github.event.inputs.gcp_ssh_user || 'gcp-github-actions-no-pass' }}
             echo "✅ Docker installed."
           else
             echo "✅ Docker is already installed."
@@ -152,7 +152,7 @@ jobs:
         
         # Test SSH connection with verbose output for debugging
         echo "Testing SSH connection..."
-        ssh -i ~/.ssh/oracle_key -o ConnectTimeout=10 -o StrictHostKeyChecking=no ${{ github.event.inputs.gcp_ssh_user || 'ubuntu' }}@${{ env.GCP_INSTANCE_IP }} "echo 'SSH connection successful'" 2>&1 || {
+        ssh -i ~/.ssh/oracle_key -o ConnectTimeout=10 -o StrictHostKeyChecking=no ${{ github.event.inputs.gcp_ssh_user || 'gcp-github-actions-no-pass' }}@${{ env.GCP_INSTANCE_IP }} "echo 'SSH connection successful'" 2>&1 || {
           echo "SSH test failed, but continuing deployment"
           echo "To fix SSH access:"
           echo "1. Extract public key from your private key:"
