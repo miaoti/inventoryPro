@@ -49,7 +49,6 @@ import {
   ExpandLess as ExpandLessIcon,
   Edit as EditIcon,
   ArrowBack as ArrowBackIcon,
-  CameraAlt as CameraAltIcon,
 } from '@mui/icons-material';
 import { BrowserMultiFormatReader, BarcodeFormat, DecodeHintType } from '@zxing/library';
 import { barcodeAPI, itemsAPI, purchaseOrderAPI } from '../services/api';
@@ -151,9 +150,7 @@ export default function BarcodeScanner() {
   const codeReaderRef = useRef<BrowserMultiFormatReader | null>(null);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Add HTML5 file input fallback for HTTP camera access
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const [useFileInput, setUseFileInput] = useState(false);
+  // Remove file input - focus on live camera scanning only
 
   useEffect(() => {
     // Only use Redux store to determine admin status - no fallbacks for security
@@ -460,11 +457,21 @@ export default function BarcodeScanner() {
             hostname
           });
           
-          // Fallback to HTML5 file input for HTTP camera access
-          console.log('📱 Falling back to HTML5 file input camera access...');
-          setUseFileInput(true);
-          setCameraError('Direct camera access not available. Using file input method for camera access.');
-          return;
+          // Force enable camera API for HTTP - create polyfill
+          console.log('🔧 Creating getUserMedia polyfill for HTTP...');
+          const getUserMedia = nav.getUserMedia || nav.webkitGetUserMedia || nav.mozGetUserMedia;
+          if (getUserMedia) {
+            (navigator as any).mediaDevices = {
+              getUserMedia: function(constraints: MediaStreamConstraints) {
+                return new Promise<MediaStream>((resolve, reject) => {
+                  getUserMedia.call(navigator, constraints, resolve, reject);
+                });
+              }
+            };
+            console.log('✅ Polyfill created successfully');
+          } else {
+            throw new Error('No camera API available on this browser/device');
+          }
         }
       } else {
         console.log('✅ Modern camera API available');
@@ -634,21 +641,111 @@ export default function BarcodeScanner() {
       ]);
       codeReader.hints = hints;
 
-      // Start continuous scanning with device-specific constraints
+      // Get video element
+      const videoElement = document.getElementById('video-element') as HTMLVideoElement;
+      if (!videoElement) {
+        throw new Error('Video element not found');
+      }
+
+      // Start continuous scanning
       try {
-        await codeReader.decodeFromVideoDevice(null, 'video-element', (result, error) => {
-          if (result) {
-            console.log('Barcode detected:', result.getText());
-            stopScanning();
-            handleBarcodeScanned(result.getText());
+        // First try using ZXing's built-in camera handling
+        try {
+          await codeReader.decodeFromVideoDevice(null, 'video-element', (result, error) => {
+            if (result) {
+              console.log('✅ Barcode detected:', result.getText());
+              stopScanning();
+              handleBarcodeScanned(result.getText());
+            }
+            if (error && !(error.name === 'NotFoundException')) {
+              console.debug('Scan attempt error:', error.message);
+            }
+          });
+          console.log('✅ ZXing camera initialization successful');
+        } catch (zxingError) {
+          console.log('❌ ZXing camera failed, trying manual approach:', zxingError.message);
+          
+          // Manual approach: get stream manually and connect to video element
+          let stream;
+          
+          // Try different constraint combinations
+          const constraintOptions = [
+            { video: { facingMode: 'environment' } },
+            { video: { facingMode: 'user' } },
+            { video: true }
+          ];
+          
+          for (const constraints of constraintOptions) {
+            try {
+              console.log('Trying constraints:', constraints);
+              
+              if (navigator.mediaDevices?.getUserMedia) {
+                stream = await navigator.mediaDevices.getUserMedia(constraints);
+              } else {
+                // Use polyfilled mediaDevices
+                const polyfillMediaDevices = (navigator as any).mediaDevices;
+                if (polyfillMediaDevices?.getUserMedia) {
+                  stream = await polyfillMediaDevices.getUserMedia(constraints);
+                } else {
+                  throw new Error('No getUserMedia available');
+                }
+              }
+              
+              console.log('✅ Got camera stream with constraints:', constraints);
+              break;
+            } catch (constraintError) {
+              console.log('Failed with constraints:', constraints, constraintError.message);
+              continue;
+            }
           }
-          if (error && !(error.name === 'NotFoundException')) {
-            console.error('Scan error:', error);
+          
+          if (!stream) {
+            throw new Error('Could not get camera stream with any constraints');
           }
-        });
+          
+          // Set up video element manually
+          videoElement.srcObject = stream;
+          videoElement.style.display = 'block';
+          
+          // Wait for video to load and start playing
+          await new Promise<void>((resolve, reject) => {
+            const timeout = setTimeout(() => reject(new Error('Video load timeout')), 5000);
+            
+            videoElement.onloadedmetadata = async () => {
+              try {
+                await videoElement.play();
+                console.log('✅ Video is playing');
+                clearTimeout(timeout);
+                resolve();
+              } catch (playError) {
+                clearTimeout(timeout);
+                reject(playError);
+              }
+            };
+            
+            videoElement.onerror = () => {
+              clearTimeout(timeout);
+              reject(new Error('Video load error'));
+            };
+          });
+          
+          // Now decode from the video element
+          await codeReader.decodeFromVideoElement(videoElement, (result, error) => {
+            if (result) {
+              console.log('✅ Barcode detected via manual setup:', result.getText());
+              stopScanning();
+              handleBarcodeScanned(result.getText());
+            }
+            if (error && !(error.name === 'NotFoundException')) {
+              console.debug('Manual scan attempt error:', error.message);
+            }
+          });
+          
+          console.log('✅ Manual camera setup successful');
+        }
       } catch (scanError) {
-        console.error('Scanner initialization error:', scanError);
-        setCameraError('Failed to initialize camera scanner. Please try again.');
+        console.error('❌ All scanning methods failed:', scanError);
+        setCameraError(`Failed to initialize camera: ${scanError.message}. Try refreshing the page or check camera permissions.`);
         setIsScanning(false);
       }
 
@@ -694,104 +791,7 @@ export default function BarcodeScanner() {
     setTorchEnabled(false);
   };
 
-  // HTML5 file input handler for HTTP camera access
-  const handleFileInputChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files;
-    if (!files || files.length === 0) {
-      return;
-    }
-
-    const file = files[0];
-    if (!file.type.startsWith('image/')) {
-      setCameraError('Please select an image file.');
-      return;
-    }
-
-    try {
-      setError('');
-      setCameraError('');
-      
-      // Create a code reader for file scanning
-      const codeReader = new BrowserMultiFormatReader();
-      
-      // Set up hints for better barcode detection
-      const hints = new Map();
-      hints.set(DecodeHintType.POSSIBLE_FORMATS, [
-        BarcodeFormat.CODE_128,
-        BarcodeFormat.CODE_39,
-        BarcodeFormat.EAN_13,
-        BarcodeFormat.EAN_8,
-        BarcodeFormat.UPC_A,
-        BarcodeFormat.UPC_E,
-        BarcodeFormat.QR_CODE,
-      ]);
-      codeReader.hints = hints;
-
-      // Create an image element and load the file
-      const img = new Image();
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      
-      await new Promise((resolve, reject) => {
-        img.onload = () => {
-          try {
-            // Set canvas size to match image
-            canvas.width = img.width;
-            canvas.height = img.height;
-            
-            // Draw image to canvas
-            ctx?.drawImage(img, 0, 0);
-            
-            // Decode from the image element
-            codeReader.decodeFromImageElement(img)
-              .then((result) => {
-                console.log('Barcode detected from file:', result.getText());
-                handleBarcodeScanned(result.getText());
-                
-                // Clear the file input so the same file can be selected again
-                if (fileInputRef.current) {
-                  fileInputRef.current.value = '';
-                }
-                resolve(result);
-              })
-              .catch((decodeError) => {
-                console.error('Decode error:', decodeError);
-                reject(decodeError);
-              });
-          } catch (error) {
-            reject(error);
-          }
-        };
-        
-        img.onerror = () => {
-          reject(new Error('Failed to load image'));
-        };
-        
-        // Load the file as data URL
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          img.src = e.target?.result as string;
-        };
-        reader.readAsDataURL(file);
-      });
-      
-    } catch (err) {
-      console.error('File scan error:', err);
-      setCameraError('Could not read barcode from image. Please try another image or ensure the barcode is clearly visible.');
-      
-      // Clear the file input
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
-    }
-  };
-
-  // Trigger file input for camera capture
-  const triggerFileInput = () => {
-    if (fileInputRef.current) {
-      fileInputRef.current.click();
-    }
-  };
+  // File input removed - focusing on live camera scanning only
 
   const handleBarcodeScanned = async (barcode: string) => {
     try {
@@ -1496,23 +1496,6 @@ export default function BarcodeScanner() {
       {cameraError && (
         <Alert severity="warning" sx={{ mb: 2 }} onClose={() => setCameraError('')}>
           {cameraError}
-          {useFileInput && (
-            <Box sx={{ mt: 2 }}>
-              <Button
-                onClick={triggerFileInput}
-                variant="contained"
-                startIcon={<CameraAltIcon />}
-                sx={{
-                  backgroundColor: '#007bff',
-                  '&:hover': {
-                    backgroundColor: '#0056b3',
-                  }
-                }}
-              >
-                📸 Take Photo / Select Image
-              </Button>
-            </Box>
-          )}
         </Alert>
       )}
 
@@ -2606,35 +2589,9 @@ export default function BarcodeScanner() {
 
   // Conditionally wrap with Layout if user is authenticated
   if (isAuthenticated) {
-    return (
-      <Layout>
-        {scannerContent}
-        {/* Hidden file input for HTTP camera access */}
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          capture="environment"
-          style={{ display: 'none' }}
-          onChange={handleFileInputChange}
-        />
-      </Layout>
-    );
+    return <Layout>{scannerContent}</Layout>;
   }
 
   // Return content without layout for non-authenticated users
-  return (
-    <>
-      {scannerContent}
-      {/* Hidden file input for HTTP camera access */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*"
-        capture="environment"
-        style={{ display: 'none' }}
-        onChange={handleFileInputChange}
-      />
-    </>
-  );
+  return scannerContent;
 } 
