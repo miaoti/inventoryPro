@@ -36,7 +36,8 @@ public class AuthController {
 
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody LoginRequest loginRequest) {
-        logger.info("Login attempt for username: {}", loginRequest.getUsername());
+        logger.info("Login attempt for username: {} with sessionId: {}", 
+            loginRequest.getUsername(), loginRequest.getSessionId());
         
         User user = userService.findByUsername(loginRequest.getUsername());
         
