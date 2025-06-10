@@ -296,11 +296,12 @@ export default function ItemsPage() {
   const fetchItems = async () => {
     try {
       setLoading(true);
-      const responseData = await itemsAPI.getAll();
+      const response: any = await itemsAPI.getAll();
+      const responseData = response.data || response; // Handle both response structures
       
-      // Ensure we have valid data - since the API interceptor returns response.data directly
+      // Ensure we have valid data
       if (!responseData || !Array.isArray(responseData)) {
-        console.error('Invalid response format:', responseData);
+        console.error('Invalid response format:', response);
         setItems([]);
         setFilteredItems([]);
         setSelectedItems([]);
