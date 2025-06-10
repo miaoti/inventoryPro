@@ -640,6 +640,15 @@ export default function BarcodeScanner() {
 
       setIsScanning(true);
 
+      // Wait for video element to be rendered in DOM and accessible
+      await new Promise(resolve => setTimeout(resolve, 200));
+      
+      // Ensure video element exists before proceeding
+      const videoCheck = document.getElementById('video-element');
+      if (!videoCheck) {
+        throw new Error('Video element not found in DOM. Please try again.');
+      }
+
       // Initialize the code reader with proper settings
       const codeReader = new BrowserMultiFormatReader();
       codeReaderRef.current = codeReader;
@@ -2189,7 +2198,7 @@ export default function BarcodeScanner() {
                     variant={editTabValue === 0 ? "contained" : "text"}
                     onClick={() => setEditTabValue(0)}
                     sx={{ 
-                      flex: 1,
+                      flex: pendingPOs.length === 0 ? 1 : 0.6,
                       py: 2,
                       borderRadius: 2,
                       fontWeight: 600,
@@ -2204,25 +2213,49 @@ export default function BarcodeScanner() {
                   >
                     📝 Edit Inventory
                   </Button>
-                  <Button
-                    variant={editTabValue === 1 ? "contained" : "text"}
-                    onClick={() => setEditTabValue(1)}
-                    sx={{ 
-                      flex: 1,
-                      py: 2,
-                      borderRadius: 2,
-                      fontWeight: 600,
-                      fontSize: '1rem',
-                      textTransform: 'none',
-                      ...(editTabValue === 1 && {
-                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                        color: 'white',
-                        boxShadow: '0 4px 15px rgba(102,126,234,0.4)'
-                      })
-                    }}
-                  >
-                    🛒 Purchase Orders {pendingPOs.length > 0 && `(${pendingPOs.length})`}
-                  </Button>
+                  {(pendingPOs.length > 0 || editTabValue === 1) && (
+                    <Button
+                      variant={editTabValue === 1 ? "contained" : "text"}
+                      onClick={() => setEditTabValue(1)}
+                      sx={{ 
+                        flex: 1,
+                        py: 2,
+                        borderRadius: 2,
+                        fontWeight: 600,
+                        fontSize: '1rem',
+                        textTransform: 'none',
+                        ...(editTabValue === 1 && {
+                          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                          color: 'white',
+                          boxShadow: '0 4px 15px rgba(102,126,234,0.4)'
+                        })
+                      }}
+                    >
+                      🛒 Purchase Orders {pendingPOs.length > 0 && `(${pendingPOs.length})`}
+                    </Button>
+                  )}
+                  {pendingPOs.length === 0 && editTabValue !== 1 && (
+                    <Button
+                      variant="outlined"
+                      onClick={() => setEditTabValue(1)}
+                      sx={{ 
+                        flex: 0.4,
+                        py: 2,
+                        borderRadius: 2,
+                        fontWeight: 600,
+                        fontSize: '0.9rem',
+                        textTransform: 'none',
+                        borderColor: '#667eea',
+                        color: '#667eea',
+                        '&:hover': {
+                          borderColor: '#764ba2',
+                          backgroundColor: 'rgba(102,126,234,0.04)'
+                        }
+                      }}
+                    >
+                      + Create PO
+                    </Button>
+                  )}
                 </Box>
               </Box>
 
