@@ -58,11 +58,12 @@ export default function ProfilePage() {
 
   const fetchProfile = async () => {
     try {
-      const profile = await profileAPI.get();
+      const response: any = await profileAPI.get(); // Use any to handle response wrapper
+      const profileData = response.data || response; // Handle both response.data and direct response
       setProfileForm({
-        username: profile.data.username,
-        email: profile.data.email,
-        fullName: profile.data.name,
+        username: profileData.username,
+        email: profileData.email,
+        fullName: profileData.name,
         currentPassword: '',
         newPassword: '',
       });
@@ -91,7 +92,7 @@ export default function ProfilePage() {
 
     try {
       setLoading(true);
-      const response = await profileAPI.update(updateRequest);
+      const response: any = await profileAPI.update(updateRequest);
       
       // Update Redux store with new user info
       if (user) {
@@ -106,9 +107,10 @@ export default function ProfilePage() {
         }));
       }
 
+      const responseData = response.data || response; // Handle both response structures
       setSnackbar({ 
         open: true, 
-        message: response.data.message, 
+        message: responseData.message || 'Profile updated successfully', 
         severity: 'success' 
       });
       

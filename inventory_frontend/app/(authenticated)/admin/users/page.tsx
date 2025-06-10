@@ -87,7 +87,8 @@ export default function UserManagementPage() {
   const fetchUsers = async () => {
     try {
       setLoading(true);
-      const data = await userManagementAPI.getAll();
+      const response: any = await userManagementAPI.getAll();
+      const data = response.data || response; // Handle both response structures
       console.log('Fetched users data:', data);
       if (Array.isArray(data)) {
         setUsers(data);
@@ -107,8 +108,9 @@ export default function UserManagementPage() {
 
   const handleCreateUser = async () => {
     try {
-      const response = await userManagementAPI.create(createForm);
-      setSnackbar({ open: true, message: response.message, severity: 'success' });
+      const response: any = await userManagementAPI.create(createForm);
+      const responseData = response.data || response; // Handle both response structures
+      setSnackbar({ open: true, message: responseData.message || 'User created successfully', severity: 'success' });
       setCreateDialogOpen(false);
       setCreateForm({
         username: '',
@@ -164,8 +166,9 @@ export default function UserManagementPage() {
     if (!selectedUser) return;
 
     try {
-      const response = await userManagementAPI.updateUsername(selectedUser.id, usernameForm);
-      setSnackbar({ open: true, message: response.message, severity: 'success' });
+      const response: any = await userManagementAPI.updateUsername(selectedUser.id, usernameForm);
+      const responseData = response.data || response; // Handle both response structures
+      setSnackbar({ open: true, message: responseData.message || 'Username updated successfully', severity: 'success' });
       setUsernameDialogOpen(false);
       fetchUsers();
     } catch (error: any) {
