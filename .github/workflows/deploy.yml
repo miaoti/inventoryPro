@@ -127,7 +127,7 @@ jobs:
         sleep 20
         
         echo "Repairing failed migrations..."
-        sudo docker-compose -f docker-compose.prod.yml exec -T mysql mysql -u root -p${{ secrets.MYSQL_ROOT_PASSWORD }} -e "
+        sudo docker-compose -f docker-compose.prod.yml exec -T mysql mysql -u root -e "
         USE inventory_db;
         DELETE FROM flyway_schema_history WHERE version = '17' AND success = 0;
         DELETE FROM flyway_schema_history WHERE version = '19' AND success = 0;
@@ -144,7 +144,7 @@ jobs:
         sleep 20
         
         echo "Applying V19 migration to create owner account..."
-        sudo docker-compose -f docker-compose.prod.yml exec -T mysql mysql -u root -p${{ secrets.MYSQL_ROOT_PASSWORD }} -e "
+        sudo docker-compose -f docker-compose.prod.yml exec -T mysql mysql -u root -e "
         USE inventory_db;
         
         -- Create owner user if not exists (V19 migration)
@@ -203,7 +203,7 @@ jobs:
         echo "Checking service health..."
         # Check MySQL
         for i in {1..12}; do
-          if sudo docker-compose -f docker-compose.prod.yml exec -T mysql mysqladmin ping -h localhost -u root -p${{ secrets.MYSQL_ROOT_PASSWORD }} 2>/dev/null; then
+          if sudo docker-compose -f docker-compose.prod.yml exec -T mysql mysqladmin ping -h localhost -u root 2>/dev/null; then
             echo "✅ MySQL is healthy"
             break
           fi
@@ -262,13 +262,13 @@ jobs:
         sudo docker-compose -f docker-compose.prod.yml ps mysql
         
         echo "Checking MySQL container logs (last 20 lines):"
-        sudo docker-compose -f docker-compose.prod.yml logs mysql --tail=20
+        sudo docker-compose -f docker-compose.prod.yml logs --tail=20 mysql
         
         echo "Testing MySQL connection with timeout:"
-        timeout 10s sudo docker-compose -f docker-compose.prod.yml exec -T mysql mysqladmin ping -h localhost -u root -p${{ secrets.MYSQL_ROOT_PASSWORD }} || echo "❌ MySQL ping failed or timed out"
+        timeout 10s sudo docker-compose -f docker-compose.prod.yml exec -T mysql mysqladmin ping -h localhost -u root || echo "❌ MySQL ping failed or timed out"
         
         echo "Checking if database exists:"
-        sudo docker-compose -f docker-compose.prod.yml exec -T mysql mysql -u root -p${{ secrets.MYSQL_ROOT_PASSWORD }} -e "SHOW DATABASES;" 2>/dev/null || echo "❌ Failed to list databases"
+        sudo docker-compose -f docker-compose.prod.yml exec -T mysql mysql -u root -e "SHOW DATABASES;" 2>/dev/null || echo "❌ Failed to list databases"
         
     - name: Final Database State Verification
       run: |
@@ -277,7 +277,7 @@ jobs:
         # Wait for MySQL to be completely ready before verification
         echo "⏳ Ensuring MySQL is fully ready for verification..."
         for i in {1..12}; do
-          if sudo docker-compose -f docker-compose.prod.yml exec -T mysql mysqladmin ping -h localhost -u root -p${{ secrets.MYSQL_ROOT_PASSWORD }} 2>/dev/null; then
+          if sudo docker-compose -f docker-compose.prod.yml exec -T mysql mysqladmin ping -h localhost -u root 2>/dev/null; then
             echo "✅ MySQL is ready for verification"
             break
           fi
@@ -290,11 +290,11 @@ jobs:
         
         # Verify database connection and state
         echo "🔍 Running database verification..."
-        if sudo docker-compose -f docker-compose.prod.yml exec -T mysql mysql -u root -p${{ secrets.MYSQL_ROOT_PASSWORD }} -e "SELECT 1;" 2>/dev/null; then
+        if sudo docker-compose -f docker-compose.prod.yml exec -T mysql mysql -u root -e "SELECT 1;" 2>/dev/null; then
           echo "✅ Database connection successful"
           
           # Run the actual verification queries
-          sudo docker-compose -f docker-compose.prod.yml exec -T mysql mysql -u root -p${{ secrets.MYSQL_ROOT_PASSWORD }} -e "
+          sudo docker-compose -f docker-compose.prod.yml exec -T mysql mysql -u root -e "
           USE inventory_db;
           
           SELECT 'Current Users and Roles:' as ' ';
@@ -310,7 +310,7 @@ jobs:
         else
           echo "❌ Database connection failed - checking container status..."
           sudo docker-compose -f docker-compose.prod.yml ps
-          sudo docker-compose -f docker-compose.prod.yml logs mysql --tail=50
+          sudo docker-compose -f docker-compose.prod.yml logs --tail=50 mysql
           echo "⚠️ Skipping database verification due to connection issues"
         fi
 
