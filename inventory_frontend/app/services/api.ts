@@ -612,28 +612,28 @@ export const debugAPI = {
 
 // Log Viewer API for OWNER users only
 export const logAPI = {
-  getApplicationLogs: (lines: number = 100) => {
+  getApplicationLogs: (lines: number = 100): Promise<any> => {
     if (!ensureAuthenticated()) {
       return Promise.reject(new Error('Authentication required'));
     }
     return api.get(`/owner/logs/application?lines=${lines}`);
   },
   
-  getDockerLogs: (lines: number = 100) => {
+  getDockerLogs: (lines: number = 100): Promise<any> => {
     if (!ensureAuthenticated()) {
       return Promise.reject(new Error('Authentication required'));
     }
     return api.get(`/owner/logs/docker?lines=${lines}`);
   },
   
-  getSystemStatus: () => {
+  getSystemStatus: (): Promise<any> => {
     if (!ensureAuthenticated()) {
       return Promise.reject(new Error('Authentication required'));
     }
     return api.get('/owner/logs/system-status');
   },
   
-  getFilteredLogs: (lines: number = 100, level?: string, search?: string) => {
+  getFilteredLogs: (lines: number = 100, level?: string, search?: string): Promise<any> => {
     if (!ensureAuthenticated()) {
       return Promise.reject(new Error('Authentication required'));
     }
