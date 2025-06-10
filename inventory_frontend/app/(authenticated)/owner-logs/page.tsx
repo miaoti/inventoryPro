@@ -94,7 +94,7 @@ export default function OwnerLogsPage() {
   const loadRecentLogs = async () => {
     try {
       setLoading(true);
-      const response = await ownerLogsAPI.getRecentLogs(lineCount, logLevel);
+      const response: any = await ownerLogsAPI.getRecentLogs(lineCount, logLevel);
       setLogs(response.logs || []);
       setSuccess(`Loaded ${response.totalLines} log entries`);
     } catch (err: any) {
@@ -108,7 +108,7 @@ export default function OwnerLogsPage() {
   const loadEmailLogs = async () => {
     try {
       setLoading(true);
-      const response = await ownerLogsAPI.getEmailLogs(emailLineCount);
+      const response: any = await ownerLogsAPI.getEmailLogs(emailLineCount);
       setEmailLogs(response.logs || []);
       setSuccess(`Loaded ${response.totalLines} email log entries`);
     } catch (err: any) {
@@ -121,7 +121,7 @@ export default function OwnerLogsPage() {
 
   const loadSystemStatus = async () => {
     try {
-      const response = await ownerLogsAPI.getSystemStatus();
+      const response: any = await ownerLogsAPI.getSystemStatus();
       setSystemStatus(response);
     } catch (err: any) {
       console.error('Failed to load system status:', err);
@@ -136,7 +136,7 @@ export default function OwnerLogsPage() {
 
     try {
       setLoading(true);
-      const response = await ownerLogsAPI.searchLogs(searchQuery, 100);
+      const response: any = await ownerLogsAPI.searchLogs(searchQuery, 100);
       setSearchResults(response.logs || []);
       setSuccess(`Found ${response.totalMatches} matching entries`);
     } catch (err: any) {
