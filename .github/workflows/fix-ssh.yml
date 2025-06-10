@@ -1,0 +1,21 @@
+name: Restore SSH Access
+
+on:
+  workflow_dispatch:
+
+jobs:
+  fix-ssh:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Copy authorized_keys to instance
+      run: |
+        echo "${{ secrets.ORACLE_SSH_KEY }}" > key.pem
+        chmod 600 key.pem
+
+        ssh -o StrictHostKeyChecking=no -i key.pem ubuntu@129.146.49.129 << 'EOF'
+          mkdir -p ~/.ssh
+          echo 'ssh-rsa AAAAB3Nz...INSERT-YOUR-PUBLIC-KEY-HERE...' > ~/.ssh/authorized_keys
+          chmod 700 ~/.ssh
+          chmod 600 ~/.ssh/authorized_keys
+        EOF
