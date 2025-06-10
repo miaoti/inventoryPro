@@ -1248,14 +1248,16 @@ export default function ItemsPage() {
           <ListItemText primary="Create Purchase Order" />
         </MenuItem>
 
-        {actionMenuItem && actionMenuItem.pendingPO && actionMenuItem.pendingPO > 0 && (
-          <MenuItem onClick={() => handleMenuAction('managePO')}>
-            <ListItemIcon>
-              <LocalShippingIcon fontSize="small" color="warning" />
-            </ListItemIcon>
-            <ListItemText primary={`Manage POs${` (${actionMenuItem.pendingPO})`}`} />
-          </MenuItem>
-        )}
+        <MenuItem onClick={() => handleMenuAction('managePO')}>
+          <ListItemIcon>
+            <LocalShippingIcon fontSize="small" color={actionMenuItem && actionMenuItem.pendingPO && actionMenuItem.pendingPO > 0 ? "warning" : "action"} />
+          </ListItemIcon>
+          <ListItemText primary={
+            actionMenuItem && actionMenuItem.pendingPO && actionMenuItem.pendingPO > 0 
+              ? `Manage POs (${actionMenuItem.pendingPO})` 
+              : "Manage POs"
+          } />
+        </MenuItem>
         
         <Divider sx={{ my: 0.5 }} />
         
@@ -1873,9 +1875,28 @@ export default function ItemsPage() {
 
               <Typography variant="h6" gutterBottom>Pending Purchase Orders</Typography>
               {!pendingPOs || pendingPOs.length === 0 ? (
-                <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
-                  No pending purchase orders for this item.
-                </Typography>
+                <Card sx={{ mt: 2, textAlign: 'center', py: 4 }}>
+                  <CardContent>
+                    <Box sx={{ 
+                      display: 'flex', 
+                      flexDirection: 'column', 
+                      alignItems: 'center', 
+                      gap: 2,
+                      color: 'text.secondary'
+                    }}>
+                      <LocalShippingIcon sx={{ fontSize: 48, opacity: 0.5 }} />
+                      <Typography variant="h6" color="text.secondary">
+                        No Purchase Orders
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        This item currently has no pending purchase orders.
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Click "Create New PO" below to order more inventory.
+                      </Typography>
+                    </Box>
+                  </CardContent>
+                </Card>
               ) : (
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                   {(pendingPOs || []).map((po) => (
