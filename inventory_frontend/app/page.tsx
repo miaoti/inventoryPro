@@ -338,25 +338,25 @@ export default function LandingPage() {
                     </Button>
                   </>
                 ) : (
-                  <Button
-                    variant="contained"
-                    size="large"
+                <Button
+                  variant="contained"
+                  size="large"
                     onClick={() => router.push('/login')}
-                    sx={{
-                      bgcolor: '#4CAF50',
-                      '&:hover': { bgcolor: '#45a049' },
+                  sx={{
+                    bgcolor: '#4CAF50',
+                    '&:hover': { bgcolor: '#45a049' },
                       px: 6,
                       py: 2,
-                      borderRadius: 3,
-                      textTransform: 'none',
+                    borderRadius: 3,
+                    textTransform: 'none',
                       fontSize: '1.2rem',
-                      fontWeight: 'bold',
+                    fontWeight: 'bold',
                       boxShadow: '0 6px 20px rgba(76, 175, 80, 0.4)'
-                    }}
+                  }}
                     startIcon={<LoginIcon />}
-                  >
+                >
                     Login to Get Started
-                  </Button>
+                </Button>
                 )}
               </Box>
             </Box>
@@ -367,7 +367,7 @@ export default function LandingPage() {
       {/* Contact Form Dialog */}
       <Dialog 
         open={showContactForm} 
-        onClose={() => setShowContactForm(false)}
+        onClose={() => setShowContactForm(false)} 
         maxWidth="sm"
         fullWidth
         PaperProps={{
@@ -615,10 +615,10 @@ export default function LandingPage() {
           
           <Grid container spacing={6} justifyContent="center">
             <Grid item xs={12} md={8}>
-              <Paper 
-                sx={{ 
+                <Paper 
+                  sx={{ 
                   p: 6, 
-                  borderRadius: 3,
+                    borderRadius: 3,
                   textAlign: 'center',
                   background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                   color: 'white'
@@ -626,64 +626,64 @@ export default function LandingPage() {
               >
                 <Typography variant="h4" sx={{ fontWeight: 'bold', mb: 4 }}>
                   Contact Information
-                </Typography>
+                  </Typography>
                 <Grid container spacing={4}>
                   <Grid item xs={12} md={4}>
                     <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                       <EmailIcon sx={{ fontSize: 50, mb: 2, color: 'rgba(255,255,255,0.9)' }} />
                       <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 1 }}>
                         Email
-                      </Typography>
+                  </Typography>
                       <Typography variant="body1">
                         miaotingshuo@gmail.com
-                      </Typography>
+                  </Typography>
                     </Box>
-                  </Grid>
+              </Grid>
                   <Grid item xs={12} md={4}>
                     <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                       <SupportIcon sx={{ fontSize: 50, mb: 2, color: 'rgba(255,255,255,0.9)' }} />
                       <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 1 }}>
                         Support Hours
-                      </Typography>
+          </Typography>
                       <Typography variant="body1" sx={{ textAlign: 'center' }}>
                         Monday - Friday<br />9:00 AM - 6:00 PM EST
-                      </Typography>
+              </Typography>
                     </Box>
-                  </Grid>
+            </Grid>
                   <Grid item xs={12} md={4}>
                     <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                       <BusinessIcon sx={{ fontSize: 50, mb: 2, color: 'rgba(255,255,255,0.9)' }} />
                       <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 1 }}>
                         Business Inquiries
-                      </Typography>
+                </Typography>
                       <Typography variant="body1" sx={{ textAlign: 'center' }}>
                         Enterprise solutions<br />& partnerships
                       </Typography>
                     </Box>
-                  </Grid>
-                </Grid>
+            </Grid>
+          </Grid>
                 <Box sx={{ mt: 4 }}>
-                  <Button
-                    variant="contained"
-                    size="large"
-                    onClick={() => setShowContactForm(true)}
-                    sx={{
+            <Button
+              variant="contained"
+              size="large"
+              onClick={() => setShowContactForm(true)}
+              sx={{
                       bgcolor: 'rgba(255,255,255,0.2)',
                       '&:hover': { bgcolor: 'rgba(255,255,255,0.3)' },
                       px: 4,
                       py: 1.5,
-                      borderRadius: 3,
-                      textTransform: 'none',
+                borderRadius: 3,
+                textTransform: 'none',
                       fontSize: '1.1rem',
-                      fontWeight: 'bold',
+                fontWeight: 'bold',
                       color: 'white',
                       border: '2px solid rgba(255,255,255,0.3)'
-                    }}
+              }}
                     startIcon={<EmailIcon />}
-                  >
+            >
                     Send Message
-                  </Button>
-                </Box>
+            </Button>
+          </Box>
               </Paper>
             </Grid>
           </Grid>

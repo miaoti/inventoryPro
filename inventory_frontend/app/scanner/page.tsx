@@ -429,7 +429,9 @@ export default function BarcodeScanner() {
       
       // MediaDevices API requires secure context (HTTPS or localhost)
       if (!isSecureContext && hostname !== 'localhost' && hostname !== '127.0.0.1') {
-        throw new Error('Camera access requires a secure context (HTTPS). Please use HTTPS or localhost.');
+        // Check if HTTPS is available by trying to redirect
+        const httpsUrl = window.location.href.replace('http:', 'https:');
+        throw new Error(`Camera access requires HTTPS. Redirecting to secure connection... If this doesn't work automatically, please manually visit: ${httpsUrl}`);
       }
       
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
@@ -1137,8 +1139,9 @@ export default function BarcodeScanner() {
 
       {/* HTTPS Redirect Warning for Camera Functionality */}
       <HTTPSRedirect 
-        requireHTTPS={false} 
-        message="HTTPS is required for camera functionality on mobile devices. Please use a secure connection to enable barcode scanning."
+        requireHTTPS={true} 
+        autoRedirect={true}
+        message="HTTPS is required for camera functionality on mobile devices. You will be automatically redirected to a secure connection to enable barcode scanning."
       />
 
       {/* User Name Display (Auto-filled from Account) */}

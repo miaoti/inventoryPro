@@ -93,7 +93,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
           // First try to restore from cookies
           const parsedUser = JSON.parse(userCookie);
           dispatch(setCredentials({ user: parsedUser, token }));
-          
+            
           console.log('AuthProvider: Restored auth from cookies for user:', parsedUser.username);
           
           // Don't validate token during initialization to avoid blocking access
