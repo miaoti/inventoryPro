@@ -80,6 +80,16 @@ interface Item {
   estimatedConsumption?: number;
 }
 
+interface ImportResult {
+  message: string;
+  totalProcessed: number;
+  created: number;
+  skippedDuplicates: number;
+  errors: number;
+  errorDetails: string[];
+  items: Item[];
+}
+
 export default function ItemsPage() {
   const router = useRouter();
   const theme = useTheme();
@@ -102,7 +112,7 @@ export default function ItemsPage() {
   const [quantityToAdd, setQuantityToAdd] = useState(0);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importLoading, setImportLoading] = useState(false);
-  const [importResult, setImportResult] = useState<any>(null);
+  const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [selectedItems, setSelectedItems] = useState<number[]>([]); // For bulk selection
   const [bulkDeleteLoading, setBulkDeleteLoading] = useState(false); // For bulk delete loading
   const [actionMenuAnchor, setActionMenuAnchor] = useState<null | HTMLElement>(null);
@@ -556,24 +566,86 @@ export default function ItemsPage() {
       return;
     }
 
-    try {
-      setImportLoading(true);
-      const response = await itemsAPI.importCSV(importFile);
-      setImportResult(response.data); // Fix: use response.data instead of response
-      fetchItems(); // Refresh items after import
-    } catch (error) {
-      console.error('Error importing CSV:', error);
+    // Validate file type
+    const allowedTypes = ['.csv', '.xlsx', '.xls', '.xlsm'];
+    const fileExtension = '.' + importFile.name.split('.').pop()?.toLowerCase();
+    if (!allowedTypes.includes(fileExtension)) {
       setImportResult({
-        message: 'Import failed',
+        message: 'Invalid file type',
+        totalProcessed: 0,
         created: 0,
         skippedDuplicates: 0,
-        totalProcessed: 0,
         errors: 1,
-        errorDetails: ['Failed to import file. Please check the format and try again.']
+        errorDetails: [`Unsupported file type: ${fileExtension}. Please upload a CSV, XLSX, XLS, or XLSM file.`],
+        items: [],
+      });
+      return;
+    }
+
+    // Validate file size (max 10MB)
+    const maxSize = 10 * 1024 * 1024; // 10MB
+    if (importFile.size > maxSize) {
+      setImportResult({
+        message: 'File too large',
+        totalProcessed: 0,
+        created: 0,
+        skippedDuplicates: 0,
+        errors: 1,
+        errorDetails: [`File size (${Math.round(importFile.size / 1024 / 1024)}MB) exceeds the maximum limit of 10MB.`],
+        items: [],
+      });
+      return;
+    }
+
+    try {
+      setImportLoading(true);
+      setImportResult(null); // Clear previous results
+      const response = await itemsAPI.importCSV(importFile);
+      setImportResult(response.data);
+      fetchItems(); // Refresh items after import
+    } catch (error: any) {
+      console.error('Error importing CSV:', error);
+      
+      let errorMessage = 'Failed to import file. Please check the format and try again.';
+      let errorDetails = [errorMessage];
+      
+      if (error.response?.data) {
+        if (typeof error.response.data === 'string') {
+          errorMessage = error.response.data;
+          errorDetails = [errorMessage];
+        } else if (error.response.data.message) {
+          errorMessage = error.response.data.message;
+          errorDetails = error.response.data.errorDetails || [errorMessage];
+        }
+      } else if (error.message) {
+        errorMessage = error.message;
+        errorDetails = [errorMessage];
+      }
+      
+      setImportResult({
+        message: errorMessage,
+        totalProcessed: 0,
+        created: 0,
+        skippedDuplicates: 0,
+        errors: 1,
+        errorDetails: errorDetails,
+        items: [],
       });
     } finally {
       setImportLoading(false);
     }
+  };
+
+  const handleFileSelect = (file: File | null) => {
+    setImportFile(file);
+    setImportResult(null); // Clear previous import results when selecting a new file
+  };
+
+  const handleCloseImportDialog = () => {
+    setOpenImportDialog(false);
+    setImportFile(null);
+    setImportResult(null);
+    setImportLoading(false);
   };
 
   const handleExportBarcodes = async () => {
@@ -1541,15 +1613,11 @@ export default function ItemsPage() {
       </Dialog>
 
       {/* Import CSV Dialog */}
-      <Dialog open={openImportDialog} onClose={() => setOpenImportDialog(false)} maxWidth="md" fullWidth>
+      <Dialog open={openImportDialog} onClose={handleCloseImportDialog} maxWidth="md" fullWidth>
         <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           Import Items from CSV/Excel
           <IconButton 
-            onClick={() => {
-              setOpenImportDialog(false);
-              setImportFile(null);
-              setImportResult(null);
-            }}
+            onClick={handleCloseImportDialog}
             size="small"
           >
             <CloseIcon />
@@ -1573,7 +1641,7 @@ export default function ItemsPage() {
             <input
               type="file"
               accept=".csv,.xlsx,.xls,.xlsm"
-              onChange={(e) => setImportFile(e.target.files?.[0] || null)}
+              onChange={(e) => handleFileSelect(e.target.files?.[0] || null)}
               style={{ display: 'none' }}
               ref={fileInputRef}
             />
@@ -1591,6 +1659,10 @@ export default function ItemsPage() {
             {importFile && (
               <Alert severity="success" sx={{ mb: 2 }}>
                 Selected file: {importFile.name}
+                <br />
+                <Typography variant="caption" color="text.secondary">
+                  Size: {(importFile.size / 1024).toFixed(1)} KB • Type: {importFile.type || 'Unknown'}
+                </Typography>
               </Alert>
             )}
 
@@ -1605,40 +1677,130 @@ export default function ItemsPage() {
 
             {importResult && (
               <Box sx={{ mb: 2 }}>
-                <Alert severity={importResult.errors > 0 ? 'warning' : 'success'}>
-                  <Typography variant="body2">
-                    {importResult.message}<br/>
-                    Items created: {importResult.created}
-                    {importResult.skippedDuplicates > 0 && (
-                      <>
-                        <br/>Skipped duplicates: {importResult.skippedDuplicates}
-                      </>
-                    )}
-                    {importResult.totalProcessed && (
-                      <>
-                        <br/>Total processed: {importResult.totalProcessed}
-                      </>
-                    )}
-                    {importResult.errors > 0 && (
-                      <>
-                        <br/>Errors: {importResult.errors}
-                      </>
-                    )}
+                {/* Main Result Summary */}
+                <Alert severity={importResult.errors > 0 ? 'warning' : 'success'} sx={{ mb: 2 }}>
+                  <Typography variant="h6" gutterBottom>
+                    📊 Import Summary
+                  </Typography>
+                  <Typography variant="body1" sx={{ fontWeight: 'bold' }}>
+                    {importResult.message}
                   </Typography>
                 </Alert>
 
-                {importResult.errorDetails && importResult.errorDetails.length > 0 && (
-                  <Box sx={{ mt: 2, maxHeight: 200, overflow: 'auto' }}>
-                    <Typography variant="subtitle2" gutterBottom>
-                      Errors:
+                {/* Detailed Statistics Cards */}
+                <Grid container spacing={2} sx={{ mb: 2 }}>
+                  <Grid item xs={6} md={3}>
+                    <Card sx={{ textAlign: 'center', bgcolor: 'success.light', color: 'success.contrastText' }}>
+                      <CardContent sx={{ py: 1 }}>
+                        <Typography variant="h4" component="div">
+                          {importResult.created || 0}
+                        </Typography>
+                        <Typography variant="body2">
+                          ✅ Created
+                        </Typography>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                  
+                  <Grid item xs={6} md={3}>
+                    <Card sx={{ textAlign: 'center', bgcolor: 'info.light', color: 'info.contrastText' }}>
+                      <CardContent sx={{ py: 1 }}>
+                        <Typography variant="h4" component="div">
+                          {importResult.skippedDuplicates || 0}
+                        </Typography>
+                        <Typography variant="body2">
+                          ⏭️ Skipped
+                        </Typography>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                  
+                  <Grid item xs={6} md={3}>
+                    <Card sx={{ textAlign: 'center', bgcolor: 'primary.light', color: 'primary.contrastText' }}>
+                      <CardContent sx={{ py: 1 }}>
+                        <Typography variant="h4" component="div">
+                          {importResult.totalProcessed || 0}
+                        </Typography>
+                        <Typography variant="body2">
+                          📋 Total Rows
+                        </Typography>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                  
+                  <Grid item xs={6} md={3}>
+                    <Card sx={{ 
+                      textAlign: 'center', 
+                      bgcolor: importResult.errors > 0 ? 'error.light' : 'grey.300',
+                      color: importResult.errors > 0 ? 'error.contrastText' : 'text.primary'
+                    }}>
+                      <CardContent sx={{ py: 1 }}>
+                        <Typography variant="h4" component="div">
+                          {importResult.errors || 0}
+                        </Typography>
+                        <Typography variant="body2">
+                          ❌ Errors
+                        </Typography>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                </Grid>
+
+                {/* Success Rate Progress */}
+                {importResult.totalProcessed > 0 && (
+                  <Box sx={{ mb: 2 }}>
+                    <Typography variant="body2" gutterBottom>
+                      Success Rate: {Math.round((importResult.created / importResult.totalProcessed) * 100)}%
                     </Typography>
-                    {importResult.errorDetails.map((error: string, index: number) => (
-                      <Typography key={index} variant="body2" color="error">
-                        • {error}
-                      </Typography>
-                    ))}
+                    <LinearProgress 
+                      variant="determinate" 
+                      value={(importResult.created / importResult.totalProcessed) * 100}
+                      sx={{ height: 8, borderRadius: 4 }}
+                    />
                   </Box>
                 )}
+
+                {/* Items Successfully Created */}
+                {importResult.items && importResult.items.length > 0 && (
+                  <Alert severity="success" sx={{ mb: 2 }}>
+                    <Typography variant="subtitle2" gutterBottom>
+                      ✅ Successfully Created Items ({importResult.items.length}):
+                    </Typography>
+                    <Box sx={{ maxHeight: 150, overflow: 'auto' }}>
+                      {importResult.items.slice(0, 10).map((item: any, index: number) => (
+                        <Typography key={index} variant="body2" sx={{ ml: 1 }}>
+                          • {item.code || item.name} - {item.name}
+                        </Typography>
+                      ))}
+                      {importResult.items.length > 10 && (
+                        <Typography variant="body2" sx={{ ml: 1, fontStyle: 'italic' }}>
+                          ... and {importResult.items.length - 10} more items
+                        </Typography>
+                      )}
+                    </Box>
+                  </Alert>
+                )}
+
+                {/* Error Details */}
+                {importResult.errorDetails && importResult.errorDetails.length > 0 && (
+                  <Alert severity="error">
+                    <Typography variant="subtitle2" gutterBottom>
+                      ❌ Error Details ({importResult.errorDetails.length}):
+                    </Typography>
+                    <Box sx={{ maxHeight: 200, overflow: 'auto' }}>
+                      {importResult.errorDetails.map((error: string, index: number) => (
+                        <Typography key={index} variant="body2" sx={{ ml: 1 }}>
+                          • {error}
+                        </Typography>
+                      ))}
+                    </Box>
+                  </Alert>
+                )}
+
+                {/* Processing Time Info */}
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+                  Import completed at {new Date().toLocaleString()}
+                </Typography>
               </Box>
             )}
           </Box>
