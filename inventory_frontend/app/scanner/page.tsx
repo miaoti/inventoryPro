@@ -54,7 +54,6 @@ import { BrowserMultiFormatReader, BarcodeFormat, DecodeHintType } from '@zxing/
 import { barcodeAPI, itemsAPI, purchaseOrderAPI } from '../services/api';
 import { PurchaseOrder } from '../types/purchaseOrder';
 import Layout from '../components/Layout';
-import HTTPSRedirect from '../components/HTTPSRedirect';
 // import { TrackingDisplay } from '../../../components/TrackingDisplay';
 
 interface ScannedItem {
@@ -1136,13 +1135,6 @@ export default function BarcodeScanner() {
       <Typography variant="h4" gutterBottom>
         Barcode Scanner - Item Usage Tracker
       </Typography>
-
-      {/* HTTPS Redirect Warning for Camera Functionality */}
-      <HTTPSRedirect 
-        requireHTTPS={true} 
-        autoRedirect={true}
-        message="HTTPS is required for camera functionality on mobile devices. You will be automatically redirected to a secure connection to enable barcode scanning."
-      />
 
       {/* User Name Display (Auto-filled from Account) */}
       <Card sx={{ mb: 3 }}>

@@ -34,11 +34,7 @@ jobs:
         NEXT_PUBLIC_API_URL=/api
         EOF
 
-    - name: Generate SSL Certificate
-      run: |
-        echo "🔐 Generating SSL certificate for HTTPS support..."
-        chmod +x generate-ssl-cert.sh
-        ./generate-ssl-cert.sh
+
 
     - name: Stop existing containers and repair failed migration
       run: |
@@ -114,7 +110,7 @@ jobs:
         done
 
         # Check Backend (extended timeout for migrations)
-        for i in {1..10}; do
+        for i in {1..5}; do
           if curl -f http://localhost:8080/api/actuator/health 2>/dev/null; then
             echo "✅ Backend is healthy (with /api context)"
             break
@@ -122,7 +118,7 @@ jobs:
             echo "✅ Backend is healthy (without /api context)"
             break
           fi
-          echo "⏳ Waiting for Backend (migrations may be running)... ($i/10)"
+          echo "⏳ Waiting for Backend (migrations may be running)... ($i/5)"
           sleep 10
         done
 
@@ -169,11 +165,8 @@ jobs:
         docker-compose -f docker-compose.prod.yml ps
         
         echo "Testing endpoints:"
-        echo "HTTP redirect (port 80):"
-        curl -I http://localhost:80 && echo "✅ HTTP redirect OK" || echo "❌ HTTP redirect FAILED"
-        
-        echo "HTTPS main site (port 443):"
-        curl -I -k https://localhost:443 && echo "✅ HTTPS site OK" || echo "❌ HTTPS site FAILED"
+        echo "HTTP main site (port 80):"
+        curl -I http://localhost:80 && echo "✅ HTTP site OK" || echo "❌ HTTP site FAILED"
         
         echo "Frontend (port 3000):"
         curl -I http://localhost:3000 && echo "✅ Frontend OK" || echo "❌ Frontend FAILED"  
@@ -182,14 +175,13 @@ jobs:
         curl -I http://localhost:8080/api/actuator/health && echo "✅ Backend OK" || echo "❌ Backend FAILED"
         
         echo "🎉 Deployment Summary:"
-        if curl -s -k https://localhost:443 >/dev/null; then
-          echo "✅ SUCCESS: Your inventory application is live with HTTPS support!"
-          echo "🌐 Access your app at: https://129.146.49.129 (HTTPS - Camera Ready!)"
-          echo "🔄 HTTP redirect from: http://129.146.49.129 → https://129.146.49.129"
-          echo "📱 Frontend: Your Next.js application with camera access"
+        if curl -s http://localhost:80 >/dev/null; then
+          echo "✅ SUCCESS: Your inventory application is live!"
+          echo "🌐 Access your app at: http://129.146.49.129"
+          echo "📱 Frontend: Your Next.js application"
           echo "🔧 Backend: Your Spring Boot API"
           echo "💾 Database: MySQL with your schema"
-          echo "📷 Camera: Now available on mobile devices with HTTPS!"
+          echo "📷 Camera: Available for barcode scanning"
         else
           echo "❌ Deployment verification failed - running enhanced diagnostics..."
           echo "=== Nginx logs ==="
