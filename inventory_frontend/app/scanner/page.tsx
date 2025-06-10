@@ -727,18 +727,54 @@ export default function BarcodeScanner() {
       ]);
       codeReader.hints = hints;
 
-      // Read the file and decode
-      const result = await codeReader.decodeFromFile(file);
+      // Create an image element and load the file
+      const img = new Image();
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
       
-      if (result) {
-        console.log('Barcode detected from file:', result.getText());
-        handleBarcodeScanned(result.getText());
+      await new Promise((resolve, reject) => {
+        img.onload = () => {
+          try {
+            // Set canvas size to match image
+            canvas.width = img.width;
+            canvas.height = img.height;
+            
+            // Draw image to canvas
+            ctx?.drawImage(img, 0, 0);
+            
+            // Decode from the image element
+            codeReader.decodeFromImageElement(img)
+              .then((result) => {
+                console.log('Barcode detected from file:', result.getText());
+                handleBarcodeScanned(result.getText());
+                
+                // Clear the file input so the same file can be selected again
+                if (fileInputRef.current) {
+                  fileInputRef.current.value = '';
+                }
+                resolve(result);
+              })
+              .catch((decodeError) => {
+                console.error('Decode error:', decodeError);
+                reject(decodeError);
+              });
+          } catch (error) {
+            reject(error);
+          }
+        };
         
-        // Clear the file input so the same file can be selected again
-        if (fileInputRef.current) {
-          fileInputRef.current.value = '';
-        }
-      }
+        img.onerror = () => {
+          reject(new Error('Failed to load image'));
+        };
+        
+        // Load the file as data URL
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          img.src = e.target?.result as string;
+        };
+        reader.readAsDataURL(file);
+      });
+      
     } catch (err) {
       console.error('File scan error:', err);
       setCameraError('Could not read barcode from image. Please try another image or ensure the barcode is clearly visible.');
