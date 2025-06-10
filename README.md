@@ -97,7 +97,7 @@ The frontend application will be available at:
 
 ### Backend Development
 
-The Spring Boot application uses:
+The Spring Boot application uses: 
 - Spring Boot 3.2.3
 - Java 17
 - Spring Security for authentication
