@@ -119,7 +119,7 @@ jobs:
 
     - name: Stop existing containers and repair failed migration
       run: |
-        echo "🧹 Comprehensive Docker cleanup to prevent ContainerConfig errors..."
+        echo "🧹 Comprehensive Docker cleanup to prevent ContainerConfig errors (preserving database data)..."
         
         # Stop all containers gracefully first
         sudo docker-compose -f docker-compose.prod.yml down --remove-orphans 2>/dev/null || true
@@ -133,33 +133,80 @@ jobs:
         # Clean up networks
         sudo docker network prune -f 2>/dev/null || true
         
-        # Clean up dangling images and build cache
-        sudo docker system prune -af --volumes 2>/dev/null || true
+        # Clean up dangling images and build cache (but preserve volumes)
+        sudo docker image prune -f 2>/dev/null || true
+        sudo docker builder prune -f 2>/dev/null || true
         
         # Restart Docker service to clear any corruption
         echo "🔄 Restarting Docker service to clear any corruption..."
         sudo systemctl restart docker
         sleep 10
         
-        echo "🔄 Resetting MySQL data volume for fresh initialization..."
-        sudo docker volume rm $(sudo docker volume ls -q | grep mysql) 2>/dev/null || echo "No MySQL volumes to remove"
+        echo "🔍 Checking for existing MySQL data volume..."
+        if sudo docker volume ls | grep -q mysql_data; then
+          echo "✅ Found existing MySQL data volume - preserving database data"
+          MYSQL_DATA_EXISTS=true
+        else
+          echo "ℹ️ No existing MySQL data volume found - will create fresh database"
+          MYSQL_DATA_EXISTS=false
+        fi
         
-        echo "Starting MySQL with fresh initialization..."
+        echo "🚀 Starting MySQL (preserving existing data if present)..."
         sudo docker-compose -f docker-compose.prod.yml up -d mysql
         sleep 30
         
-        echo "✅ Checking MySQL initialization logs..."
+        echo "✅ Checking MySQL status..."
         sudo docker-compose -f docker-compose.prod.yml logs --tail=20 mysql
         
-        echo "🔍 Verifying MySQL initialization was successful..."
+        echo "🔍 Verifying MySQL database availability..."
         for i in {1..10}; do
           if sudo docker-compose -f docker-compose.prod.yml exec -T mysql mysql -u root -p${{ secrets.MYSQL_ROOT_PASSWORD }} -e "SHOW DATABASES;" 2>/dev/null | grep -q "inventory_db"; then
-            echo "✅ MySQL initialization successful - inventory_db database created"
+            if [ "$MYSQL_DATA_EXISTS" = true ]; then
+              echo "✅ MySQL ready with existing data preserved"
+            else
+              echo "✅ MySQL ready with fresh database created"
+            fi
             break
           fi
-          echo "⏳ Waiting for MySQL initialization... ($i/10)"
+          echo "⏳ Waiting for MySQL... ($i/10)"
           sleep 5
         done
+        
+        sudo docker-compose -f docker-compose.prod.yml stop mysql
+
+    - name: Create database backup (production safety)
+      run: |
+        echo "💾 Creating database backup before deployment..."
+        
+        # Start MySQL temporarily for backup
+        sudo docker-compose -f docker-compose.prod.yml up -d mysql
+        sleep 20
+        
+        # Check if database exists and has data
+        if sudo docker-compose -f docker-compose.prod.yml exec -T mysql mysql -u root -p${{ secrets.MYSQL_ROOT_PASSWORD }} -e "USE inventory_db; SHOW TABLES;" 2>/dev/null | grep -q "users\|items\|alerts"; then
+          echo "📦 Database contains data - creating backup..."
+          
+          # Create backup directory
+          mkdir -p ./backups
+          
+          # Create backup with timestamp
+          BACKUP_FILE="./backups/inventory_db_backup_$(date +%Y%m%d_%H%M%S).sql"
+          
+          sudo docker-compose -f docker-compose.prod.yml exec -T mysql mysqldump -u root -p${{ secrets.MYSQL_ROOT_PASSWORD }} inventory_db > "$BACKUP_FILE" 2>/dev/null || echo "Backup creation had warnings"
+          
+          if [ -f "$BACKUP_FILE" ] && [ -s "$BACKUP_FILE" ]; then
+            echo "✅ Database backup created: $BACKUP_FILE"
+            echo "📊 Backup file size: $(du -h $BACKUP_FILE | cut -f1)"
+            
+            # Keep only last 5 backups to save space
+            ls -t ./backups/inventory_db_backup_*.sql | tail -n +6 | xargs -r rm
+            echo "🧹 Cleaned up old backups (keeping last 5)"
+          else
+            echo "⚠️ Backup file seems empty or creation failed"
+          fi
+        else
+          echo "ℹ️ No significant data found - skipping backup"
+        fi
         
         sudo docker-compose -f docker-compose.prod.yml stop mysql
 
@@ -181,6 +228,16 @@ jobs:
           sleep 10
         done
         
+        echo "🔍 Checking current database state..."
+        TABLES_COUNT=$(sudo docker-compose -f docker-compose.prod.yml exec -T mysql mysql -u root -p${{ secrets.MYSQL_ROOT_PASSWORD }} -e "USE inventory_db; SHOW TABLES;" 2>/dev/null | wc -l)
+        if [ "$TABLES_COUNT" -gt 1 ]; then
+          echo "✅ Database already contains tables - existing data preserved"
+          HAS_EXISTING_DATA=true
+        else
+          echo "ℹ️ Database is empty - will run full migrations"
+          HAS_EXISTING_DATA=false
+        fi
+        
         echo "🚀 Starting backend for Flyway migrations..."
         sudo docker-compose -f docker-compose.prod.yml up -d backend
         
@@ -190,11 +247,11 @@ jobs:
         echo "📜 Checking backend migration logs..."
         sudo docker-compose -f docker-compose.prod.yml logs --tail=50 backend | grep -E "(Flyway|Migration|Successfully|ERROR)" || echo "Checking full backend logs..."
         
-        echo "🔍 Verifying all database tables were created by migrations..."
+        echo "🔍 Verifying database tables..."
         sudo docker-compose -f docker-compose.prod.yml exec -T mysql mysql -u root -p${{ secrets.MYSQL_ROOT_PASSWORD }} -e "
         USE inventory_db;
         
-        SELECT 'Database Tables Created by Migrations:' as ' ';
+        SELECT 'Database Tables:' as ' ';
         SHOW TABLES;
         
         SELECT 'Flyway Migration History:' as ' ';
@@ -203,30 +260,40 @@ jobs:
         ORDER BY installed_rank;
         " 2>/dev/null || echo "⚠️ Migration verification had issues"
         
-        echo "✅ Applying V19 migration to create owner account..."
+        echo "🔧 Ensuring owner account exists (idempotent operation)..."
         sudo docker-compose -f docker-compose.prod.yml exec -T mysql mysql -u root -p${{ secrets.MYSQL_ROOT_PASSWORD }} -e "
         USE inventory_db;
         
-        -- Create owner user if not exists (V19 migration)
-        INSERT INTO users (username, password, email, full_name, enabled, role, enable_email_alerts, enable_daily_digest, alert_email, created_at, updated_at) 
-        VALUES ('zoe', '\$2a\$12\$2x2e3UQT/Zisuh0uNs6jVOVQdnBl0DrpUxvAvpTcglwD.iCItAqmi', 'zhongqi0728@gmail.com', 'Zoe (Owner)', TRUE, 'OWNER', TRUE, TRUE, 'zhongqi0728@gmail.com', NOW(), NOW())
-        ON DUPLICATE KEY UPDATE 
-          password = VALUES(password),
-          email = VALUES(email),
-          full_name = VALUES(full_name),
-          role = VALUES(role),
-          enable_email_alerts = VALUES(enable_email_alerts),
-          enable_daily_digest = VALUES(enable_daily_digest),
-          alert_email = VALUES(alert_email),
-          updated_at = NOW();
+        -- Check if owner user already exists
+        SET @user_exists = (SELECT COUNT(*) FROM users WHERE username = 'zoe');
         
-        -- Verify the owner account was created/updated
-        SELECT 'Owner account status:' as info, username, email, role, enable_email_alerts 
+        -- Create owner user if not exists (idempotent)
+        INSERT INTO users (username, password, email, full_name, enabled, role, enable_email_alerts, enable_daily_digest, alert_email, created_at, updated_at) 
+        SELECT 'zoe', '\$2a\$12\$2x2e3UQT/Zisuh0uNs6jVOVQdnBl0DrpUxvAvpTcglwD.iCItAqmi', 'zhongqi0728@gmail.com', 'Zoe (Owner)', TRUE, 'OWNER', TRUE, TRUE, 'zhongqi0728@gmail.com', NOW(), NOW()
+        WHERE NOT EXISTS (SELECT 1 FROM users WHERE username = 'zoe');
+        
+        -- Update existing owner account settings if user exists
+        UPDATE users SET 
+          email = 'zhongqi0728@gmail.com',
+          full_name = 'Zoe (Owner)',
+          role = 'OWNER',
+          enable_email_alerts = TRUE,
+          enable_daily_digest = TRUE,
+          alert_email = 'zhongqi0728@gmail.com',
+          updated_at = NOW()
+        WHERE username = 'zoe';
+        
+        -- Verify the owner account status
+        SELECT 'Owner account status:' as info, username, email, role, enable_email_alerts, created_at
         FROM users 
         WHERE username = 'zoe';
-        " 2>/dev/null || echo "Migration execution completed with warnings"
+        " 2>/dev/null || echo "Owner account setup completed with warnings"
         
-        echo "✅ Database migrations and setup completed"
+        if [ "$HAS_EXISTING_DATA" = true ]; then
+          echo "✅ Database migrations completed - existing data preserved"
+        else
+          echo "✅ Database migrations completed - fresh database initialized"
+        fi
 
     - name: Verify source code structure
       run: |
