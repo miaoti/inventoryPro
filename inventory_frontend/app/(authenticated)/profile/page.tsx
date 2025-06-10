@@ -48,9 +48,6 @@ export default function ProfilePage() {
     fullName: '',
     currentPassword: '',
     newPassword: '',
-    alertEmail: '',
-    enableEmailAlerts: true,
-    enableDailyDigest: false,
   });
   const [snackbar, setSnackbar] = useState({ 
     open: false, 
@@ -71,9 +68,6 @@ export default function ProfilePage() {
         fullName: profile.name,
         currentPassword: '',
         newPassword: '',
-        alertEmail: profile.email, // Default to user email
-        enableEmailAlerts: true, // These would come from backend
-        enableDailyDigest: false,
       });
     } catch (error) {
       console.error('Error fetching profile:', error);
@@ -262,60 +256,12 @@ export default function ProfilePage() {
                     }}
                   />
                 </Grid>
-                <Grid item xs={12}>
-                  <TextField
-                    label="Alert Email (optional)"
-                    type="email"
-                    value={profileForm.alertEmail}
-                    onChange={(e) => setProfileForm({ ...profileForm, alertEmail: e.target.value })}
-                    fullWidth
-                    helperText="Email for receiving system alerts. Leave empty to use main email."
-                    InputProps={{
-                      startAdornment: <EmailIcon sx={{ mr: 1, color: 'action.active' }} />
-                    }}
-                  />
-                </Grid>
+
               </Grid>
             </CardContent>
           </Card>
 
 
-
-          <Card sx={{ mt: 3 }}>
-            <CardHeader title="Notification Preferences" />
-            <CardContent>
-              <Grid container spacing={2}>
-                <Grid item xs={12}>
-                  <FormControlLabel
-                    control={
-                      <Switch
-                        checked={profileForm.enableEmailAlerts || false}
-                        onChange={(e) => setProfileForm({ ...profileForm, enableEmailAlerts: e.target.checked })}
-                      />
-                    }
-                    label="Enable Email Alerts"
-                  />
-                  <Typography variant="body2" color="text.secondary" sx={{ ml: 4 }}>
-                    Receive email notifications for system alerts and important updates
-                  </Typography>
-                </Grid>
-                <Grid item xs={12}>
-                  <FormControlLabel
-                    control={
-                      <Switch
-                        checked={profileForm.enableDailyDigest || false}
-                        onChange={(e) => setProfileForm({ ...profileForm, enableDailyDigest: e.target.checked })}
-                      />
-                    }
-                    label="Enable Daily Digest"
-                  />
-                  <Typography variant="body2" color="text.secondary" sx={{ ml: 4 }}>
-                    Receive a daily summary of system activity and alerts
-                  </Typography>
-                </Grid>
-              </Grid>
-            </CardContent>
-          </Card>
 
           <Box sx={{ mt: 3, display: 'flex', justifyContent: 'flex-end' }}>
             <Button

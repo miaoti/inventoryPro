@@ -48,4 +48,9 @@ public class UserServiceImpl implements UserService {
     public List<User> findUsersWithDailyDigestEnabled() {
         return userRepository.findByEnableDailyDigestTrue();
     }
+    
+    @Override
+    public List<User> findByRole(User.UserRole role) {
+        return userRepository.findByRole(role);
+    }
 } 

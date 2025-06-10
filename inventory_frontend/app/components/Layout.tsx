@@ -37,6 +37,7 @@ import {
   People as UsersIcon,
   ShoppingCart as POStatsIcon,
   AccountCircle as ProfileIcon,
+  BugReport as LogsIcon,
 } from '@mui/icons-material';
 import Cookies from 'js-cookie';
 import { alertsAPI } from '../services/api';
@@ -224,6 +225,12 @@ export default function Layout({ children }: LayoutProps) {
                 <POStatsIcon />
               </ListItemIcon>
               <ListItemText primary="PO Statistics" />
+            </ListItem>
+            <ListItem button onClick={() => handleNavigation('/owner/logs')}>
+              <ListItemIcon>
+                <LogsIcon color="error" />
+              </ListItemIcon>
+              <ListItemText primary="System Logs" />
             </ListItem>
           </>
         )}

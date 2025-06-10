@@ -593,4 +593,55 @@ export const purchaseOrderStatsAPI = {
   }
 };
 
+// Debug API for troubleshooting email issues
+export const debugAPI = {
+  getEmailConfig: () => {
+    if (!ensureAuthenticated()) {
+      return Promise.reject(new Error('Authentication required'));
+    }
+    return api.get('/debug/email-config');
+  },
+  
+  testEmail: (username: string) => {
+    if (!ensureAuthenticated()) {
+      return Promise.reject(new Error('Authentication required'));
+    }
+    return api.post(`/debug/test-email/${username}`);
+  }
+};
+
+// Log Viewer API for OWNER users only
+export const logAPI = {
+  getApplicationLogs: (lines: number = 100) => {
+    if (!ensureAuthenticated()) {
+      return Promise.reject(new Error('Authentication required'));
+    }
+    return api.get(`/owner/logs/application?lines=${lines}`);
+  },
+  
+  getDockerLogs: (lines: number = 100) => {
+    if (!ensureAuthenticated()) {
+      return Promise.reject(new Error('Authentication required'));
+    }
+    return api.get(`/owner/logs/docker?lines=${lines}`);
+  },
+  
+  getSystemStatus: () => {
+    if (!ensureAuthenticated()) {
+      return Promise.reject(new Error('Authentication required'));
+    }
+    return api.get('/owner/logs/system-status');
+  },
+  
+  getFilteredLogs: (lines: number = 100, level?: string, search?: string) => {
+    if (!ensureAuthenticated()) {
+      return Promise.reject(new Error('Authentication required'));
+    }
+    let url = `/owner/logs/filtered?lines=${lines}`;
+    if (level) url += `&level=${encodeURIComponent(level)}`;
+    if (search) url += `&search=${encodeURIComponent(search)}`;
+    return api.get(url);
+  }
+};
+
 export default api; 
