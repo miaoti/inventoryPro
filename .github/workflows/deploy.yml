@@ -1,4 +1,4 @@
-name: Deploy to Oracle Cloud
+name: Deploy to Oracle Cloud with HTTPS
 
 on:
   push:
@@ -33,6 +33,53 @@ jobs:
         SPRING_PROFILES_ACTIVE=production
         NEXT_PUBLIC_API_URL=/api
         EOF
+
+    - name: Generate SSL certificates for HTTPS camera access
+      run: |
+        echo "📜 Generating SSL certificates for camera functionality..."
+        
+        # Create SSL directory if it doesn't exist
+        mkdir -p nginx/ssl
+        
+        # Check if certificates already exist and are valid
+        if [ -f "nginx/ssl/server.crt" ] && [ -f "nginx/ssl/server.key" ]; then
+          # Check if certificate is still valid (not expired)
+          if openssl x509 -in nginx/ssl/server.crt -checkend 86400 -noout 2>/dev/null; then
+            echo "✅ Valid SSL certificates already exist"
+          else
+            echo "🔄 SSL certificates expired, regenerating..."
+            rm -f nginx/ssl/server.crt nginx/ssl/server.key
+          fi
+        fi
+        
+        # Generate new certificates if they don't exist or were invalid
+        if [ ! -f "nginx/ssl/server.crt" ] || [ ! -f "nginx/ssl/server.key" ]; then
+          echo "🔧 Generating new SSL certificates..."
+          
+          # Generate private key
+          openssl genrsa -out nginx/ssl/server.key 2048
+          
+          # Generate certificate signing request with Oracle Cloud IP
+          openssl req -new -key nginx/ssl/server.key -out nginx/ssl/server.csr \
+            -subj "/C=US/ST=State/L=City/O=Inventory-System/CN=129.146.49.129"
+          
+          # Generate self-signed certificate (valid for 365 days)
+          openssl x509 -req -days 365 \
+            -in nginx/ssl/server.csr \
+            -signkey nginx/ssl/server.key \
+            -out nginx/ssl/server.crt
+          
+          # Set proper permissions
+          chmod 600 nginx/ssl/server.key
+          chmod 644 nginx/ssl/server.crt
+          
+          # Clean up CSR file
+          rm nginx/ssl/server.csr
+          
+          echo "✅ SSL certificates generated successfully"
+          echo "Certificate info:"
+          openssl x509 -in nginx/ssl/server.crt -text -noout | grep -E "(Subject:|Not Before|Not After)"
+        fi
 
     - name: Set up SSH access for debugging
       run: |
@@ -92,23 +139,31 @@ jobs:
         else
           echo "❌ No Next.js frontend found"
         fi
+        
+        echo "SSL Certificates:"
+        if [ -f ./nginx/ssl/server.crt ] && [ -f ./nginx/ssl/server.key ]; then
+          echo "✅ SSL certificates are ready"
+          ls -la ./nginx/ssl/
+        else
+          echo "❌ SSL certificates missing"
+        fi
 
     - name: Build application with correct configuration
       run: |
-        echo "Building application with production settings..."
+        echo "Building application with production settings and HTTPS support..."
         export DOCKER_BUILDKIT=1
         
-        # Build with no cache to ensure fresh build with /api and role fix
+        # Build with no cache to ensure fresh build with /api and HTTPS support
         docker-compose -f docker-compose.prod.yml build --no-cache --pull \
           --build-arg NEXT_PUBLIC_API_URL=/api \
           --build-arg NODE_ENV=production
 
-    - name: Start application services
+    - name: Start application services with HTTPS
       run: |
-        echo "Starting application services..."
+        echo "Starting application services with HTTPS support..."
         docker-compose -f docker-compose.prod.yml up -d
         
-        echo "Force restarting nginx to pick up config changes..."
+        echo "Force restarting nginx to pick up SSL certificates and config changes..."
         sleep 5
         docker-compose -f docker-compose.prod.yml restart nginx
         sleep 10
@@ -152,20 +207,29 @@ jobs:
           sleep 10
         done
 
-        # Check Nginx
+        # Check Nginx HTTP
         for i in {1..8}; do
           if curl -f http://localhost:80/health 2>/dev/null; then
-            echo "✅ Nginx is healthy"
+            echo "✅ Nginx HTTP is healthy"
             break
           fi
-          echo "⏳ Waiting for Nginx... ($i/8)"
+          echo "⏳ Waiting for Nginx HTTP... ($i/8)"
+          sleep 5
+        done
+        
+        # Check Nginx HTTPS
+        for i in {1..8}; do
+          if curl -k -f https://localhost:443/health 2>/dev/null; then
+            echo "✅ Nginx HTTPS is healthy"
+            break
+          fi
+          echo "⏳ Waiting for Nginx HTTPS... ($i/8)"
           sleep 5
         done
 
-
-    - name: Verify nginx configuration
+    - name: Verify nginx configuration and SSL setup
       run: |
-        echo "🔍 Checking nginx configuration in container..."
+        echo "🔍 Checking nginx configuration and SSL setup..."
         
         # Wait for nginx to be stable
         for i in {1..10}; do
@@ -185,19 +249,42 @@ jobs:
           echo "⚠️ Nginx configuration test failed, but continuing..."
         fi
         
-        # Show a sample of the config
+        # Check SSL certificate mounting
+        echo "Checking SSL certificate availability in container:"
+        if docker exec inventory_nginx_prod test -f /etc/nginx/ssl/server.crt; then
+          echo "✅ SSL certificate mounted correctly"
+          docker exec inventory_nginx_prod ls -la /etc/nginx/ssl/
+        else
+          echo "❌ SSL certificate not found in container"
+        fi
+        
+        # Show nginx configuration sample
         echo "Sample nginx configuration:"
-        docker exec inventory_nginx_prod cat /etc/nginx/nginx.conf | head -20 || echo "Could not read config"
+        docker exec inventory_nginx_prod cat /etc/nginx/nginx.conf | head -30 || echo "Could not read config"
 
-    - name: Final deployment verification
+    - name: Final deployment verification with HTTPS
       run: |
-        echo "🔍 Final deployment verification..."
+        echo "🔍 Final deployment verification with HTTPS support..."
         echo "Container status:"
         docker-compose -f docker-compose.prod.yml ps
         
         echo "Testing endpoints:"
         echo "HTTP main site (port 80):"
         curl -I http://localhost:80 && echo "✅ HTTP site OK" || echo "❌ HTTP site FAILED"
+        
+        echo "HTTPS main site (port 443):"
+        curl -k -I https://localhost:443 && echo "✅ HTTPS site OK" || echo "❌ HTTPS site FAILED"
+        
+        echo "HTTP to HTTPS redirect test for scanner:"
+        HTTP_RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:80/scanner)
+        if [ "$HTTP_RESPONSE" = "301" ]; then
+          echo "✅ Scanner HTTP to HTTPS redirect working (HTTP 301)"
+        else
+          echo "⚠️ Scanner redirect not working (got HTTP $HTTP_RESPONSE)"
+        fi
+        
+        echo "HTTPS scanner page:"
+        curl -k -I https://localhost:443/scanner && echo "✅ HTTPS scanner OK" || echo "❌ HTTPS scanner FAILED"
         
         echo "Frontend (port 3000):"
         curl -I http://localhost:3000 && echo "✅ Frontend OK" || echo "❌ Frontend FAILED"  
@@ -206,19 +293,27 @@ jobs:
         curl -I http://localhost:8080/api/actuator/health && echo "✅ Backend OK" || echo "❌ Backend FAILED"
         
         echo "🎉 Deployment Summary:"
-        if curl -s http://localhost:80 >/dev/null; then
-          echo "✅ SUCCESS: Your inventory application is live!"
-          echo "🌐 Access your app at: http://129.146.49.129"
-          echo "📱 Frontend: Your Next.js application"
-          echo "🔧 Backend: Your Spring Boot API"
+        if curl -s http://localhost:80 >/dev/null && curl -k -s https://localhost:443 >/dev/null; then
+          echo "✅ SUCCESS: Your inventory application is live with HTTPS support!"
+          echo "🌐 HTTP Access: http://129.146.49.129"
+          echo "🔒 HTTPS Access: https://129.146.49.129"
+          echo "📱 Camera Scanner: https://129.146.49.129/scanner (HTTPS required for camera)"
+          echo "📋 Other Pages: Work on both HTTP and HTTPS"
+          echo "🔧 Backend API: Accessible via both protocols"
           echo "💾 Database: MySQL with your schema"
-          echo "📷 Camera: Configured to work on HTTP"
+          echo ""
+          echo "📷 Camera Access Instructions:"
+          echo "1. Visit: http://129.146.49.129/scanner (will auto-redirect to HTTPS)"
+          echo "2. Accept the self-signed certificate warning"
+          echo "3. Camera should now work properly!"
         else
           echo "❌ Deployment verification failed - running enhanced diagnostics..."
           echo "=== Nginx logs ==="
-          docker-compose -f docker-compose.prod.yml logs nginx --tail=20
+          docker-compose -f docker-compose.prod.yml logs nginx --tail=30
           echo "=== Frontend logs ==="
           docker-compose -f docker-compose.prod.yml logs frontend --tail=10
+          echo "=== SSL Certificate check ==="
+          docker exec inventory_nginx_prod openssl x509 -in /etc/nginx/ssl/server.crt -text -noout | head -20 || echo "SSL cert check failed"
           echo "=== Network connectivity test ==="
           echo "Testing internal connectivity:"
           docker-compose -f docker-compose.prod.yml exec nginx curl -I http://frontend:3000 || echo "Nginx -> Frontend failed"
@@ -238,4 +333,10 @@ jobs:
         echo "=== Backend logs ==="
         docker-compose -f docker-compose.prod.yml logs backend --tail=10
         echo "=== Nginx logs ==="
-        docker-compose -f docker-compose.prod.yml logs nginx --tail=10 
+        docker-compose -f docker-compose.prod.yml logs nginx --tail=20
+        
+        echo "=== SSL Setup Debug ==="
+        echo "SSL directory contents:"
+        ls -la nginx/ssl/ 2>/dev/null || echo "No SSL directory"
+        echo "SSL files in container:"
+        docker exec inventory_nginx_prod ls -la /etc/nginx/ssl/ 2>/dev/null || echo "No SSL files in container" 

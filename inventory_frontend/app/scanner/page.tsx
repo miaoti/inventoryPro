@@ -410,6 +410,7 @@ export default function BarcodeScanner() {
       const isSecureContext = window.isSecureContext;
       const protocol = window.location.protocol;
       const hostname = window.location.hostname;
+      const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1';
       
       console.log('Security context check:', {
         isSecureContext,
@@ -426,9 +427,20 @@ export default function BarcodeScanner() {
         isSecureContext
       });
       
-      // Note: For production deployment, we're allowing HTTP camera access
-      // Some browsers may still require HTTPS for getUserMedia, but we'll attempt HTTP first
-      console.log('Attempting camera access on HTTP (some browsers may still require HTTPS)');
+      // Check if we're on HTTPS - required for camera access in most browsers
+      if (!isSecureContext && !isLocalhost) {
+        console.log('⚠️ Camera access requires HTTPS. Checking if HTTPS is available...');
+        
+        // Try to redirect to HTTPS if not already there
+        if (window.location.protocol === 'http:') {
+          console.log('Redirecting to HTTPS for camera access...');
+          const httpsUrl = window.location.href.replace('http:', 'https:');
+          window.location.href = httpsUrl;
+          return;
+        }
+      }
+      
+      console.log('Attempting camera access on current protocol:', window.location.protocol);
       
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         // Try to polyfill for older browsers
@@ -612,7 +624,11 @@ export default function BarcodeScanner() {
               errorMessage = 'Camera constraints not supported. Please try again.';
             }
           } else if (permError.name === 'TypeError' && permError.message.includes('getUserMedia')) {
-            errorMessage = 'Camera API not available. Please ensure you\'re using HTTPS and a supported browser.';
+            if (!isSecureContext) {
+              errorMessage = 'Camera access requires HTTPS. Please access this page using https:// instead of http://';
+            } else {
+              errorMessage = 'Camera API not available. Please ensure you\'re using a supported browser.';
+            }
           }
         }
         
