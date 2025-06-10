@@ -118,9 +118,27 @@ jobs:
 
     - name: Stop existing containers and repair failed migration
       run: |
-        echo "Stopping existing containers..."
+        echo "🧹 Comprehensive Docker cleanup to prevent ContainerConfig errors..."
+        
+        # Stop all containers gracefully first
+        sudo docker-compose -f docker-compose.prod.yml down --remove-orphans 2>/dev/null || true
+        
+        # Force stop any remaining containers
         sudo docker stop $(sudo docker ps -aq) 2>/dev/null || true
-        sudo docker system prune -af
+        
+        # Remove all containers (including exited ones)
+        sudo docker rm $(sudo docker ps -aq) 2>/dev/null || true
+        
+        # Clean up networks
+        sudo docker network prune -f 2>/dev/null || true
+        
+        # Clean up dangling images and build cache
+        sudo docker system prune -af --volumes 2>/dev/null || true
+        
+        # Restart Docker service to clear any corruption
+        echo "🔄 Restarting Docker service to clear any corruption..."
+        sudo systemctl restart docker
+        sleep 10
         
         echo "🔄 Resetting MySQL data volume for fresh initialization..."
         sudo docker volume rm $(sudo docker volume ls -q | grep mysql) 2>/dev/null || echo "No MySQL volumes to remove"
@@ -226,13 +244,129 @@ jobs:
 
     - name: Start application services with HTTPS
       run: |
-        echo "Starting application services with HTTPS support..."
-        sudo docker-compose -f docker-compose.prod.yml up -d
+        echo "🚀 Starting application services with HTTPS support and retry logic..."
         
-        echo "Force restarting nginx to pick up SSL certificates and config changes..."
+        # Function to retry docker-compose up with cleanup on failure
+        start_services_with_retry() {
+          local attempt=1
+          local max_attempts=3
+          
+          while [ $attempt -le $max_attempts ]; do
+            echo "🔄 Attempt $attempt/$max_attempts: Starting services..."
+            
+            if sudo docker-compose -f docker-compose.prod.yml up -d; then
+              echo "✅ Services started successfully on attempt $attempt"
+              return 0
+            else
+              echo "❌ Attempt $attempt failed with ContainerConfig error"
+              
+              if [ $attempt -lt $max_attempts ]; then
+                echo "🧹 Cleaning up before retry..."
+                sudo docker-compose -f docker-compose.prod.yml down --remove-orphans 2>/dev/null || true
+                sudo docker system prune -f 2>/dev/null || true
+                sleep 5
+              fi
+              
+              attempt=$((attempt + 1))
+            fi
+          done
+          
+          echo "❌ Failed to start services after $max_attempts attempts"
+          return 1
+        }
+        
+        # Try to start services with retry logic
+        if ! start_services_with_retry; then
+          echo "🆘 Emergency cleanup and restart..."
+          sudo systemctl restart docker
+          sleep 10
+          sudo docker-compose -f docker-compose.prod.yml up -d || {
+            echo "❌ Critical failure: Unable to start services"
+            sudo docker-compose -f docker-compose.prod.yml logs
+            exit 1
+          }
+        fi
+        
+        echo "✅ Forcing nginx restart to pick up SSL certificates and config changes..."
         sleep 5
-        sudo docker-compose -f docker-compose.prod.yml restart nginx
+        sudo docker-compose -f docker-compose.prod.yml restart nginx || {
+          echo "⚠️ Nginx restart failed, checking status..."
+          sudo docker-compose -f docker-compose.prod.yml ps nginx
+          sudo docker-compose -f docker-compose.prod.yml logs nginx --tail=20
+        }
         sleep 10
+
+    - name: Service Health Diagnostics
+      run: |
+        echo "🔍 Comprehensive service diagnostics..."
+        
+        echo "📊 Docker system info:"
+        sudo docker system df
+        
+        echo "📋 Container status:"
+        sudo docker-compose -f docker-compose.prod.yml ps
+        
+        echo "🌐 Network connectivity tests:"
+        echo "Testing internal connectivity..."
+        
+        # Test each service individually
+        echo "🔍 Testing MySQL connectivity:"
+        if sudo docker-compose -f docker-compose.prod.yml exec -T mysql mysqladmin ping -h localhost -u root -p${{ secrets.MYSQL_ROOT_PASSWORD }} 2>/dev/null; then
+          echo "✅ MySQL is accessible"
+        else
+          echo "❌ MySQL connection failed"
+          sudo docker-compose -f docker-compose.prod.yml logs mysql --tail=10
+        fi
+        
+        echo "🔍 Testing Backend connectivity:"
+        for i in {1..5}; do
+          if curl -f http://localhost:8080/api/actuator/health 2>/dev/null; then
+            echo "✅ Backend is accessible at http://localhost:8080/api"
+            break
+          elif curl -f http://localhost:8080/actuator/health 2>/dev/null; then
+            echo "✅ Backend is accessible at http://localhost:8080"
+            break
+          else
+            echo "⏳ Backend not ready yet... ($i/5)"
+            sleep 10
+          fi
+        done
+        
+        echo "🔍 Testing Frontend connectivity:"
+        if curl -f http://localhost:3000 2>/dev/null; then
+          echo "✅ Frontend is accessible"
+        else
+          echo "❌ Frontend connection failed"
+          sudo docker-compose -f docker-compose.prod.yml logs frontend --tail=10
+        fi
+        
+        echo "🔍 Testing Nginx HTTP:"
+        if curl -f http://localhost:80 2>/dev/null; then
+          echo "✅ Nginx HTTP is accessible"
+        else
+          echo "❌ Nginx HTTP failed"
+          sudo docker-compose -f docker-compose.prod.yml logs nginx --tail=10
+        fi
+        
+        echo "🔍 Testing Nginx HTTPS:"
+        if curl --insecure -f https://localhost:443 2>/dev/null; then
+          echo "✅ Nginx HTTPS is accessible"
+        else
+          echo "❌ Nginx HTTPS failed"
+        fi
+        
+        echo "🌍 External accessibility test:"
+        echo "Your application should be accessible at:"
+        echo "HTTP:  http://${{ env.GCP_INSTANCE_IP }}"
+        echo "HTTPS: https://${{ env.GCP_INSTANCE_IP }}"
+        
+        echo "🔥 Firewall check:"
+        echo "Checking if firewall allows web traffic..."
+        sudo ufw status || echo "UFW not configured"
+        
+        echo "📡 Port accessibility from external:"
+        timeout 5s nc -zv ${{ env.GCP_INSTANCE_IP }} 80 || echo "Port 80 may not be accessible externally"
+        timeout 5s nc -zv ${{ env.GCP_INSTANCE_IP }} 443 || echo "Port 443 may not be accessible externally"
 
     - name: Wait for services to be ready
       run: |
