@@ -118,8 +118,8 @@ export default function Layout({ children }: LayoutProps) {
         try {
           const response: any = await alertsAPI.getCounts();
           dispatch(updateAlertCounts({
-            unreadAlerts: response.unreadAlerts || 0,
-            activeAlerts: response.activeAlerts || 0
+            unreadAlerts: response.data.unreadAlerts || 0,
+            activeAlerts: response.data.activeAlerts || 0
           }));
         } catch (error) {
           console.error('Error fetching alert counts:', error);

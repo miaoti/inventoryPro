@@ -60,9 +60,9 @@ export default function ProfilePage() {
     try {
       const profile = await profileAPI.get();
       setProfileForm({
-        username: profile.username,
-        email: profile.email,
-        fullName: profile.name,
+        username: profile.data.username,
+        email: profile.data.email,
+        fullName: profile.data.name,
         currentPassword: '',
         newPassword: '',
       });
@@ -108,7 +108,7 @@ export default function ProfilePage() {
 
       setSnackbar({ 
         open: true, 
-        message: response.message, 
+        message: response.data.message, 
         severity: 'success' 
       });
       

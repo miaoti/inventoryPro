@@ -34,7 +34,7 @@ export const login = createAsyncThunk(
       const response: any = await authAPI.login(credentials);
       console.log('✅ Login response received:', response);
       
-      const { token, user, debug, message } = response; 
+      const { token, user, debug, message } = response.data; // Access response.data after interceptor change
       
       // Log debug information if available
       if (debug) {
@@ -94,7 +94,7 @@ export const register = createAsyncThunk(
     fullName: string;
   }) => {
     const response: any = await authAPI.register(userData);
-    const { token, user } = response; // response already contains the data due to interceptor
+    const { token, user } = response.data; // Access response.data after interceptor change
     // Set cookie with token
     Cookies.set('token', token, { expires: 7 }); // Expires in 7 days
     // Store user data in cookie for persistence

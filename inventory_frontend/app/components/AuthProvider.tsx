@@ -67,7 +67,7 @@ export default function AuthProvider({ children }: AuthProviderProps) {
           // Validate token with server
           const validationResult = await authAPI.validateToken();
           
-          if (validationResult.valid) {
+          if (validationResult.data.valid) {
             console.log('AuthProvider: Token validation successful');
             // Set auth state if not already set
             if (!isAuthenticated) {
