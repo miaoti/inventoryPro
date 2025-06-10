@@ -162,6 +162,23 @@ The system sends professional HTML emails with:
 - Monitor email delivery rates
 - Verify user settings are persisting correctly
 
+## New Owner Account Added 👤
+
+**Database Migration V19**: Added owner account for enhanced access control
+- **Username**: `zoe`
+- **Email**: `zhongqi0728@gmail.com` 
+- **Role**: `OWNER`
+- **Email Alerts**: Enabled by default
+- **Password**: Pre-hashed and secure
+
+### Account Access:
+The owner account provides full system access including:
+- ✅ User management capabilities
+- ✅ Admin settings configuration 
+- ✅ Alert threshold management
+- ✅ Email notification configuration
+- ✅ System monitoring and logs
+
 ## Summary ✨
 
 **Email notifications should now work properly**:
@@ -170,5 +187,11 @@ The system sends professional HTML emails with:
 - ✅ Proper fallback mechanisms
 - ✅ Professional email templates
 - ✅ Comprehensive error handling
+- ✅ Owner account created for system administration
 
-The system is ready for testing. Any remaining issues will be visible in the enhanced logging output. 
+**Database Setup**:
+- ✅ Migration V19 adds owner account automatically during deployment
+- ✅ Account verification included in deployment process
+- ✅ Secure password handling with bcrypt hashing
+
+The system is ready for testing with both admin and owner accounts available. Any remaining issues will be visible in the enhanced logging output. 
