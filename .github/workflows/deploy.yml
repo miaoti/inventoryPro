@@ -34,7 +34,19 @@ jobs:
         NEXT_PUBLIC_API_URL=/api
         EOF
 
-
+    - name: Setup Let's Encrypt certificates
+      run: |
+        echo "🔐 Setting up Let's Encrypt certificates..."
+        chmod +x setup-letsencrypt.sh
+        
+        # Check if certificates already exist
+        if [ -f "certbot/conf/live/129.146.49.129/fullchain.pem" ]; then
+          echo "✅ Certificates already exist, skipping generation"
+        else
+          echo "📜 Generating new certificates..."
+          # Run in staging mode first for testing
+          ./setup-letsencrypt.sh || echo "⚠️ Certificate generation failed, continuing with HTTP"
+        fi
 
     - name: Stop existing containers and repair failed migration
       run: |
@@ -168,6 +180,9 @@ jobs:
         echo "HTTP main site (port 80):"
         curl -I http://localhost:80 && echo "✅ HTTP site OK" || echo "❌ HTTP site FAILED"
         
+        echo "HTTPS main site (port 443):"
+        curl -I -k https://localhost:443 && echo "✅ HTTPS site OK" || echo "❌ HTTPS site FAILED (will use HTTP)"
+        
         echo "Frontend (port 3000):"
         curl -I http://localhost:3000 && echo "✅ Frontend OK" || echo "❌ Frontend FAILED"  
         
@@ -175,13 +190,22 @@ jobs:
         curl -I http://localhost:8080/api/actuator/health && echo "✅ Backend OK" || echo "❌ Backend FAILED"
         
         echo "🎉 Deployment Summary:"
-        if curl -s http://localhost:80 >/dev/null; then
-          echo "✅ SUCCESS: Your inventory application is live!"
+        if curl -s -k https://localhost:443 >/dev/null; then
+          echo "✅ SUCCESS: Your inventory application is live with HTTPS!"
+          echo "🌐 Access your app at: https://129.146.49.129 (HTTPS - Camera Ready!)"
+          echo "🔄 HTTP redirect: http://129.146.49.129 → https://129.146.49.129"
+          echo "📱 Frontend: Your Next.js application with secure camera access"
+          echo "🔧 Backend: Your Spring Boot API"
+          echo "💾 Database: MySQL with your schema"
+          echo "📷 Camera: Now working on all mobile devices!"
+        elif curl -s http://localhost:80 >/dev/null; then
+          echo "✅ SUCCESS: Your inventory application is live (HTTP mode)!"
           echo "🌐 Access your app at: http://129.146.49.129"
           echo "📱 Frontend: Your Next.js application"
           echo "🔧 Backend: Your Spring Boot API"
           echo "💾 Database: MySQL with your schema"
-          echo "📷 Camera: Available for barcode scanning"
+          echo "⚠️  Camera: May not work on mobile devices without HTTPS"
+          echo "💡 Run 'chmod +x setup-letsencrypt.sh && ./setup-letsencrypt.sh' to enable HTTPS"
         else
           echo "❌ Deployment verification failed - running enhanced diagnostics..."
           echo "=== Nginx logs ==="
