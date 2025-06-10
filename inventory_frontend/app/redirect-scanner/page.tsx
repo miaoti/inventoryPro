@@ -26,7 +26,7 @@ export default function ScannerRedirectPage() {
       } else {
         // User is not authenticated, redirect to public scanner
         console.log('User is not authenticated, redirecting to public scanner');
-        router.replace('/barcode-scanner');
+        router.replace('/scanner');
       }
     };
 

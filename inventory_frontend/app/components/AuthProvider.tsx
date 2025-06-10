@@ -22,7 +22,7 @@ export default function AuthProvider({ children }: AuthProviderProps) {
   const [authChecked, setAuthChecked] = useState(false);
 
   // Define public routes that don't require authentication
-  const publicRoutes = ['/', '/login', '/register', '/scanner'];
+  const publicRoutes = ['/', '/login', '/register', '/scanner', '/scan'];
   const isPublicRoute = publicRoutes.includes(pathname);
 
   useEffect(() => {
