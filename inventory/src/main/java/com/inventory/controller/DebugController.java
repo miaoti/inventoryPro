@@ -50,12 +50,7 @@ public class DebugController {
         List<User> usersWithAlerts = userService.findUsersWithEmailAlertsEnabled();
         config.put("usersWithEmailAlertsCount", usersWithAlerts.size());
         
-        // OWNER users (always get notifications)
-        List<User> ownerUsers = userService.findByRole(User.UserRole.OWNER);
-        config.put("ownerUsersCount", ownerUsers.size());
-        
         Map<String, Object> userDetails = new HashMap<>();
-        // Add users with alerts
         for (User user : usersWithAlerts) {
             Map<String, Object> userInfo = new HashMap<>();
             userInfo.put("username", user.getUsername());
@@ -64,30 +59,11 @@ public class DebugController {
             userInfo.put("effectiveAlertEmail", user.getEffectiveAlertEmail());
             userInfo.put("enableEmailAlerts", user.getEnableEmailAlerts());
             userInfo.put("enableDailyDigest", user.getEnableDailyDigest());
-            userInfo.put("role", user.getRole().toString());
             userDetails.put(user.getUsername(), userInfo);
         }
+        config.put("usersWithEmailAlerts", userDetails);
         
-        // Add OWNER users (they get notifications regardless of email alert setting)
-        for (User owner : ownerUsers) {
-            if (!userDetails.containsKey(owner.getUsername())) {
-                Map<String, Object> userInfo = new HashMap<>();
-                userInfo.put("username", owner.getUsername());
-                userInfo.put("email", owner.getEmail());
-                userInfo.put("alertEmail", owner.getAlertEmail());
-                userInfo.put("effectiveAlertEmail", owner.getEffectiveAlertEmail());
-                userInfo.put("enableEmailAlerts", owner.getEnableEmailAlerts());
-                userInfo.put("enableDailyDigest", owner.getEnableDailyDigest());
-                userInfo.put("role", owner.getRole().toString());
-                userInfo.put("forcedNotification", true); // OWNER users always get notifications
-                userDetails.put(owner.getUsername(), userInfo);
-            }
-        }
-        
-        config.put("allNotificationUsers", userDetails);
-        
-        logger.info("Email configuration debug request - Users with alerts: {}, OWNER users: {}", 
-            usersWithAlerts.size(), ownerUsers.size());
+        logger.info("Email configuration debug request - Users with alerts: {}", usersWithAlerts.size());
         
         return ResponseEntity.ok(config);
     }

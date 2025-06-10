@@ -19,9 +19,4 @@ public interface UserService {
      * Find all users who have daily digest enabled
      */
     List<User> findUsersWithDailyDigestEnabled();
-    
-    /**
-     * Find all users by role (e.g., OWNER, ADMIN, USER)
-     */
-    List<User> findByRole(User.UserRole role);
 } 

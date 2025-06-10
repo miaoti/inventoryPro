@@ -197,7 +197,7 @@ export default function BarcodeScanner() {
       }
     }
 
-    // Debug email configuration when scanner loads (only for authenticated users)
+    // Debug email configuration when scanner loads
     if (user && isAuthenticated) {
       debugAPI.getEmailConfig()
         .then((config: any) => {
@@ -243,19 +243,11 @@ export default function BarcodeScanner() {
     };
   }, [searchQuery]);
 
-  // Smart search function (only available for authenticated users)
+  // Smart search function
   const performSearch = async (query: string) => {
     try {
       setSearchLoading(true);
       setError('');
-      
-      // Only allow search for authenticated users
-      if (!isAuthenticated) {
-        setSearchResults([]);
-        setShowSearchResults(false);
-        setSearchLoading(false);
-        return;
-      }
       
       // Get all items and perform client-side smart search
       const response = await itemsAPI.getAll();
@@ -1376,40 +1368,32 @@ export default function BarcodeScanner() {
             <Typography variant="h6">Search Items</Typography>
           </Box>
           
-          {isAuthenticated ? (
-            <TextField
-              fullWidth
-              variant="outlined"
-              placeholder="Search items by name, code, description... (e.g., 'white belt', 'B001')"
-              value={searchQuery}
-              onChange={handleSearchChange}
-              size="small"
-              disabled={!userName.trim()}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchIcon color="action" />
-                  </InputAdornment>
-                ),
-                endAdornment: searchQuery && (
-                  <InputAdornment position="end">
-                    <IconButton onClick={clearSearch} size="small" edge="end">
-                      <ClearIcon />
-                    </IconButton>
-                  </InputAdornment>
-                ),
-              }}
-              sx={{ mb: 1 }}
-            />
-          ) : (
-            <Alert severity="info" sx={{ mb: 1 }}>
-              <Typography variant="body2">
-                Search functionality is available for logged-in users. <a href="/login" style={{ color: 'inherit', textDecoration: 'underline' }}>Login here</a> to access item search.
-              </Typography>
-            </Alert>
-          )}
+          <TextField
+            fullWidth
+            variant="outlined"
+            placeholder="Search items by name, code, description... (e.g., 'white belt', 'B001')"
+            value={searchQuery}
+            onChange={handleSearchChange}
+            size="small"
+            disabled={!userName.trim()}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon color="action" />
+                </InputAdornment>
+              ),
+              endAdornment: searchQuery && (
+                <InputAdornment position="end">
+                  <IconButton onClick={clearSearch} size="small" edge="end">
+                    <ClearIcon />
+                  </IconButton>
+                </InputAdornment>
+              ),
+            }}
+            sx={{ mb: 1 }}
+          />
 
-          {searchQuery && isAuthenticated && (
+          {searchQuery && (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
               <Typography variant="body2" color="text.secondary">
                 {searchLoading ? 'Searching...' : `Found ${searchResults.length} result${searchResults.length !== 1 ? 's' : ''}`}
@@ -1424,7 +1408,7 @@ export default function BarcodeScanner() {
             </Box>
           )}
 
-          <Collapse in={showSearchResults && searchResults.length > 0 && isAuthenticated}>
+          <Collapse in={showSearchResults && searchResults.length > 0}>
             <Paper variant="outlined" sx={{ maxHeight: 300, overflow: 'auto' }}>
               <List dense>
                 {searchResults.map((item, index) => (

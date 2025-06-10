@@ -610,37 +610,34 @@ export const debugAPI = {
   }
 };
 
-// Log Viewer API for OWNER users only
-export const logAPI = {
-  getApplicationLogs: (lines: number = 100): Promise<any> => {
+// Owner Logs API (OWNER role only)
+export const ownerLogsAPI = {
+  getRecentLogs: (lines: number = 100, level: string = 'INFO') => {
     if (!ensureAuthenticated()) {
       return Promise.reject(new Error('Authentication required'));
     }
-    return api.get(`/owner/logs/application?lines=${lines}`);
+    return api.get(`/owner/logs/recent?lines=${lines}&level=${level}`);
   },
   
-  getDockerLogs: (lines: number = 100): Promise<any> => {
+  searchLogs: (query: string, maxResults: number = 100) => {
     if (!ensureAuthenticated()) {
       return Promise.reject(new Error('Authentication required'));
     }
-    return api.get(`/owner/logs/docker?lines=${lines}`);
+    return api.get(`/owner/logs/search?query=${encodeURIComponent(query)}&maxResults=${maxResults}`);
   },
   
-  getSystemStatus: (): Promise<any> => {
+  getEmailLogs: (lines: number = 50) => {
+    if (!ensureAuthenticated()) {
+      return Promise.reject(new Error('Authentication required'));
+    }
+    return api.get(`/owner/logs/email-logs?lines=${lines}`);
+  },
+  
+  getSystemStatus: () => {
     if (!ensureAuthenticated()) {
       return Promise.reject(new Error('Authentication required'));
     }
     return api.get('/owner/logs/system-status');
-  },
-  
-  getFilteredLogs: (lines: number = 100, level?: string, search?: string): Promise<any> => {
-    if (!ensureAuthenticated()) {
-      return Promise.reject(new Error('Authentication required'));
-    }
-    let url = `/owner/logs/filtered?lines=${lines}`;
-    if (level) url += `&level=${encodeURIComponent(level)}`;
-    if (search) url += `&search=${encodeURIComponent(search)}`;
-    return api.get(url);
   }
 };
 

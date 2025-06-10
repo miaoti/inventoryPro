@@ -14,8 +14,6 @@ import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
-import java.util.HashSet;
 
 @Service
 public class AlertService {
@@ -239,36 +237,21 @@ public class AlertService {
             logger.info("Safety Threshold: {}", alert.getSafetyStockThreshold());
             
             // Get all users who have email alerts enabled
-            List<User> usersWithAlerts = userService.findUsersWithEmailAlertsEnabled();
-            logger.info("Found {} users with email alerts enabled", usersWithAlerts.size());
+            List<User> users = userService.findUsersWithEmailAlertsEnabled();
+            logger.info("Found {} users with email alerts enabled", users.size());
             
-            // Always include OWNER users in notifications (even if they don't have alerts enabled)
-            List<User> ownerUsers = userService.findByRole(User.UserRole.OWNER);
-            logger.info("Found {} OWNER users", ownerUsers.size());
-            
-            // Combine users with alerts and owner users (remove duplicates)
-            Set<User> allNotificationUsers = new HashSet<>(usersWithAlerts);
-            for (User owner : ownerUsers) {
-                logger.info("Adding OWNER user to notifications: {} ({})", owner.getUsername(), owner.getEffectiveAlertEmail());
-                allNotificationUsers.add(owner);
-            }
-            
-            logger.info("Total users to receive notifications: {}", allNotificationUsers.size());
-            
-            if (allNotificationUsers.isEmpty()) {
-                // Fallback to global notification email if no users found
-                logger.info("No users found, using fallback email: {}", fallbackNotificationEmail);
+            if (users.isEmpty()) {
+                // Fallback to global notification email if no users have alerts enabled
+                logger.info("No users with alerts enabled, using fallback email: {}", fallbackNotificationEmail);
                 emailService.sendAlertNotification(alert, fallbackNotificationEmail);
                 logger.info("✅ ALERT EMAIL SENT (fallback): {}", alert.getMessage());
             } else {
-                // Send alert to each user
-                for (User user : allNotificationUsers) {
+                // Send alert to each user who wants email notifications
+                for (User user : users) {
                     String alertEmail = user.getEffectiveAlertEmail();
-                    logger.info("Sending alert to user: {} ({}) [{}], email: {}", 
-                        user.getUsername(), user.getFullName(), user.getRole(), alertEmail);
+                    logger.info("Sending alert to user: {} ({}), email: {}", user.getUsername(), user.getFullName(), alertEmail);
                     emailService.sendAlertNotification(alert, alertEmail);
-                    logger.info("✅ ALERT EMAIL SENT to {} ({}) [{}]: {}", 
-                        alertEmail, user.getUsername(), user.getRole(), alert.getMessage());
+                    logger.info("✅ ALERT EMAIL SENT to {} ({}): {}", alertEmail, user.getUsername(), alert.getMessage());
                 }
             }
             logger.info("=== EMAIL NOTIFICATION DEBUG END ===");
@@ -283,46 +266,25 @@ public class AlertService {
      */
     public void sendDailySummary() {
         try {
-            logger.info("=== DAILY SUMMARY DEBUG START ===");
             long activeAlertCount = getActiveAlertCount();
-            logger.info("Active alert count: {}", activeAlertCount);
             
             // Get all users who have daily digest enabled
-            List<User> usersWithDigest = userService.findUsersWithDailyDigestEnabled();
-            logger.info("Found {} users with daily digest enabled", usersWithDigest.size());
+            List<User> users = userService.findUsersWithDailyDigestEnabled();
             
-            // Always include OWNER users in daily summaries (even if they don't have digest enabled)
-            List<User> ownerUsers = userService.findByRole(User.UserRole.OWNER);
-            logger.info("Found {} OWNER users", ownerUsers.size());
-            
-            // Combine users with digest and owner users (remove duplicates)
-            Set<User> allDigestUsers = new HashSet<>(usersWithDigest);
-            for (User owner : ownerUsers) {
-                logger.info("Adding OWNER user to daily digest: {} ({})", owner.getUsername(), owner.getEffectiveAlertEmail());
-                allDigestUsers.add(owner);
-            }
-            
-            logger.info("Total users to receive daily summary: {}", allDigestUsers.size());
-            
-            if (allDigestUsers.isEmpty()) {
-                // Fallback to global notification email if no users found
-                logger.info("No users found, using fallback email: {}", fallbackNotificationEmail);
+            if (users.isEmpty()) {
+                // Fallback to global notification email if no users have daily digest enabled
                 emailService.sendLowStockSummary(fallbackNotificationEmail, activeAlertCount);
-                logger.info("✅ Daily summary email sent (fallback) with {} active alerts", activeAlertCount);
+                System.out.println("Daily summary email sent (fallback) with " + activeAlertCount + " active alerts");
             } else {
-                // Send daily summary to each user
-                for (User user : allDigestUsers) {
+                // Send daily summary to each user who wants it
+                for (User user : users) {
                     String alertEmail = user.getEffectiveAlertEmail();
-                    logger.info("Sending daily summary to user: {} ({}) [{}], email: {}", 
-                        user.getUsername(), user.getFullName(), user.getRole(), alertEmail);
                     emailService.sendLowStockSummary(alertEmail, activeAlertCount);
-                    logger.info("✅ Daily summary email sent to {} ({}) [{}] with {} active alerts", 
-                        alertEmail, user.getUsername(), user.getRole(), activeAlertCount);
+                    System.out.println("Daily summary email sent to " + alertEmail + " with " + activeAlertCount + " active alerts");
                 }
             }
-            logger.info("=== DAILY SUMMARY DEBUG END ===");
         } catch (Exception e) {
-            logger.error("❌ Failed to send daily summary: {} - {}", e.getMessage(), e.toString(), e);
+            System.err.println("Failed to send daily summary: " + e.getMessage());
         }
     }
 } 

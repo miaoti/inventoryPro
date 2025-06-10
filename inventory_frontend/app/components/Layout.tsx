@@ -226,9 +226,9 @@ export default function Layout({ children }: LayoutProps) {
               </ListItemIcon>
               <ListItemText primary="PO Statistics" />
             </ListItem>
-            <ListItem button onClick={() => handleNavigation('/owner/logs')}>
+            <ListItem button onClick={() => handleNavigation('/owner-logs')}>
               <ListItemIcon>
-                <LogsIcon color="error" />
+                <LogsIcon sx={{ color: '#f44336' }} />
               </ListItemIcon>
               <ListItemText primary="System Logs" />
             </ListItem>
