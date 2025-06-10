@@ -19,7 +19,7 @@ RUN ./gradlew dependencies --no-daemon
 COPY src src
 
 # Build the application with parallel builds and daemon disabled for container
-RUN ./gradlew clean build -x test --no-daemon --parallel
+RUN ./gradlew clean build -x test --no-daemon --no-build-cache --rerun-tasks
 
 # Runtime stage - Use Eclipse Temurin JRE 17
 FROM eclipse-temurin:17-jre

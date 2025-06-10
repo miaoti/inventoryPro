@@ -44,7 +44,7 @@ public class LogController {
                 response.put("totalLines", logLines.size());
             } else {
                 // Fallback to docker logs if file doesn't exist
-                List<String> dockerLogs = getDockerLogs(requestedLines);
+                List<String> dockerLogs = getDockerLogsHelper(requestedLines);
                 response.put("source", "docker");
                 response.put("command", DOCKER_LOG_COMMAND);
                 response.put("lines", dockerLogs);
@@ -71,7 +71,7 @@ public class LogController {
             logger.info("OWNER user requesting docker logs - lines: {}", lines);
             
             int requestedLines = Math.min(lines, MAX_LINES);
-            List<String> dockerLogs = getDockerLogs(requestedLines);
+            List<String> dockerLogs = getDockerLogsHelper(requestedLines);
             
             Map<String, Object> response = new HashMap<>();
             response.put("source", "docker");
@@ -153,7 +153,7 @@ public class LogController {
             if (Files.exists(Paths.get(LOG_FILE_PATH))) {
                 allLogs = readLogFile(LOG_FILE_PATH, requestedLines * 2); // Get more to filter
             } else {
-                allLogs = getDockerLogs(requestedLines * 2);
+                allLogs = getDockerLogsHelper(requestedLines * 2);
             }
             
             // Filter logs
@@ -196,7 +196,7 @@ public class LogController {
         return allLines.subList(startIndex, allLines.size());
     }
     
-    private List<String> getDockerLogs(int maxLines) {
+    private List<String> getDockerLogsHelper(int maxLines) {
         try {
             ProcessBuilder processBuilder = new ProcessBuilder(
                 "docker", "logs", "--tail", String.valueOf(maxLines), "inventory_backend_prod"

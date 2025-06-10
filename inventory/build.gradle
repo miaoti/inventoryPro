@@ -65,6 +65,8 @@ dependencies {
     // Lombok
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
+    testCompileOnly 'org.projectlombok:lombok'
+    testAnnotationProcessor 'org.projectlombok:lombok'
 
     // Test
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
@@ -73,6 +75,23 @@ dependencies {
 
 test {
     useJUnitPlatform()
+}
+
+// Ensure Lombok annotation processing works in Docker builds
+compileJava {
+    options.compilerArgs += ['-parameters', '-Xlint:-processing']
+    options.annotationProcessorPath = configurations.annotationProcessor
+    // Force annotation processing
+    options.fork = true
+    options.incremental = false
+}
+
+compileTestJava {
+    options.compilerArgs += ['-parameters', '-Xlint:-processing']
+    options.annotationProcessorPath = configurations.testAnnotationProcessor
+    // Force annotation processing
+    options.fork = true
+    options.incremental = false
 }
 
 // Flyway configuration
