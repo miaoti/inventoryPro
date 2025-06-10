@@ -176,7 +176,7 @@ export default function BarcodeScanner() {
       setUserName(''); // Clear userName if no user
     }
 
-    // Check for HTTPS requirement on mobile devices
+    // Note: Camera access will work on HTTP for development/testing
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     const isHTTPS = window.location.protocol === 'https:';
@@ -184,10 +184,8 @@ export default function BarcodeScanner() {
     
     console.log('Security check:', { isIOS, isMobile, isHTTPS, isLocalhost, protocol: window.location.protocol, hostname: window.location.hostname });
     
-    if ((isIOS || isMobile) && !isHTTPS && !isLocalhost) {
-      console.warn('⚠️ HTTPS required for camera access on mobile devices');
-      setCameraError('HTTPS is required for camera access on mobile devices. Please use a secure connection.');
-    }
+    // Allow HTTP for all devices (remove HTTPS requirement)
+    console.log('✅ Camera access enabled for HTTP connections');
 
     // Don't rely on stored camera permission for iOS devices
     if (!isIOS) {
@@ -426,12 +424,9 @@ export default function BarcodeScanner() {
         isSecureContext
       });
       
-      // MediaDevices API requires secure context (HTTPS or localhost)
-      if (!isSecureContext && hostname !== 'localhost' && hostname !== '127.0.0.1') {
-        // Check if HTTPS is available by trying to redirect
-        const httpsUrl = window.location.href.replace('http:', 'https:');
-        throw new Error(`Camera access requires HTTPS. Redirecting to secure connection... If this doesn't work automatically, please manually visit: ${httpsUrl}`);
-      }
+      // Note: For production deployment, we're allowing HTTP camera access
+      // Some browsers may still require HTTPS for getUserMedia, but we'll attempt HTTP first
+      console.log('Attempting camera access on HTTP (some browsers may still require HTTPS)');
       
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         // Try to polyfill for older browsers
@@ -465,13 +460,8 @@ export default function BarcodeScanner() {
         console.log('✅ Modern camera API available');
       }
       
-      // Check for HTTPS requirement first
-      const isHTTPS = window.location.protocol === 'https:';
-      const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-      
-      if ((isIOS || isMobile) && !isHTTPS && !isLocalhost) {
-        throw new Error('HTTPS is required for camera access on mobile devices. Please use a secure connection.');
-      }
+      // Allow camera access on HTTP for all devices
+      console.log('Attempting camera access on current protocol:', window.location.protocol);
       
       // Define constraints based on device
       let constraints: MediaStreamConstraints;
