@@ -305,56 +305,28 @@ export default function ItemsPage() {
   const fetchItems = async () => {
     try {
       setLoading(true);
-      const response: any = await itemsAPI.getAll();
-      const responseData = response.data || response; // Handle both response structures
+      const response = await itemsAPI.getAll();
+      const itemsData = Array.isArray(response.data) ? response.data : (response.data?.data || []);
       
-      // Ensure we have valid data
-      if (!responseData || !Array.isArray(responseData)) {
-        console.error('Invalid response format:', response);
-        setItems([]);
-        setFilteredItems([]);
-        setSelectedItems([]);
-        return;
+      console.log('🔍 DEBUG: Fetched items data:', itemsData.length, 'items');
+      
+      // Log first few items to check QR code data
+      if (itemsData.length > 0) {
+        console.log('🔍 DEBUG: First item data:', itemsData[0]);
+        const itemsWithQR = itemsData.filter(item => item.qrCodeData);
+        const itemsWithoutQR = itemsData.filter(item => !item.qrCodeData);
+        console.log('🔍 DEBUG: Items with QR codes:', itemsWithQR.length);
+        console.log('🔍 DEBUG: Items without QR codes:', itemsWithoutQR.length);
+        
+        if (itemsWithQR.length > 0) {
+          console.log('🔍 DEBUG: Sample QR code data length:', itemsWithQR[0].qrCodeData?.length);
+        }
       }
       
-      // Process items to calculate available quantities
-      const processedItems = responseData.map((item: any) => {
-        // Ensure all required fields exist with default values
-        const currentInventory = item.quantity || 0;
-        const usedInventory = item.usedInventory || 0;
-        const pendingPO = item.pendingPO || 0;
-        
-        const processedItem: Item = {
-          id: item.id || 0,
-          name: item.name || 'Unknown Item',
-          description: item.description || '',
-          englishDescription: item.englishDescription || '',
-          code: item.code || '',
-          quantity: currentInventory,
-          minQuantity: item.minQuantity || 0,
-          location: item.location || '',
-          equipment: item.equipment || '',
-          category: item.category || 'C',
-          weeklyData: item.weeklyData || '',
-          barcode: item.barcode || '',
-          currentInventory: currentInventory,
-          usedInventory: usedInventory,
-          pendingPO: pendingPO,
-          availableQuantity: Math.max(0, currentInventory + pendingPO - usedInventory),
-        };
-        
-        return processedItem;
-      });
-      
-      console.log('Fetched and processed items:', processedItems.length);
-      console.log('Sample item:', processedItems[0]);
-      setItems(processedItems);
-      setSelectedItems([]);
+      setItems(itemsData);
     } catch (error) {
       console.error('Error fetching items:', error);
-      setItems([]); // Set empty array on error
-      setFilteredItems([]); // Set empty array on error
-      setSelectedItems([]); // Clear selections on error
+      setItems([]);
     } finally {
       setLoading(false);
     }
@@ -404,6 +376,13 @@ export default function ItemsPage() {
   };
 
   const handleOpenDetailDialog = (item: Item) => {
+    console.log('🔍 DEBUG: Opening detail dialog for item:', item.name);
+    console.log('🔍 DEBUG: Item QR code data:', {
+      qrCodeId: item.qrCodeId,
+      qrCodeData: item.qrCodeData ? `${item.qrCodeData.substring(0, 50)}...` : 'null',
+      qrCodeUrl: item.qrCodeUrl,
+      hasQRCode: !!item.qrCodeData
+    });
     setSelectedItem(item);
     setOpenDetailDialog(true);
   };
@@ -1511,22 +1490,8 @@ export default function ItemsPage() {
                         
                         {!selectedItem.qrCodeData && (
                           <Box sx={{ mt: 2 }}>
-                            <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic', mb: 1 }}>
-                              QR code not available for this item
-                            </Typography>
-                            <Button
-                              variant="outlined"
-                              size="small"
-                              color="primary"
-                              onClick={handleRegenerateQRCodes}
-                              disabled={regeneratingQR}
-                              startIcon={regeneratingQR ? <CircularProgress size={16} /> : <QrCodeIcon />}
-                            >
-                              {regeneratingQR ? 'Generating...' : 'Generate QR Codes'}
-                            </Button>
-                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
-                              Debug: qrCodeId = {selectedItem.qrCodeId || 'null'}, 
-                              qrCodeData = {selectedItem.qrCodeData ? 'exists' : 'null'}
+                            <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                              QR code will be generated for new items
                             </Typography>
                           </Box>
                         )}
@@ -1694,7 +1659,7 @@ export default function ItemsPage() {
             handleCloseDetailDialog();
             if (selectedItem) handleOpenPODialog(selectedItem);
           }} variant="outlined" color={selectedItem && selectedItem.pendingPO && selectedItem.pendingPO > 0 ? "warning" : "inherit"}>
-            Manage POs{selectedItem && selectedItem.pendingPO ? ` (${selectedItem.pendingPO})` : ' (0)'}
+            Manage POs{selectedItem && selectedItem.pendingPO && selectedItem.pendingPO > 0 ? ` (${selectedItem.pendingPO})` : ' (0)'}
           </Button>
           <Button onClick={() => {
             handleCloseDetailDialog();

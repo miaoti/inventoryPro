@@ -90,8 +90,10 @@ public class ItemController {
             String qrCodeData = qrCodeService.generateQRCode(qrCodeId, item.getName());
             item.setQrCodeId(qrCodeId);
             item.setQrCodeData(qrCodeData);
+            System.out.println("🔍 DEBUG: Generated QR code for item " + item.getName() + " - ID: " + qrCodeId + ", Data length: " + qrCodeData.length());
         } catch (Exception e) {
             System.err.println("Failed to generate QR code for item: " + e.getMessage());
+            e.printStackTrace();
             // Don't fail the whole operation if QR code generation fails
         }
         
@@ -161,8 +163,10 @@ public class ItemController {
                         String qrCodeData = qrCodeService.generateQRCode(qrCodeId, item.getName());
                         item.setQrCodeId(qrCodeId);
                         item.setQrCodeData(qrCodeData);
+                        System.out.println("🔍 DEBUG: Generated QR code for imported item " + item.getCode() + " - ID: " + qrCodeId + ", Data length: " + qrCodeData.length());
                     } catch (Exception e) {
                         System.err.println("Failed to generate QR code for imported item " + item.getCode() + ": " + e.getMessage());
+                        e.printStackTrace();
                         // Don't fail the whole operation if QR code generation fails
                     }
                     
@@ -332,6 +336,8 @@ public class ItemController {
                     .filter(item -> item.getQrCodeId() == null || item.getQrCodeData() == null)
                     .collect(Collectors.toList());
             
+            System.out.println("🔍 DEBUG: Found " + itemsWithoutQR.size() + " items without QR codes");
+            
             int successCount = 0;
             int errorCount = 0;
             List<String> errors = new ArrayList<>();
@@ -344,12 +350,16 @@ public class ItemController {
                     item.setQrCodeData(qrCodeData);
                     itemRepository.save(item);
                     successCount++;
+                    System.out.println("🔍 DEBUG: Generated QR code for existing item " + item.getCode() + " - ID: " + qrCodeId + ", Data length: " + qrCodeData.length());
                 } catch (Exception e) {
                     errorCount++;
                     errors.add("Failed to generate QR code for item " + item.getCode() + ": " + e.getMessage());
                     System.err.println("Failed to generate QR code for item " + item.getCode() + ": " + e.getMessage());
+                    e.printStackTrace();
                 }
             }
+            
+            System.out.println("🔍 DEBUG: QR regeneration completed - Success: " + successCount + ", Errors: " + errorCount);
             
             Map<String, Object> response = new HashMap<>();
             response.put("message", "QR code regeneration completed");
@@ -364,42 +374,6 @@ public class ItemController {
             e.printStackTrace();
             return ResponseEntity.internalServerError().body(
                 Map.of("error", "Failed to regenerate QR codes: " + e.getMessage())
-            );
-        }
-    }
-
-    @GetMapping("/qr-debug")
-    public ResponseEntity<Map<String, Object>> getQRCodeDebugInfo() {
-        try {
-            List<Item> allItems = itemRepository.findAll();
-            
-            long totalItems = allItems.size();
-            long itemsWithQRId = allItems.stream().filter(item -> item.getQrCodeId() != null).count();
-            long itemsWithQRData = allItems.stream().filter(item -> item.getQrCodeData() != null).count();
-            long itemsWithBothQR = allItems.stream().filter(item -> item.getQrCodeId() != null && item.getQrCodeData() != null).count();
-            
-            // Sample of items without QR codes
-            List<String> itemsWithoutQR = allItems.stream()
-                    .filter(item -> item.getQrCodeId() == null || item.getQrCodeData() == null)
-                    .limit(5)
-                    .map(item -> "ID: " + item.getId() + ", Code: " + item.getCode() + ", Name: " + item.getName() + 
-                                 ", QRId: " + (item.getQrCodeId() != null ? "YES" : "NO") + 
-                                 ", QRData: " + (item.getQrCodeData() != null ? "YES" : "NO"))
-                    .collect(Collectors.toList());
-            
-            Map<String, Object> response = new HashMap<>();
-            response.put("totalItems", totalItems);
-            response.put("itemsWithQRId", itemsWithQRId);
-            response.put("itemsWithQRData", itemsWithQRData);
-            response.put("itemsWithBothQR", itemsWithBothQR);
-            response.put("itemsWithoutQRSample", itemsWithoutQR);
-            
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            System.err.println("Error in QR debug: " + e.getMessage());
-            e.printStackTrace();
-            return ResponseEntity.internalServerError().body(
-                Map.of("error", "Failed to get QR debug info: " + e.getMessage())
             );
         }
     }
@@ -876,6 +850,13 @@ public class ItemController {
         if (item.getQrCodeId() != null) {
             response.setQrCodeUrl(qrCodeService.getQRCodeUrl(item.getQrCodeId()));
         }
+        
+        // Debug logging for QR code data
+        if (item.getQrCodeId() != null || item.getQrCodeData() != null) {
+            System.out.println("🔍 DEBUG: Item " + item.getName() + " QR data - ID: " + item.getQrCodeId() + 
+                             ", Data: " + (item.getQrCodeData() != null ? "present (" + item.getQrCodeData().length() + " chars)" : "null"));
+        }
+        
         response.setUsedInventory(usedInventory);
         response.setPendingPO(pendingPO);
         response.setAvailableQuantity(availableQuantity);
