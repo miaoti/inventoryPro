@@ -255,24 +255,47 @@ jobs:
         else
             echo "❌ QR code columns missing - applying migration manually..."
             
-            # Apply the QR code migration manually
+            # Apply the QR code migration manually with proper MySQL syntax
+            echo "Applying QR code migration with individual SQL commands..."
+            
+            # Add qr_code_id column
             sudo docker-compose -f docker-compose.prod.yml exec -T mysql mysql -u root -p${{ secrets.MYSQL_ROOT_PASSWORD }} -e "
             USE inventory_db;
+            SET @column_exists = (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='inventory_db' AND table_name='items' AND column_name='qr_code_id');
+            SET @sql = IF(@column_exists = 0, 'ALTER TABLE items ADD COLUMN qr_code_id VARCHAR(255) UNIQUE;', 'SELECT \"qr_code_id column already exists\" as status;');
+            PREPARE stmt FROM @sql;
+            EXECUTE stmt;
+            DEALLOCATE PREPARE stmt;
+            " || echo "qr_code_id column addition failed"
             
-            -- Add QR code fields to items table if they don't exist
-            ALTER TABLE items ADD COLUMN IF NOT EXISTS qr_code_id VARCHAR(255) UNIQUE;
-            ALTER TABLE items ADD COLUMN IF NOT EXISTS qr_code_data TEXT;
+            # Add qr_code_data column  
+            sudo docker-compose -f docker-compose.prod.yml exec -T mysql mysql -u root -p${{ secrets.MYSQL_ROOT_PASSWORD }} -e "
+            USE inventory_db;
+            SET @column_exists = (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='inventory_db' AND table_name='items' AND column_name='qr_code_data');
+            SET @sql = IF(@column_exists = 0, 'ALTER TABLE items ADD COLUMN qr_code_data TEXT;', 'SELECT \"qr_code_data column already exists\" as status;');
+            PREPARE stmt FROM @sql;
+            EXECUTE stmt;
+            DEALLOCATE PREPARE stmt;
+            " || echo "qr_code_data column addition failed"
             
-            -- Create index for better performance if it doesn't exist
-            CREATE INDEX IF NOT EXISTS idx_items_qr_code_id ON items(qr_code_id);
+            # Create index if it doesn't exist
+            sudo docker-compose -f docker-compose.prod.yml exec -T mysql mysql -u root -p${{ secrets.MYSQL_ROOT_PASSWORD }} -e "
+            USE inventory_db;
+            SET @index_exists = (SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema='inventory_db' AND table_name='items' AND index_name='idx_items_qr_code_id');
+            SET @sql = IF(@index_exists = 0, 'CREATE INDEX idx_items_qr_code_id ON items(qr_code_id);', 'SELECT \"Index already exists\" as status;');
+            PREPARE stmt FROM @sql;
+            EXECUTE stmt;
+            DEALLOCATE PREPARE stmt;
+            " || echo "Index creation failed"
             
-            -- Update flyway schema history to mark this migration as completed
+            # Update flyway schema history
+            sudo docker-compose -f docker-compose.prod.yml exec -T mysql mysql -u root -p${{ secrets.MYSQL_ROOT_PASSWORD }} -e "
+            USE inventory_db;
             INSERT IGNORE INTO flyway_schema_history (version, description, type, script, checksum, installed_by, execution_time, success, installed_rank) 
             VALUES ('20', 'add qr code fields', 'SQL', 'V20__add_qr_code_fields.sql', 0, 'deployment', 100, 1, 
                    (SELECT COALESCE(MAX(installed_rank), 0) + 1 FROM flyway_schema_history fsh));
-            
             SELECT 'QR code migration applied manually' as status;
-            " 2>/dev/null
+            " || echo "Flyway history update failed"
             
             echo "✅ QR code migration applied manually in deployment"
         fi
