@@ -31,7 +31,7 @@ export default function AuthProvider({ children }: AuthProviderProps) {
       
       try {
         // Check if we have a token
-        const token = Cookies.get('token');
+      const token = Cookies.get('token');
         const userCookie = Cookies.get('user');
         
         if (!token) {
@@ -63,7 +63,7 @@ export default function AuthProvider({ children }: AuthProviderProps) {
 
         try {
           const user = JSON.parse(userCookie);
-          
+            
           // Validate token with server
           const validationResult: any = await authAPI.validateToken();
           
@@ -85,10 +85,10 @@ export default function AuthProvider({ children }: AuthProviderProps) {
           authAPI.clearAuthData();
           if (!isPublicRoute) {
             router.push('/login?error=invalid_session');
+            }
           }
-        }
 
-      } catch (error) {
+        } catch (error) {
         console.error('AuthProvider: Error during auth validation:', error);
         
         // Clear auth on any validation error
@@ -154,11 +154,11 @@ export default function AuthProvider({ children }: AuthProviderProps) {
     return (
       <Box
         sx={{
-          display: 'flex',
-          flexDirection: 'column',
+        display: 'flex', 
+        flexDirection: 'column',
           alignItems: 'center',
-          justifyContent: 'center',
-          height: '100vh',
+        justifyContent: 'center', 
+        height: '100vh',
           gap: 2
         }}
       >
@@ -177,7 +177,7 @@ export default function AuthProvider({ children }: AuthProviderProps) {
 
   // For protected routes, only render if authenticated and validation is complete
   if (authChecked && isAuthenticated) {
-    return <>{children}</>;
+  return <>{children}</>;
   }
 
   // Show loading for protected routes while auth is being validated

@@ -8,7 +8,7 @@ on:
       gcp_instance_ip:
         description: 'GCP Instance IP Address (for reference)'
         required: true
-        default: '129.146.49.129'
+        default: '34.45.97.0'
       gcp_ssh_user:
         description: 'SSH User for GCP Instance (for reference)'
         required: true
@@ -18,7 +18,7 @@ env:
   REGISTRY: ghcr.io
   FRONTEND_IMAGE_NAME: ${{ github.repository }}/frontend
   BACKEND_IMAGE_NAME: ${{ github.repository }}/backend
-  GCP_INSTANCE_IP: ${{ github.event.inputs.gcp_instance_ip || '129.146.49.129' }}
+  GCP_INSTANCE_IP: ${{ github.event.inputs.gcp_instance_ip || '34.45.97.0' }}
 
 jobs:
   build-and-deploy:
@@ -242,10 +242,30 @@ jobs:
         sudo docker-compose -f docker-compose.prod.yml up -d backend
         
         echo "⏳ Waiting for Flyway migrations to complete..."
-        sleep 45
+        sleep 60
         
-        echo "📜 Checking backend migration logs..."
-        sudo docker-compose -f docker-compose.prod.yml logs --tail=50 backend | grep -E "(Flyway|Migration|Successfully|ERROR)" || echo "Checking full backend logs..."
+        echo "🔍 Monitoring migration progress..."
+        for i in {1..12}; do
+          echo "📜 Checking migration logs (attempt $i/12)..."
+          MIGRATION_STATUS=$(sudo docker-compose -f docker-compose.prod.yml logs backend | grep -E "(Migration.*completed|Flyway.*successfully|Successfully.*migrations)" | tail -1)
+          
+          if echo "$MIGRATION_STATUS" | grep -q -E "(completed|successfully)"; then
+            echo "✅ Migrations appear to be complete: $MIGRATION_STATUS"
+            break
+          fi
+          
+          # Check for migration errors
+          ERROR_CHECK=$(sudo docker-compose -f docker-compose.prod.yml logs backend | grep -E "(ERROR|Exception|Failed)" | tail -1)
+          if [ ! -z "$ERROR_CHECK" ]; then
+            echo "⚠️ Potential migration error detected: $ERROR_CHECK"
+          fi
+          
+          echo "⏳ Still waiting for migrations... ($i/12)"
+          sleep 10
+        done
+        
+        echo "📜 Final backend migration logs..."
+        sudo docker-compose -f docker-compose.prod.yml logs --tail=50 backend | grep -E "(Flyway|Migration|Successfully|ERROR|qr_code)" || echo "Checking recent backend logs..."
         
         echo "🔍 Verifying database tables..."
         sudo docker-compose -f docker-compose.prod.yml exec -T mysql mysql -u root -p${{ secrets.MYSQL_ROOT_PASSWORD }} -e "
