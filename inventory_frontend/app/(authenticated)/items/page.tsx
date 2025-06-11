@@ -1511,8 +1511,22 @@ export default function ItemsPage() {
                         
                         {!selectedItem.qrCodeData && (
                           <Box sx={{ mt: 2 }}>
-                            <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
-                              QR code will be generated for new items
+                            <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic', mb: 1 }}>
+                              QR code not available for this item
+                            </Typography>
+                            <Button
+                              variant="outlined"
+                              size="small"
+                              color="primary"
+                              onClick={handleRegenerateQRCodes}
+                              disabled={regeneratingQR}
+                              startIcon={regeneratingQR ? <CircularProgress size={16} /> : <QrCodeIcon />}
+                            >
+                              {regeneratingQR ? 'Generating...' : 'Generate QR Codes'}
+                            </Button>
+                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+                              Debug: qrCodeId = {selectedItem.qrCodeId || 'null'}, 
+                              qrCodeData = {selectedItem.qrCodeData ? 'exists' : 'null'}
                             </Typography>
                           </Box>
                         )}
@@ -1676,14 +1690,12 @@ export default function ItemsPage() {
           }} variant="outlined" color="info">
             Create PO
           </Button>
-          {selectedItem && selectedItem.pendingPO && selectedItem.pendingPO > 0 && (
-            <Button onClick={() => {
-              handleCloseDetailDialog();
-              if (selectedItem) handleOpenPODialog(selectedItem);
-            }} variant="outlined" color="warning">
-              Manage POs{selectedItem.pendingPO > 0 ? ` (${selectedItem.pendingPO})` : ''}
-            </Button>
-          )}
+          <Button onClick={() => {
+            handleCloseDetailDialog();
+            if (selectedItem) handleOpenPODialog(selectedItem);
+          }} variant="outlined" color={selectedItem && selectedItem.pendingPO && selectedItem.pendingPO > 0 ? "warning" : "inherit"}>
+            Manage POs{selectedItem && selectedItem.pendingPO ? ` (${selectedItem.pendingPO})` : ' (0)'}
+          </Button>
           <Button onClick={() => {
             handleCloseDetailDialog();
             if (selectedItem) handleOpenDialog(selectedItem);
