@@ -505,6 +505,11 @@ export const barcodeAPI = {
   }) => api.post(`/public/barcode/confirm-restock/${encodeURIComponent(barcode)}`, restockData),
 };
 
+// Public items API for scanner search functionality (no authentication required)
+export const publicItemsAPI = {
+  searchItems: () => api.get('/public/items/search'),
+};
+
 export const adminAPI = {
   getItemDisplaySettings: () => api.get('/admin/settings/item-display'),
   updateItemDisplaySettings: (fields: string[]) => 

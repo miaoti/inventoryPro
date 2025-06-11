@@ -51,7 +51,7 @@ import {
   ArrowBack as ArrowBackIcon,
 } from '@mui/icons-material';
 import { BrowserMultiFormatReader, BarcodeFormat, DecodeHintType } from '@zxing/library';
-import { barcodeAPI, itemsAPI, purchaseOrderAPI } from '../services/api';
+import { barcodeAPI, itemsAPI, purchaseOrderAPI, publicItemsAPI } from '../services/api';
 import { PurchaseOrder } from '../types/purchaseOrder';
 import Layout from '../components/Layout';
 // import { TrackingDisplay } from '../../../components/TrackingDisplay';
@@ -232,8 +232,8 @@ export default function BarcodeScanner() {
       setSearchLoading(true);
       setError('');
       
-      // Get all items and perform client-side smart search
-      const response = await itemsAPI.getAll();
+      // Get all items using public API and perform client-side smart search
+      const response = await publicItemsAPI.searchItems();
       const items = (response as any)?.data || response || [];
       
       const searchResults = performSmartSearch(items, query);
