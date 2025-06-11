@@ -368,6 +368,42 @@ public class ItemController {
         }
     }
 
+    @GetMapping("/qr-debug")
+    public ResponseEntity<Map<String, Object>> getQRCodeDebugInfo() {
+        try {
+            List<Item> allItems = itemRepository.findAll();
+            
+            long totalItems = allItems.size();
+            long itemsWithQRId = allItems.stream().filter(item -> item.getQrCodeId() != null).count();
+            long itemsWithQRData = allItems.stream().filter(item -> item.getQrCodeData() != null).count();
+            long itemsWithBothQR = allItems.stream().filter(item -> item.getQrCodeId() != null && item.getQrCodeData() != null).count();
+            
+            // Sample of items without QR codes
+            List<String> itemsWithoutQR = allItems.stream()
+                    .filter(item -> item.getQrCodeId() == null || item.getQrCodeData() == null)
+                    .limit(5)
+                    .map(item -> "ID: " + item.getId() + ", Code: " + item.getCode() + ", Name: " + item.getName() + 
+                                 ", QRId: " + (item.getQrCodeId() != null ? "YES" : "NO") + 
+                                 ", QRData: " + (item.getQrCodeData() != null ? "YES" : "NO"))
+                    .collect(Collectors.toList());
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("totalItems", totalItems);
+            response.put("itemsWithQRId", itemsWithQRId);
+            response.put("itemsWithQRData", itemsWithQRData);
+            response.put("itemsWithBothQR", itemsWithBothQR);
+            response.put("itemsWithoutQRSample", itemsWithoutQR);
+            
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            System.err.println("Error in QR debug: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.internalServerError().body(
+                Map.of("error", "Failed to get QR debug info: " + e.getMessage())
+            );
+        }
+    }
+
     private List<Item> parseExcelFile(MultipartFile file, List<String> errors) throws IOException {
         List<Item> items = new ArrayList<>();
         
