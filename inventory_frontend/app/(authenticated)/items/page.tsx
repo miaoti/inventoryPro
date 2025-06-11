@@ -1878,9 +1878,9 @@ export default function ItemsPage() {
                 )}
 
                 {/* Processing Time Info */}
-                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+                {/* <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
                   Import completed at {new Date().toLocaleString()}
-                </Typography>
+                </Typography> */}
               </Box>
             )}
           </Box>
