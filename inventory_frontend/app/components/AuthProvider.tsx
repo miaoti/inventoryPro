@@ -22,8 +22,8 @@ export default function AuthProvider({ children }: AuthProviderProps) {
   const [authChecked, setAuthChecked] = useState(false);
 
   // Define public routes that don't require authentication
-  const publicRoutes = ['/', '/login', '/register', '/scanner', '/scan', '/qr-usage'];
-  const isPublicRoute = publicRoutes.includes(pathname);
+  const publicRoutes = ['/', '/login', '/register', '/scanner', '/scan'];
+  const isPublicRoute = publicRoutes.includes(pathname) || pathname.startsWith('/qr-usage');
 
   useEffect(() => {
     const validateAuth = async () => {

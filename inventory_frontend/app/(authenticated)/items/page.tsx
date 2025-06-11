@@ -1447,49 +1447,78 @@ export default function ItemsPage() {
                         {/* QR Code Display */}
                         {selectedItem.qrCodeData && (
                           <Box sx={{ mb: 2 }}>
-                            <Typography variant="subtitle2" color="primary" gutterBottom>
-                              📱 QR Code
+                            <Typography variant="subtitle2" color="primary" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <QrCodeIcon fontSize="small" />
+                              QR Code for Mobile Usage
                             </Typography>
-                            <Box
+                            <Paper
+                              elevation={3}
                               sx={{
-                                display: 'inline-block',
-                                p: 1,
+                                display: 'inline-flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                p: 2,
                                 bgcolor: 'white',
-                                borderRadius: 1,
-                                border: '1px solid #ddd',
-                                mb: 1
+                                borderRadius: 2,
+                                border: '2px solid',
+                                borderColor: 'primary.light',
+                                mb: 2,
+                                background: 'linear-gradient(145deg, #ffffff 0%, #f8f9fa 100%)',
+                                boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
                               }}
                             >
-                              <img 
-                                src={`data:image/png;base64,${selectedItem.qrCodeData}`}
-                                alt="QR Code for item usage"
-                                style={{ width: 100, height: 100, display: 'block' }}
-                              />
-                            </Box>
-                            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                              Scan with your phone
-                            </Typography>
-                            {selectedItem.qrCodeUrl && (
-                              <Button
-                                variant="outlined"
-                                size="small"
-                                startIcon={<ShareIcon />}
-                                onClick={() => {
-                                  if (selectedItem.qrCodeUrl) {
-                                    navigator.clipboard.writeText(selectedItem.qrCodeUrl);
-                                    alert('QR code URL copied to clipboard!');
-                                  }
+                              <Box
+                                sx={{
+                                  p: 1,
+                                  bgcolor: 'white',
+                                  borderRadius: 1,
+                                  border: '1px solid #e0e0e0',
+                                  boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.1)'
                                 }}
-                                sx={{ mt: 1 }}
                               >
-                                Copy URL
-                              </Button>
+                                <img 
+                                  src={`data:image/png;base64,${selectedItem.qrCodeData}`}
+                                  alt="QR Code for item usage"
+                                  style={{ 
+                                    width: 120, 
+                                    height: 120, 
+                                    display: 'block',
+                                    borderRadius: '4px'
+                                  }}
+                                />
+                              </Box>
+                              <Typography variant="caption" color="text.secondary" sx={{ mt: 1, textAlign: 'center', fontWeight: 500 }}>
+                                📱 Scan to record usage
+                              </Typography>
+                            </Paper>
+                            {selectedItem.qrCodeUrl && (
+                              <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center', flexWrap: 'wrap' }}>
+                                <Button
+                                  variant="outlined"
+                                  size="small"
+                                  startIcon={<ShareIcon />}
+                                  onClick={() => {
+                                    if (selectedItem.qrCodeUrl) {
+                                      navigator.clipboard.writeText(selectedItem.qrCodeUrl);
+                                      alert('QR code URL copied to clipboard!');
+                                    }
+                                  }}
+                                  sx={{ 
+                                    borderRadius: 2,
+                                    textTransform: 'none',
+                                    fontWeight: 500
+                                  }}
+                                >
+                                  Copy URL
+                                </Button>
+                              </Box>
                             )}
                           </Box>
                         )}
                         
                         {!selectedItem.qrCodeData && (
-                          <Box sx={{ mt: 2 }}>
+                          <Box sx={{ mt: 2, textAlign: 'center' }}>
+                            <QrCodeIcon sx={{ fontSize: 32, color: 'text.disabled', mb: 1 }} />
                             <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
                               QR code will be generated for new items
                             </Typography>
