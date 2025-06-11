@@ -344,52 +344,20 @@ export const itemsAPI = {
     }
     return api.post('/items', item);
   },
-  update: (id: number, item: any) => {
-    if (!ensureAuthenticated()) {
-      return Promise.reject(new Error('Authentication required'));
-    }
-    return api.put(`/items/${id}`, item);
-  },
-  delete: (id: number) => {
-    if (!ensureAuthenticated()) {
-      return Promise.reject(new Error('Authentication required'));
-    }
-    return api.delete(`/items/${id}`);
-  },
-  bulkDelete: (ids: number[]) => {
-    if (!ensureAuthenticated()) {
-      return Promise.reject(new Error('Authentication required'));
-    }
-    return api.delete('/items/bulk', { data: ids });
-  },
+  update: (id: number, itemData: any) => api.put(`/items/${id}`, itemData),
+  delete: (id: number) => api.delete(`/items/${id}`),
+  bulkDelete: (itemIds: number[]) => api.delete('/items/bulk', { data: itemIds }),
   importCSV: (file: File) => {
-    if (!ensureAuthenticated()) {
-      return Promise.reject(new Error('Authentication required'));
-    }
-    
-    console.log('=== FRONTEND IMPORT DEBUG ===');
-    console.log('File to import:', file);
-    console.log('File name:', file.name);
-    console.log('File size:', file.size);
-    console.log('File type:', file.type);
-    
     const formData = new FormData();
     formData.append('file', file);
-    
-    console.log('FormData created');
-    console.log('FormData entries:');
-    Array.from(formData.entries()).forEach(([key, value]) => {
-      console.log(key, value);
+    return api.post('/items/import-csv', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
     });
-    
-    return api.post('/items/import-csv', formData);
   },
-  exportBarcodes: () => {
-    if (!ensureAuthenticated()) {
-      return Promise.reject(new Error('Authentication required'));
-    }
-    return api.get('/items/export-barcodes', { responseType: 'blob' });
-  },
+  exportBarcodes: () => api.get('/items/export-barcodes', { responseType: 'blob' }),
+  regenerateQRCodes: () => api.post('/items/regenerate-qr-codes'),
   scanBarcode: (file: File) => {
     if (!ensureAuthenticated()) {
       return Promise.reject(new Error('Authentication required'));

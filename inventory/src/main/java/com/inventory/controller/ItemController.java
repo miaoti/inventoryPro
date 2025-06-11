@@ -155,6 +155,17 @@ public class ItemController {
                     
                     item.setBarcode(generateBarcodeFromCode(item.getCode()));
                     
+                    // Generate QR code for imported items
+                    try {
+                        String qrCodeId = qrCodeService.generateQRCodeId();
+                        String qrCodeData = qrCodeService.generateQRCode(qrCodeId, item.getName());
+                        item.setQrCodeId(qrCodeId);
+                        item.setQrCodeData(qrCodeData);
+                    } catch (Exception e) {
+                        System.err.println("Failed to generate QR code for imported item " + item.getCode() + ": " + e.getMessage());
+                        // Don't fail the whole operation if QR code generation fails
+                    }
+                    
                     // Store the pending PO quantity before saving (since we'll reset it to 0)
                     Integer pendingPOQuantity = item.getPendingPO();
                     item.setPendingPO(0); // Reset to 0, will be calculated from actual POs
@@ -312,6 +323,49 @@ public class ItemController {
         response.put("notFoundIds", notFoundIds);
         
         return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/regenerate-qr-codes")
+    public ResponseEntity<Map<String, Object>> regenerateQRCodes() {
+        try {
+            List<Item> itemsWithoutQR = itemRepository.findAll().stream()
+                    .filter(item -> item.getQrCodeId() == null || item.getQrCodeData() == null)
+                    .collect(Collectors.toList());
+            
+            int successCount = 0;
+            int errorCount = 0;
+            List<String> errors = new ArrayList<>();
+            
+            for (Item item : itemsWithoutQR) {
+                try {
+                    String qrCodeId = qrCodeService.generateQRCodeId();
+                    String qrCodeData = qrCodeService.generateQRCode(qrCodeId, item.getName());
+                    item.setQrCodeId(qrCodeId);
+                    item.setQrCodeData(qrCodeData);
+                    itemRepository.save(item);
+                    successCount++;
+                } catch (Exception e) {
+                    errorCount++;
+                    errors.add("Failed to generate QR code for item " + item.getCode() + ": " + e.getMessage());
+                    System.err.println("Failed to generate QR code for item " + item.getCode() + ": " + e.getMessage());
+                }
+            }
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("message", "QR code regeneration completed");
+            response.put("totalProcessed", itemsWithoutQR.size());
+            response.put("successful", successCount);
+            response.put("errors", errorCount);
+            response.put("errorDetails", errors);
+            
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            System.err.println("Error in QR code regeneration: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.internalServerError().body(
+                Map.of("error", "Failed to regenerate QR codes: " + e.getMessage())
+            );
+        }
     }
 
     private List<Item> parseExcelFile(MultipartFile file, List<String> errors) throws IOException {

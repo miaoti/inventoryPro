@@ -140,6 +140,10 @@ export default function ItemsPage() {
   const [editPOQuantity, setEditPOQuantity] = useState(0);
   const [editPOTrackingNumber, setEditPOTrackingNumber] = useState('');
   const [editPOOrderDate, setEditPOOrderDate] = useState('');
+  
+  // QR code regeneration state
+  const [regeneratingQR, setRegeneratingQR] = useState(false);
+  
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -657,7 +661,7 @@ export default function ItemsPage() {
     try {
       const response = await itemsAPI.exportBarcodes();
       
-      // Create download link
+      // Create a download link
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
@@ -669,6 +673,28 @@ export default function ItemsPage() {
     } catch (error) {
       console.error('Error exporting barcodes:', error);
       alert('Error exporting barcodes. Please try again.');
+    }
+  };
+
+  const handleRegenerateQRCodes = async () => {
+    if (!window.confirm('Generate QR codes for items that are missing them? This process may take a few moments.')) {
+      return;
+    }
+
+    try {
+      setRegeneratingQR(true);
+      const response = await itemsAPI.regenerateQRCodes();
+      const result = (response as any)?.data || response;
+      
+      alert(`QR code regeneration completed!\n\nProcessed: ${result.totalProcessed} items\nSuccessful: ${result.successful}\nErrors: ${result.errors}`);
+      
+      // Refresh the items list to show the new QR codes
+      fetchItems();
+    } catch (error) {
+      console.error('Error regenerating QR codes:', error);
+      alert('Error regenerating QR codes. Please try again.');
+    } finally {
+      setRegeneratingQR(false);
     }
   };
 
@@ -1044,6 +1070,16 @@ export default function ItemsPage() {
           </Button>
           <Button
             variant="outlined"
+            startIcon={regeneratingQR ? <CircularProgress size={20} /> : <QrCodeIcon />}
+            onClick={handleRegenerateQRCodes}
+            color="info"
+            disabled={regeneratingQR}
+            size={isMobile ? 'small' : 'medium'}
+          >
+            {regeneratingQR ? 'Generating...' : (isMobile ? 'QR Codes' : 'Generate QR Codes')}
+          </Button>
+          <Button
+            variant="outlined"
             startIcon={<UploadIcon />}
             onClick={() => setOpenImportDialog(true)}
             color="info"
@@ -1163,12 +1199,26 @@ export default function ItemsPage() {
                         </Typography>
                       </Box>
                       <Box sx={{ textAlign: 'center', minWidth: 60 }}>
-                        <Typography variant="h6" color="warning.main">
-                          {item.pendingPO || 0}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          PO
-                        </Typography>
+                        <Button
+                          variant="outlined"
+                          size="small"
+                          color={item.pendingPO && item.pendingPO > 0 ? "warning" : "inherit"}
+                          onClick={() => handleOpenPODialog(item)}
+                          sx={{ 
+                            minWidth: 60,
+                            flexDirection: 'column',
+                            height: 'auto',
+                            py: 0.5,
+                            px: 1
+                          }}
+                        >
+                          <Typography variant="h6" component="span">
+                            {item.pendingPO || 0}
+                          </Typography>
+                          <Typography variant="caption" component="span">
+                            Manage PO
+                          </Typography>
+                        </Button>
                       </Box>
                       <Box sx={{ textAlign: 'center', minWidth: 60 }}>
                         <Typography variant="h6" color="error.main">
