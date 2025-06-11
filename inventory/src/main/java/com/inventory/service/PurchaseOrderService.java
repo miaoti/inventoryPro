@@ -25,6 +25,7 @@ public class PurchaseOrderService {
     @Autowired
     private AlertService alertService;
 
+    @Transactional(readOnly = true)
     public List<PurchaseOrderResponse> getPurchaseOrdersByItem(Long itemId) {
         Item item = itemRepository.findById(itemId)
                 .orElseThrow(() -> new RuntimeException("Item not found"));
@@ -35,6 +36,7 @@ public class PurchaseOrderService {
                 .collect(Collectors.toList());
     }
 
+    @Transactional(readOnly = true)
     public List<PurchaseOrderResponse> getPendingPurchaseOrdersByItem(Long itemId) {
         Item item = itemRepository.findById(itemId)
                 .orElseThrow(() -> new RuntimeException("Item not found"));
@@ -158,6 +160,7 @@ public class PurchaseOrderService {
         return total != null ? total : 0;
     }
 
+    @Transactional(readOnly = true)
     public List<PurchaseOrderResponse> getAllPurchaseOrders() {
         List<PurchaseOrder> allPOs = purchaseOrderRepository.findAll();
         return allPOs.stream()
@@ -165,6 +168,7 @@ public class PurchaseOrderService {
                 .collect(Collectors.toList());
     }
 
+    @Transactional(readOnly = true)
     public List<PurchaseOrderResponse> getPendingPurchaseOrders() {
         List<PurchaseOrder> pendingPOs = purchaseOrderRepository.findByArrivedFalse();
         return pendingPOs.stream()
@@ -172,6 +176,7 @@ public class PurchaseOrderService {
                 .collect(Collectors.toList());
     }
 
+    @Transactional(readOnly = true)
     public List<PurchaseOrderResponse> getArrivedPurchaseOrders() {
         List<PurchaseOrder> arrivedPOs = purchaseOrderRepository.findByArrivedTrue();
         return arrivedPOs.stream()
@@ -183,7 +188,15 @@ public class PurchaseOrderService {
         PurchaseOrderResponse response = new PurchaseOrderResponse();
         response.setId(purchaseOrder.getId());
         response.setItemId(purchaseOrder.getItem().getId());
-        response.setItemName(purchaseOrder.getItem().getName());
+        
+        // Safely access the Item name by forcing lazy loading within transaction
+        try {
+            response.setItemName(purchaseOrder.getItem().getName());
+        } catch (Exception e) {
+            // Fallback in case of lazy loading issues
+            response.setItemName("Unknown Item");
+        }
+        
         response.setQuantity(purchaseOrder.getQuantity());
         response.setOrderDate(purchaseOrder.getOrderDate());
         response.setArrivalDate(purchaseOrder.getArrivalDate());
