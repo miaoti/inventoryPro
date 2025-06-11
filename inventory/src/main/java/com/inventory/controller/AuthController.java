@@ -60,8 +60,8 @@ public class AuthController {
             // Find user
             logger.info("Searching for user: {}", loginRequest.getUsername());
             User user = userService.findByUsername(loginRequest.getUsername().trim());
-            
-            if (user == null) {
+        
+        if (user == null) {
                 logger.warn("LOGIN FAILED: User not found: {}", loginRequest.getUsername());
                 return ResponseEntity.badRequest()
                     .body(Map.of("message", "Invalid username or password", "debug", "user_not_found"));
@@ -83,7 +83,7 @@ public class AuthController {
             // Check if user is enabled
             if (!user.getEnabled()) {
                 logger.warn("LOGIN FAILED: User account is disabled: {}", user.getUsername());
-                return ResponseEntity.badRequest()
+            return ResponseEntity.badRequest()
                     .body(Map.of("message", "Account is disabled", "debug", "account_disabled"));
             }
             
@@ -108,8 +108,8 @@ public class AuthController {
                 return ResponseEntity.badRequest()
                     .body(Map.of("message", "Authentication error", "debug", "password_encoding_error", "error", e.getMessage()));
             }
-            
-            if (passwordMatches) {
+        
+        if (passwordMatches) {
                 logger.info("LOGIN SUCCESS for user: {}", user.getUsername());
                 
                 // Generate JWT token

@@ -54,6 +54,8 @@ import {
   LocalShipping as ReceiveIcon,
   LocalShipping as LocalShippingIcon,
   MoreVert as MoreVertIcon,
+  QrCode as QrCodeIcon,
+  Share as ShareIcon,
 } from '@mui/icons-material';
 import { DataGrid, GridColDef } from '@mui/x-data-grid';
 import { itemsAPI, purchaseOrderAPI } from '../../services/api';
@@ -72,6 +74,9 @@ interface Item {
   category: 'A' | 'B' | 'C';
   weeklyData?: string; // JSON string for dynamic weekly data
   barcode: string;
+  qrCodeId?: string;
+  qrCodeData?: string; // Base64 encoded QR code image
+  qrCodeUrl?: string; // URL that the QR code points to
   code?: string;
   currentInventory?: number;
   usedInventory?: number;
@@ -1320,16 +1325,16 @@ export default function ItemsPage() {
           <ListItemText primary="Create Purchase Order" />
         </MenuItem>
 
-        <MenuItem onClick={() => handleMenuAction('managePO')}>
-          <ListItemIcon>
+          <MenuItem onClick={() => handleMenuAction('managePO')}>
+            <ListItemIcon>
             <LocalShippingIcon fontSize="small" color={actionMenuItem && actionMenuItem.pendingPO && actionMenuItem.pendingPO > 0 ? "warning" : "action"} />
-          </ListItemIcon>
+            </ListItemIcon>
           <ListItemText primary={
             actionMenuItem && actionMenuItem.pendingPO && actionMenuItem.pendingPO > 0 
               ? `Manage POs (${actionMenuItem.pendingPO})` 
               : "Manage POs"
           } />
-        </MenuItem>
+          </MenuItem>
         
         <Divider sx={{ my: 0.5 }} />
         
@@ -1395,14 +1400,72 @@ export default function ItemsPage() {
                     </Grid>
                     <Grid item xs={12} md={4}>
                       <Box sx={{ textAlign: 'center' }}>
-                        <img 
-                          src={`${API_URL}/public/barcode-image/${selectedItem.barcode}`}
-                          alt={`Barcode: ${selectedItem.barcode}`}
-                          style={{ height: 80, maxWidth: '100%' }}
-                        />
-                        <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                          {selectedItem.barcode}
-                        </Typography>
+                        {/* Barcode Display */}
+                        <Box sx={{ mb: 2 }}>
+                          <Typography variant="subtitle2" color="primary" gutterBottom>
+                            📊 Barcode
+                          </Typography>
+                          <img 
+                            src={`${API_URL}/public/barcode-image/${selectedItem.barcode}`}
+                            alt={`Barcode: ${selectedItem.barcode}`}
+                            style={{ height: 60, maxWidth: '100%' }}
+                          />
+                          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                            {selectedItem.barcode}
+                          </Typography>
+                        </Box>
+                        
+                        {/* QR Code Display */}
+                        {selectedItem.qrCodeData && (
+                          <Box sx={{ mb: 2 }}>
+                            <Typography variant="subtitle2" color="primary" gutterBottom>
+                              📱 QR Code
+                            </Typography>
+                            <Box
+                              sx={{
+                                display: 'inline-block',
+                                p: 1,
+                                bgcolor: 'white',
+                                borderRadius: 1,
+                                border: '1px solid #ddd',
+                                mb: 1
+                              }}
+                            >
+                              <img 
+                                src={`data:image/png;base64,${selectedItem.qrCodeData}`}
+                                alt="QR Code for item usage"
+                                style={{ width: 100, height: 100, display: 'block' }}
+                              />
+                            </Box>
+                            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                              Scan with your phone
+                            </Typography>
+                            {selectedItem.qrCodeUrl && (
+                              <Button
+                                variant="outlined"
+                                size="small"
+                                startIcon={<ShareIcon />}
+                                onClick={() => {
+                                  if (selectedItem.qrCodeUrl) {
+                                    navigator.clipboard.writeText(selectedItem.qrCodeUrl);
+                                    alert('QR code URL copied to clipboard!');
+                                  }
+                                }}
+                                sx={{ mt: 1 }}
+                              >
+                                Copy URL
+                              </Button>
+                            )}
+                          </Box>
+                        )}
+                        
+                        {!selectedItem.qrCodeData && (
+                          <Box sx={{ mt: 2 }}>
+                            <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                              QR code will be generated for new items
+                            </Typography>
+                          </Box>
+                        )}
                       </Box>
                     </Grid>
                   </Grid>
@@ -1695,7 +1758,7 @@ export default function ItemsPage() {
                         <Typography variant="h4" component="div">
                           {importResult.created || 0}
                         </Typography>
-                        <Typography variant="body2">
+                  <Typography variant="body2">
                           ✅ Created
                         </Typography>
                       </CardContent>
@@ -1771,7 +1834,7 @@ export default function ItemsPage() {
                             value={successRate}
                             sx={{ height: 8, borderRadius: 4 }}
                           />
-                        </>
+                      </>
                       );
                     })()}
                   </Box>
@@ -1782,7 +1845,7 @@ export default function ItemsPage() {
                   <Alert severity="success" sx={{ mb: 2 }}>
                     <Typography variant="subtitle2" gutterBottom>
                       ✅ Successfully Created Items ({importResult.items.length}):
-                    </Typography>
+                  </Typography>
                     <Box sx={{ maxHeight: 150, overflow: 'auto' }}>
                       {importResult.items.slice(0, 10).map((item: any, index: number) => (
                         <Typography key={index} variant="body2" sx={{ ml: 1 }}>
@@ -1795,7 +1858,7 @@ export default function ItemsPage() {
                         </Typography>
                       )}
                     </Box>
-                  </Alert>
+                </Alert>
                 )}
 
                 {/* Error Details */}
@@ -1805,12 +1868,12 @@ export default function ItemsPage() {
                       ❌ Error Details ({importResult.errorDetails.length}):
                     </Typography>
                     <Box sx={{ maxHeight: 200, overflow: 'auto' }}>
-                      {importResult.errorDetails.map((error: string, index: number) => (
+                    {importResult.errorDetails.map((error: string, index: number) => (
                         <Typography key={index} variant="body2" sx={{ ml: 1 }}>
-                          • {error}
-                        </Typography>
-                      ))}
-                    </Box>
+                        • {error}
+                      </Typography>
+                    ))}
+                  </Box>
                   </Alert>
                 )}
 
@@ -2066,7 +2129,7 @@ export default function ItemsPage() {
                       <LocalShippingIcon sx={{ fontSize: 48, opacity: 0.5 }} />
                       <Typography variant="h6" color="text.secondary">
                         No Purchase Orders
-                      </Typography>
+                </Typography>
                       <Typography variant="body2" color="text.secondary">
                         This item currently has no pending purchase orders.
                       </Typography>

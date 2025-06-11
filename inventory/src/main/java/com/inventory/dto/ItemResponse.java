@@ -27,6 +27,9 @@ public class ItemResponse {
     private String bin;
     private String weeklyData; // JSON string for dynamic weekly data
     private String barcode;
+    private String qrCodeId;
+    private String qrCodeData; // Base64 encoded QR code image
+    private String qrCodeUrl; // URL that the QR code points to
     private Integer usedInventory; // Total used inventory
     private Integer pendingPO; // Pending purchase orders
     private Integer availableQuantity; // Calculated: quantity + pendingPO - usedInventory

@@ -510,6 +510,18 @@ export const publicItemsAPI = {
   searchItems: () => api.get('/public/items/search'),
 };
 
+// Public QR code API for QR code usage functionality (no authentication required)
+export const publicQRAPI = {
+  getItemByQRCode: (qrCodeId: string) => api.get(`/public/qr/item/${qrCodeId}`),
+  recordUsageByQRCode: (qrCodeId: string, usageData: {
+    userName: string;
+    quantityUsed: number;
+    notes?: string;
+    department?: string;
+    dNumber?: string;
+  }) => api.post(`/public/qr/use/${qrCodeId}`, usageData),
+};
+
 export const adminAPI = {
   getItemDisplaySettings: () => api.get('/admin/settings/item-display'),
   updateItemDisplaySettings: (fields: string[]) => 

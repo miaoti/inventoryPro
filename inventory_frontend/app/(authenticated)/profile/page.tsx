@@ -268,15 +268,15 @@ export default function ProfilePage() {
 
               <Divider sx={{ my: 3 }} />
 
-              <Button
-                variant="contained"
-                onClick={handleUpdateProfile}
-                disabled={loading}
+            <Button
+              variant="contained"
+              onClick={handleUpdateProfile}
+              disabled={loading}
                 size="large"
                 sx={{ minWidth: 140 }}
-              >
-                {loading ? 'Updating...' : 'Update Profile'}
-              </Button>
+            >
+              {loading ? 'Updating...' : 'Update Profile'}
+            </Button>
             </CardContent>
           </Card>
         </Grid>

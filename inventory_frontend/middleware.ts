@@ -6,7 +6,8 @@ export function middleware(request: NextRequest) {
   const isAuthPage = request.nextUrl.pathname.startsWith('/login');
   const isPublicPage = request.nextUrl.pathname === '/' || 
                       request.nextUrl.pathname.startsWith('/scanner') ||
-                      request.nextUrl.pathname.startsWith('/scan');
+                      request.nextUrl.pathname.startsWith('/scan') ||
+                      request.nextUrl.pathname.startsWith('/qr-usage');
 
   // Protected routes that require authentication (excluding /scanner)
   const isProtectedRoute = request.nextUrl.pathname.startsWith('/dashboard') ||

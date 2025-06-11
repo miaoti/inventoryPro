@@ -11,6 +11,7 @@ import java.util.Optional;
 public interface ItemRepository extends JpaRepository<Item, Long> {
     Optional<Item> findByBarcode(String barcode);
     Optional<Item> findByCode(String code);
+    Optional<Item> findByQrCodeId(String qrCodeId);
     
     // Statistics Queries for Quick Stats Dashboard
     

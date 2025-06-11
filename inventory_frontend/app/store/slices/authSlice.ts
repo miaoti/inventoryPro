@@ -31,7 +31,7 @@ export const login = createAsyncThunk(
   async (credentials: { username: string; password: string }, { rejectWithValue }) => {
     try {
       console.log('🔐 Starting login request for username:', credentials.username);
-      const response: any = await authAPI.login(credentials);
+    const response: any = await authAPI.login(credentials);
       console.log('✅ Login response received:', response);
       
       const { token, user, debug, message } = response.data; // Access response.data after interceptor change
@@ -45,13 +45,13 @@ export const login = createAsyncThunk(
         console.log('📄 Login message:', message);
       }
       
-      // Set cookie with token
-      Cookies.set('token', token, { expires: 7 }); // Expires in 7 days
+    // Set cookie with token
+    Cookies.set('token', token, { expires: 7 }); // Expires in 7 days
       // Store user data in cookie for persistence
       Cookies.set('user', JSON.stringify(user), { expires: 7 });
       
       console.log('✅ Login successful, user:', user.username, 'role:', user.role);
-      return { token, user };
+    return { token, user };
     } catch (error: any) {
       console.error('❌ Login error:', error);
       
@@ -149,7 +149,7 @@ const authSlice = createSlice({
         if (action.payload && typeof action.payload === 'object' && 'message' in action.payload) {
           state.error = action.payload.message as string;
         } else {
-          state.error = action.error.message || 'Login failed';
+        state.error = action.error.message || 'Login failed';
         }
         console.log('🔴 Login rejected, error set to:', state.error);
       })

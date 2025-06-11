@@ -6,6 +6,7 @@ import com.inventory.entity.Item;
 import com.inventory.repository.ItemRepository;
 import com.inventory.service.BarcodeService;
 import com.inventory.service.PurchaseOrderService;
+import com.inventory.service.QRCodeService;
 import com.inventory.dto.PurchaseOrderRequest;
 import com.inventory.entity.Item.ABCCategory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -39,6 +40,9 @@ public class ItemController {
 
     @Autowired
     private PurchaseOrderService purchaseOrderService;
+
+    @Autowired
+    private QRCodeService qrCodeService;
 
     @GetMapping
     public List<ItemResponse> getAllItems() {
@@ -79,6 +83,17 @@ public class ItemController {
         
         // Generate barcode based on the provided code
         item.setBarcode(generateBarcodeFromCode(request.getCode()));
+        
+        // Generate QR code
+        try {
+            String qrCodeId = qrCodeService.generateQRCodeId();
+            String qrCodeData = qrCodeService.generateQRCode(qrCodeId, item.getName());
+            item.setQrCodeId(qrCodeId);
+            item.setQrCodeData(qrCodeData);
+        } catch (Exception e) {
+            System.err.println("Failed to generate QR code for item: " + e.getMessage());
+            // Don't fail the whole operation if QR code generation fails
+        }
         
         Item savedItem = itemRepository.save(item);
         return convertToResponse(savedItem);
@@ -766,6 +781,11 @@ public class ItemController {
         response.setEquipment(item.getEquipment());
         response.setCategory(item.getCategory());
         response.setBarcode(item.getBarcode());
+        response.setQrCodeId(item.getQrCodeId());
+        response.setQrCodeData(item.getQrCodeData());
+        if (item.getQrCodeId() != null) {
+            response.setQrCodeUrl(qrCodeService.getQRCodeUrl(item.getQrCodeId()));
+        }
         response.setUsedInventory(usedInventory);
         response.setPendingPO(pendingPO);
         response.setAvailableQuantity(availableQuantity);

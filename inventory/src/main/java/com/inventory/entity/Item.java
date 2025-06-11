@@ -41,8 +41,14 @@ public class Item {
     @Column(nullable = false)
     private Integer safetyStockThreshold;
 
-    @Column(nullable = true)
+    @Column(name = "barcode")
     private String barcode;
+
+    @Column(name = "qr_code_id", unique = true)
+    private String qrCodeId;
+
+    @Column(name = "qr_code_data", columnDefinition = "TEXT")
+    private String qrCodeData; // Base64 encoded QR code image
 
     @Column(nullable = true)
     private String location;

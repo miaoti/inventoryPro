@@ -97,7 +97,7 @@ export default function Layout({ children }: LayoutProps) {
       // Only redirect to login for protected pages if definitely not authenticated
       if (!hasToken && typeof window !== 'undefined') {
         const currentPath = window.location.pathname;
-        const publicPaths = ['/', '/login', '/register', '/scanner', '/scan', '/barcode-scanner'];
+        const publicPaths = ['/', '/login', '/register', '/scanner', '/scan', '/barcode-scanner', '/qr-usage'];
         const protectedPaths = ['/dashboard', '/quick-stats', '/items', '/alerts', '/usage-reports', '/settings', '/admin', '/profile'];
         
         // Only redirect if user is trying to access a protected page and has no token at all

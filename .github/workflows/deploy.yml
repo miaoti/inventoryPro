@@ -299,7 +299,7 @@ jobs:
       run: |
         echo "Checking source code structure..."
         ls -la
-        
+
     - name: Build application with correct configuration
       run: |
         echo "Building application with production settings and HTTPS support..."
