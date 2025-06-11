@@ -212,9 +212,9 @@ jobs:
 
     - name: Apply database migrations and verify complete setup
       run: |
-        echo "🔄 Starting complete application for database migrations..."
+        echo "🔄 Starting MySQL and applying database migrations..."
         
-        # Start all services for complete migration
+        # Start MySQL first
         sudo docker-compose -f docker-compose.prod.yml up -d mysql
         sleep 20
         
@@ -238,47 +238,70 @@ jobs:
           HAS_EXISTING_DATA=false
         fi
         
-        echo "🚀 Starting backend for Flyway migrations..."
+        echo "🔍 Checking for QR code columns..."
+        QR_COLUMNS_EXIST=$(sudo docker-compose -f docker-compose.prod.yml exec -T mysql mysql -u root -p${{ secrets.MYSQL_ROOT_PASSWORD }} -e "
+        USE inventory_db;
+        SELECT COUNT(*) 
+        FROM information_schema.columns 
+        WHERE table_schema = 'inventory_db' 
+          AND table_name = 'items' 
+          AND column_name IN ('qr_code_id', 'qr_code_data');
+        " 2>/dev/null | tail -1)
+        
+        echo "Found $QR_COLUMNS_EXIST QR code columns in items table"
+        
+        if [ "$QR_COLUMNS_EXIST" != "2" ]; then
+          echo "❌ QR code columns missing - applying migration manually before backend startup..."
+          
+          # Apply the QR code migration manually
+          sudo docker-compose -f docker-compose.prod.yml exec -T mysql mysql -u root -p${{ secrets.MYSQL_ROOT_PASSWORD }} -e "
+          USE inventory_db;
+          
+          -- Add QR code fields to items table if they don't exist
+          ALTER TABLE items ADD COLUMN IF NOT EXISTS qr_code_id VARCHAR(255) UNIQUE;
+          ALTER TABLE items ADD COLUMN IF NOT EXISTS qr_code_data TEXT;
+          
+          -- Create index for better performance if it doesn't exist
+          CREATE INDEX IF NOT EXISTS idx_items_qr_code_id ON items(qr_code_id);
+          
+          -- Update flyway schema history to mark this migration as completed
+          INSERT IGNORE INTO flyway_schema_history (version, description, type, script, checksum, installed_by, execution_time, success, installed_rank) 
+          VALUES ('20', 'add qr code fields', 'SQL', 'V20__add_qr_code_fields.sql', 0, 'manual', 100, 1, 
+                 (SELECT COALESCE(MAX(installed_rank), 0) + 1 FROM flyway_schema_history fsh));
+          
+          SELECT 'QR code migration applied manually' as status;
+          " 2>/dev/null
+          
+          echo "✅ QR code migration applied manually"
+          
+          # Verify the migration was successful
+          QR_COLUMNS_VERIFY=$(sudo docker-compose -f docker-compose.prod.yml exec -T mysql mysql -u root -p${{ secrets.MYSQL_ROOT_PASSWORD }} -e "
+          USE inventory_db;
+          SELECT COUNT(*) 
+          FROM information_schema.columns 
+          WHERE table_schema = 'inventory_db' 
+            AND table_name = 'items' 
+            AND column_name IN ('qr_code_id', 'qr_code_data');
+          " 2>/dev/null | tail -1)
+          
+          if [ "$QR_COLUMNS_VERIFY" = "2" ]; then
+            echo "✅ QR code columns verified successfully"
+          else
+            echo "❌ QR code migration verification failed"
+            exit 1
+          fi
+        else
+          echo "✅ QR code columns already exist"
+        fi
+        
+        echo "🚀 Now starting backend with migrated database..."
         sudo docker-compose -f docker-compose.prod.yml up -d backend
         
-        echo "⏳ Waiting for Flyway migrations to complete..."
+        echo "⏳ Waiting for backend to start with updated schema..."
         sleep 60
         
-        echo "🔍 Monitoring migration progress..."
-        for i in {1..12}; do
-          echo "📜 Checking migration logs (attempt $i/12)..."
-          MIGRATION_STATUS=$(sudo docker-compose -f docker-compose.prod.yml logs backend | grep -E "(Migration.*completed|Flyway.*successfully|Successfully.*migrations)" | tail -1)
-          
-          if echo "$MIGRATION_STATUS" | grep -q -E "(completed|successfully)"; then
-            echo "✅ Migrations appear to be complete: $MIGRATION_STATUS"
-            break
-          fi
-          
-          # Check for migration errors
-          ERROR_CHECK=$(sudo docker-compose -f docker-compose.prod.yml logs backend | grep -E "(ERROR|Exception|Failed)" | tail -1)
-          if [ ! -z "$ERROR_CHECK" ]; then
-            echo "⚠️ Potential migration error detected: $ERROR_CHECK"
-          fi
-          
-          echo "⏳ Still waiting for migrations... ($i/12)"
-          sleep 10
-        done
-        
-        echo "📜 Final backend migration logs..."
-        sudo docker-compose -f docker-compose.prod.yml logs --tail=50 backend | grep -E "(Flyway|Migration|Successfully|ERROR|qr_code)" || echo "Checking recent backend logs..."
-        
-        echo "🔍 Verifying database tables..."
-        sudo docker-compose -f docker-compose.prod.yml exec -T mysql mysql -u root -p${{ secrets.MYSQL_ROOT_PASSWORD }} -e "
-        USE inventory_db;
-        
-        SELECT 'Database Tables:' as ' ';
-        SHOW TABLES;
-        
-        SELECT 'Flyway Migration History:' as ' ';
-        SELECT version, description, success, installed_on 
-        FROM flyway_schema_history 
-        ORDER BY installed_rank;
-        " 2>/dev/null || echo "⚠️ Migration verification had issues"
+        echo "📜 Checking backend startup logs..."
+        sudo docker-compose -f docker-compose.prod.yml logs --tail=50 backend | grep -E "(Started|Successfully|ERROR|Exception)" || echo "Checking recent backend logs..."
         
         echo "🔧 Ensuring owner account exists (idempotent operation)..."
         sudo docker-compose -f docker-compose.prod.yml exec -T mysql mysql -u root -p${{ secrets.MYSQL_ROOT_PASSWORD }} -e "
