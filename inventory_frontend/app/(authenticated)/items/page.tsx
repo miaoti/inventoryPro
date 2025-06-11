@@ -313,8 +313,8 @@ export default function ItemsPage() {
       // Log first few items to check QR code data
       if (itemsData.length > 0) {
         console.log('🔍 DEBUG: First item data:', itemsData[0]);
-        const itemsWithQR = itemsData.filter(item => item.qrCodeData);
-        const itemsWithoutQR = itemsData.filter(item => !item.qrCodeData);
+        const itemsWithQR = itemsData.filter((item: any) => item.qrCodeData);
+        const itemsWithoutQR = itemsData.filter((item: any) => !item.qrCodeData);
         console.log('🔍 DEBUG: Items with QR codes:', itemsWithQR.length);
         console.log('🔍 DEBUG: Items without QR codes:', itemsWithoutQR.length);
         
