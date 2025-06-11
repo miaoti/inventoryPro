@@ -33,6 +33,7 @@ import {
   Divider,
   LinearProgress,
   Badge,
+  CircularProgress,
 } from '@mui/material';
 import {
   CheckCircle as ResolveIcon,
@@ -99,7 +100,7 @@ export default function AlertsPage() {
   const { isAuthenticated, token } = useSelector((state: RootState) => state.auth);
 
   // Local state
-  const [alerts, setAlertsLocal] = useState<Alert[]>([]);
+  const [localAlerts, setLocalAlerts] = useState<Alert[]>([]);
   const [ignoredAlerts, setIgnoredAlerts] = useState<Alert[]>([]);
   const [resolvedAlerts, setResolvedAlerts] = useState<Alert[]>([]);
   const [loading, setLoading] = useState(true);
@@ -112,12 +113,22 @@ export default function AlertsPage() {
   const [sortField, setSortField] = useState<SortField>('createdAt');
   const [autoRefresh, setAutoRefresh] = useState(true);
 
-  // Computed values using useMemo for performance
-  const processedAlerts = useMemo(() => {
-    if (!alerts || !Array.isArray(alerts)) {
+  // Process active alerts with computed fields
+  const processedAlertsComputed = useMemo(() => {
+    console.log('🔍 DEBUG: Processing alerts:', { 
+      localAlertsCount: localAlerts.length, 
+      reduxAlertsCount: reduxAlerts.length 
+    });
+    
+    // Use local alerts state instead of Redux for more up-to-date data
+    const alertsToProcess = localAlerts.length > 0 ? localAlerts : reduxAlerts;
+    
+    if (!alertsToProcess || !Array.isArray(alertsToProcess)) {
+      console.log('🔍 DEBUG: No alerts to process or not an array');
       return [];
     }
-    return alerts.map((alert: any) => {
+    
+    const processed = alertsToProcess.map((alert: any) => {
       const currentStockLevel = alert.currentInventory;
       const createdDate = new Date(alert.createdAt);
       const currentDate = new Date();
@@ -143,10 +154,13 @@ export default function AlertsPage() {
         daysOld,
       };
     });
-  }, [alerts]);
+    
+    console.log('🔍 DEBUG: Processed alerts:', processed.length);
+    return processed;
+  }, [localAlerts, reduxAlerts]);
 
   const filteredAlerts = useMemo(() => {
-    let filtered = processedAlerts;
+    let filtered = processedAlertsComputed;
 
     // Search filter
     if (searchTerm) {
@@ -180,7 +194,7 @@ export default function AlertsPage() {
     });
 
     return filtered;
-  }, [processedAlerts, searchTerm, alertFilter, sortField]);
+  }, [processedAlertsComputed, searchTerm, alertFilter, sortField]);
 
   const filteredAlertsComputed = useMemo(() => filteredAlerts.filter(alert => !alert.resolved), [filteredAlerts]);
   
@@ -281,26 +295,56 @@ export default function AlertsPage() {
         setLoading(true);
       }
 
+      console.log('🔍 DEBUG: Fetching alerts...');
+
       // Fetch active, ignored, and resolved alerts
-      const [activeAlertsData, ignoredAlertsData, resolvedAlertsData] = await Promise.all([
+      const [activeAlertsResponse, ignoredAlertsResponse, resolvedAlertsResponse] = await Promise.all([
         alertsAPI.getActive(),
         alertsAPI.getIgnored(),
         alertsAPI.getResolved()
       ]);
+      
+      console.log('🔍 DEBUG: Raw API responses:', {
+        activeAlertsResponse,
+        ignoredAlertsResponse,
+        resolvedAlertsResponse
+      });
+      
+      // Extract data from response objects properly
+      const activeAlertsData = activeAlertsResponse?.data || activeAlertsResponse || [];
+      const ignoredAlertsData = ignoredAlertsResponse?.data || ignoredAlertsResponse || [];
+      const resolvedAlertsData = resolvedAlertsResponse?.data || resolvedAlertsResponse || [];
+      
+      console.log('🔍 DEBUG: Extracted alert data:', {
+        activeAlerts: activeAlertsData,
+        ignoredAlerts: ignoredAlertsData,
+        resolvedAlerts: resolvedAlertsData
+      });
       
       // Ensure we have valid array data with fallbacks
       const validActiveAlerts = Array.isArray(activeAlertsData) ? activeAlertsData : [];
       const validIgnoredAlerts = Array.isArray(ignoredAlertsData) ? ignoredAlertsData : [];
       const validResolvedAlerts = Array.isArray(resolvedAlertsData) ? resolvedAlertsData : [];
       
-      setAlertsLocal(validActiveAlerts);
+      console.log('🔍 DEBUG: Valid alerts count:', {
+        active: validActiveAlerts.length,
+        ignored: validIgnoredAlerts.length,
+        resolved: validResolvedAlerts.length
+      });
+      
+      setLocalAlerts(validActiveAlerts);
       setIgnoredAlerts(validIgnoredAlerts);
       setResolvedAlerts(validResolvedAlerts);
       dispatch(setAlerts(validActiveAlerts)); // Redux still uses active alerts
+      
+      // Also update the unread count from the Redux store
+      const unreadCount = validActiveAlerts.filter(alert => !alert.read && !alert.resolved).length;
+      console.log('🔍 DEBUG: Calculated unread count:', unreadCount);
+      
     } catch (error) {
       console.error('Error fetching alerts:', error);
       // Set empty arrays on error to prevent undefined access
-      setAlertsLocal([]);
+      setLocalAlerts([]);
       setIgnoredAlerts([]);
       setResolvedAlerts([]);
       dispatch(setAlerts([]));
@@ -312,6 +356,8 @@ export default function AlertsPage() {
 
   // Authentication guard and auto-refresh alerts
   useEffect(() => {
+    let intervalId: NodeJS.Timeout | null = null;
+    
     const checkAuth = () => {
       const cookieToken = document.cookie.split(';').find(c => c.trim().startsWith('token='));
       const hasToken = !!(token || cookieToken);
@@ -321,19 +367,43 @@ export default function AlertsPage() {
         return;
       }
       
+      // Initial fetch
       fetchAlerts();
       
+      // Set up auto-refresh if enabled
       if (autoRefresh) {
-        const interval = setInterval(() => {
+        intervalId = setInterval(() => {
+          console.log('🔄 Auto-refreshing alerts...');
           fetchAlerts(true);
-        }, 30000);
-        
-        return () => clearInterval(interval);
+        }, 30000); // Refresh every 30 seconds
       }
     };
 
     checkAuth();
+    
+    // Cleanup interval on unmount or dependency change
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+    };
   }, [fetchAlerts, autoRefresh, isAuthenticated, token, router]);
+
+  // Also refresh when page becomes visible (user returns to tab)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden && isAuthenticated && (token || document.cookie.includes('token='))) {
+        console.log('📄 Page became visible, refreshing alerts...');
+        fetchAlerts(true);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [fetchAlerts, isAuthenticated, token]);
 
   // Optimized resolve alert with optimistic updates
   const resolveAlert = useCallback(async (alertId: number) => {
@@ -343,7 +413,7 @@ export default function AlertsPage() {
       
       // Then update local state and Redux
       dispatch(resolveAlertAction(alertId));
-      setAlertsLocal(prev => prev.map(alert => 
+      setLocalAlerts(prev => prev.map(alert => 
         alert.id === alertId 
           ? { ...alert, resolved: true, resolvedAt: new Date().toISOString() }
           : alert
@@ -378,11 +448,11 @@ export default function AlertsPage() {
   // Mark alert as read
   const markAsRead = useCallback(async (alertId: number) => {
     try {
-      const alert = alerts.find(a => a.id === alertId);
+      const alert = localAlerts.find(a => a.id === alertId);
       if (alert && !alert.read && !alert.resolved) {
         await alertsAPI.markAsRead(alertId);
         dispatch(markAlertAsReadAction(alertId));
-        setAlertsLocal(prev => prev.map(a => 
+        setLocalAlerts(prev => prev.map(a => 
           a.id === alertId 
             ? { ...a, read: true, readAt: new Date().toISOString() }
             : a
@@ -403,7 +473,7 @@ export default function AlertsPage() {
     } catch (error) {
       console.error('Error marking alert as read:', error);
     }
-  }, [alerts, dispatch]);
+  }, [localAlerts, dispatch]);
 
   const openAlertDialog = useCallback((alert: Alert) => {
     setSelectedAlert(alert);
@@ -637,54 +707,61 @@ export default function AlertsPage() {
       overflow: 'hidden'
     }}>
       {/* Header with actions */}
-      <Box sx={{ 
-        display: 'flex', 
-        flexDirection: { xs: 'column', sm: 'row' },
-        justifyContent: 'space-between', 
-        alignItems: { xs: 'stretch', sm: 'center' }, 
-        mb: 3,
-        gap: 2
-      }}>
-        <Typography variant="h4" sx={{ fontWeight: 'bold', display: 'flex', alignItems: 'center', fontSize: { xs: '1.5rem', md: '2.125rem' } }}>
-          <WarningIcon sx={{ mr: 1 }} />
-          Inventory Alerts
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+        <Typography variant="h4">
+          📊 Alert Management
         </Typography>
-        <Box sx={{ display: 'flex', gap: 1 }}>
-          <Tooltip title="Refresh Data">
-            <IconButton onClick={() => fetchAlerts(true)} disabled={refreshing}>
-              <RefreshIcon />
-            </IconButton>
-          </Tooltip>
+        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+          <Button
+            variant="outlined"
+            startIcon={refreshing ? <CircularProgress size={16} /> : <RefreshIcon />}
+            onClick={() => fetchAlerts(true)}
+            disabled={refreshing}
+            size="small"
+          >
+            {refreshing ? 'Refreshing...' : 'Refresh'}
+          </Button>
           <Button
             variant="outlined"
             startIcon={<ExportIcon />}
             onClick={handleExportToExcel}
+            color="info"
+            size="small"
           >
-            Export
+            Export Excel
           </Button>
+          <FormControl sx={{ minWidth: 140 }}>
+            <Select
+              value={autoRefresh ? 'on' : 'off'}
+              onChange={(e) => setAutoRefresh(e.target.value === 'on')}
+              size="small"
+              displayEmpty
+            >
+              <MenuItem value="on">Auto-refresh: ON</MenuItem>
+              <MenuItem value="off">Auto-refresh: OFF</MenuItem>
+            </Select>
+          </FormControl>
         </Box>
       </Box>
 
-      {refreshing && <LinearProgress sx={{ mb: 2 }} />}
-
-      {/* Enhanced Alert Statistics */}
+      {/* Alert Statistics Cards */}
       <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 2, mb: 3 }}>
         <Card sx={{ bgcolor: 'info.light', color: 'info.contrastText' }}>
           <CardContent sx={{ p: 2 }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <Box>
                 <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
-                  {unreadAlerts}
+                  {processedAlertsComputed.filter(alert => !alert.read && !alert.resolved).length}
                 </Typography>
                 <Typography variant="body2">Unread Alerts</Typography>
-                {filteredAlertsComputed.length > 0 && (
+                {processedAlertsComputed.length > 0 && (
                   <Typography variant="caption" sx={{ opacity: 0.8 }}>
-                    {Math.round((unreadAlerts / filteredAlertsComputed.length) * 100)}% of active
+                    {Math.round((processedAlertsComputed.filter(alert => !alert.read && !alert.resolved).length / processedAlertsComputed.length) * 100)}% of active
                   </Typography>
                 )}
               </Box>
               <Box sx={{ fontSize: 40 }}>
-                {unreadAlerts > 0 ? '🔔' : '✅'}
+                {processedAlertsComputed.filter(alert => !alert.read && !alert.resolved).length > 0 ? '🔔' : '✅'}
               </Box>
             </Box>
           </CardContent>
@@ -795,7 +872,7 @@ export default function AlertsPage() {
           <Divider orientation="vertical" flexItem />
           
           <Typography variant="body2" color="text.secondary">
-            Showing {filteredAlerts.length} of {processedAlerts.length} alerts
+            Showing {filteredAlerts.length} of {processedAlertsComputed.length} alerts
           </Typography>
         </Box>
       </Paper>

@@ -66,7 +66,25 @@ export default function QRUsagePage() {
   const [department, setDepartment] = useState('');
   const [dNumber, setDNumber] = useState('');
   const [quantityToUse, setQuantityToUse] = useState(1);
+  const [quantityToUseInput, setQuantityToUseInput] = useState('1');
   const [notes, setNotes] = useState('');
+
+  // Helper function for better number input handling
+  const handleNumberInputChange = (value: string, max?: number) => {
+    // Allow empty string or partial numbers during typing
+    setQuantityToUseInput(value);
+    
+    // Only parse and validate if it's a complete number
+    if (value === '') {
+      setQuantityToUse(1);
+    } else {
+      const parsed = parseInt(value);
+      if (!isNaN(parsed)) {
+        const finalValue = Math.max(1, max ? Math.min(max, parsed) : parsed);
+        setQuantityToUse(finalValue);
+      }
+    }
+  };
 
   useEffect(() => {
     const fetchItemInfo = async () => {
@@ -352,12 +370,21 @@ export default function QRUsagePage() {
                 fullWidth
                 label="Quantity to Use"
                 type="number"
-                value={quantityToUse}
-                onChange={(e) => setQuantityToUse(parseInt(e.target.value) || 1)}
+                value={quantityToUseInput}
+                onChange={(e) => handleNumberInputChange(e.target.value, item.availableQuantity)}
+                onBlur={(e) => {
+                  // Ensure valid value on blur
+                  const maxVal = item.availableQuantity;
+                  const val = parseInt(e.target.value) || 1;
+                  const finalValue = Math.max(1, Math.min(maxVal, val));
+                  setQuantityToUse(finalValue);
+                  setQuantityToUseInput(finalValue.toString());
+                }}
                 required
                 margin="normal"
                 inputProps={{ min: 1, max: item.availableQuantity }}
                 helperText={`Maximum available: ${item.availableQuantity} units`}
+                placeholder="Enter quantity to use"
               />
               
               <TextField

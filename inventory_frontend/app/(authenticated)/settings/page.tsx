@@ -113,7 +113,7 @@ export default function SettingsPage() {
   
   // Alert threshold states
   const [alertThresholds, setAlertThresholds] = useState<AlertThresholds>({
-    warningThreshold: 100,
+    warningThreshold: 120,
     criticalThreshold: 50
   });
   const [thresholdsLoading, setThresholdsLoading] = useState(false);
@@ -124,6 +124,10 @@ export default function SettingsPage() {
   const [error, setError] = useState('');
   const [adminSuccess, setAdminSuccess] = useState('');
   const [adminError, setAdminError] = useState('');
+
+  // Input states for better number input handling
+  const [warningThresholdInput, setWarningThresholdInput] = useState('120');
+  const [criticalThresholdInput, setCriticalThresholdInput] = useState('50');
 
   // Check user role for proper access control
   const isOwner = user?.role === 'OWNER';
@@ -177,15 +181,16 @@ export default function SettingsPage() {
 
   const loadAlertThresholds = async () => {
     try {
+      setThresholdsLoading(true);
       const response = await adminAPI.getAlertThresholds();
-      const responseData = (response as any)?.data || response || {};
-      setAlertThresholds({
-        warningThreshold: responseData.warningThreshold || 100,
-        criticalThreshold: responseData.criticalThreshold || 50,
-      });
-    } catch (err) {
-      console.error('Failed to load alert thresholds:', err);
-      setAdminError('Failed to load alert thresholds. Please try again.');
+      const thresholds = response.data;
+      setAlertThresholds(thresholds);
+      setWarningThresholdInput(thresholds.warningThreshold.toString());
+      setCriticalThresholdInput(thresholds.criticalThreshold.toString());
+    } catch (error) {
+      console.error('Failed to load alert thresholds:', error);
+    } finally {
+      setThresholdsLoading(false);
     }
   };
 
@@ -207,11 +212,39 @@ export default function SettingsPage() {
     }
   };
 
-  const handleThresholdChange = (field: 'warningThreshold' | 'criticalThreshold', value: number) => {
-    setAlertThresholds(prev => ({
-      ...prev,
-      [field]: Math.max(0, Math.min(200, value)) // Limit between 0-200%
-    }));
+  // Helper function for better number input handling
+  const handleNumberInputChange = (value: string, setter: (val: number) => void, inputSetter: (val: string) => void, min: number = 0, max: number = 200) => {
+    // Allow empty string or partial numbers during typing
+    inputSetter(value);
+    
+    // Only parse and validate if it's a complete number
+    if (value === '') {
+      setter(min);
+    } else {
+      const parsed = parseInt(value);
+      if (!isNaN(parsed)) {
+        const finalValue = Math.max(min, Math.min(max, parsed));
+        setter(finalValue);
+      }
+    }
+  };
+
+  const handleThresholdChange = (field: 'warningThreshold' | 'criticalThreshold', value: string) => {
+    if (field === 'warningThreshold') {
+      handleNumberInputChange(value, 
+        (val) => setAlertThresholds(prev => ({ ...prev, warningThreshold: val })), 
+        setWarningThresholdInput, 
+        0, 
+        200
+      );
+    } else {
+      handleNumberInputChange(value, 
+        (val) => setAlertThresholds(prev => ({ ...prev, criticalThreshold: val })), 
+        setCriticalThresholdInput, 
+        0, 
+        200
+      );
+    }
   };
 
   const toggleSection = (section: string) => {
@@ -548,14 +581,22 @@ export default function SettingsPage() {
                                 <TextField
                                   fullWidth
                                   type="number"
-                                  value={alertThresholds.warningThreshold}
-                                  onChange={(e) => handleThresholdChange('warningThreshold', parseInt(e.target.value) || 0)}
+                                  value={warningThresholdInput}
+                                  onChange={(e) => handleThresholdChange('warningThreshold', e.target.value)}
+                                  onBlur={(e) => {
+                                    // Ensure valid value on blur
+                                    const val = parseInt(e.target.value) || 0;
+                                    const finalValue = Math.max(0, Math.min(200, val));
+                                    setAlertThresholds(prev => ({ ...prev, warningThreshold: finalValue }));
+                                    setWarningThresholdInput(finalValue.toString());
+                                  }}
                                   InputProps={{
                                     endAdornment: <InputAdornment position="end">% of safety stock</InputAdornment>,
                                   }}
                                   helperText="Items below this percentage will show warning alerts"
                                   inputProps={{ min: 0, max: 200 }}
                                   size="small"
+                                  placeholder="Enter warning threshold"
                                 />
                               </Box>
 
@@ -568,8 +609,15 @@ export default function SettingsPage() {
                                 <TextField
                                   fullWidth
                                   type="number"
-                                  value={alertThresholds.criticalThreshold}
-                                  onChange={(e) => handleThresholdChange('criticalThreshold', parseInt(e.target.value) || 0)}
+                                  value={criticalThresholdInput}
+                                  onChange={(e) => handleThresholdChange('criticalThreshold', e.target.value)}
+                                  onBlur={(e) => {
+                                    // Ensure valid value on blur
+                                    const val = parseInt(e.target.value) || 0;
+                                    const finalValue = Math.max(0, Math.min(200, val));
+                                    setAlertThresholds(prev => ({ ...prev, criticalThreshold: finalValue }));
+                                    setCriticalThresholdInput(finalValue.toString());
+                                  }}
                                   InputProps={{
                                     endAdornment: <InputAdornment position="end">% of safety stock</InputAdornment>,
                                   }}
@@ -577,6 +625,7 @@ export default function SettingsPage() {
                                   inputProps={{ min: 0, max: 200 }}
                                   error={alertThresholds.criticalThreshold >= alertThresholds.warningThreshold}
                                   size="small"
+                                  placeholder="Enter critical threshold"
                                 />
                               </Box>
                             </Stack>

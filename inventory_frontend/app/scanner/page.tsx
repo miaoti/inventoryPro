@@ -150,6 +150,30 @@ export default function BarcodeScanner() {
   const codeReaderRef = useRef<BrowserMultiFormatReader | null>(null);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  // State for number inputs to allow temporary empty states
+  const [quantityToUseInput, setQuantityToUseInput] = useState('1');
+  const [addQuantityInput, setAddQuantityInput] = useState('0');
+  const [newPOQuantityInput, setNewPOQuantityInput] = useState('0');
+  const [editPOQuantityInput, setEditPOQuantityInput] = useState('0');
+  const [editCurrentQuantityInput, setEditCurrentQuantityInput] = useState('0');
+
+  // Helper function for better number input handling
+  const handleNumberInputChange = (value: string, setter: (val: number) => void, inputSetter: (val: string) => void, min: number = 0, max?: number) => {
+    // Allow empty string or partial numbers during typing
+    inputSetter(value);
+    
+    // Only parse and validate if it's a complete number
+    if (value === '') {
+      setter(min);
+    } else {
+      const parsed = parseInt(value);
+      if (!isNaN(parsed)) {
+        const finalValue = Math.max(min, max ? Math.min(max, parsed) : parsed);
+        setter(finalValue);
+      }
+    }
+  };
+
   // Remove file input - focus on live camera scanning only
 
   useEffect(() => {
@@ -838,7 +862,19 @@ export default function BarcodeScanner() {
   // File input removed - focusing on live camera scanning only
 
   const handleBarcodeScanned = async (barcode: string) => {
+    console.log(`📱 Scanned barcode: ${barcode}`);
+    
     try {
+      setScannedItem(null);
+      
+      // Clear previous state
+      setShowUsageDialog(false);
+      setQuantityToUse(1);
+      setQuantityToUseInput('1');
+      setUserName('');
+      setDepartment('');
+      setDNumber('');
+      setNotes('');
       setError('');
       setSuccess('');
       
@@ -1003,21 +1039,23 @@ export default function BarcodeScanner() {
         category: scannedItem.category || 'C',
         weeklyData: '',
       });
-
-      setSuccess(`Added ${quantityToAdd} units to ${scannedItem.name}. New quantity: ${newQuantity}`);
       
-      // Update the scanned item state
-      setScannedItem({
-        ...scannedItem,
-        currentInventory: newQuantity,
-        availableQuantity: newQuantity,
-      });
-      
+      setSuccess(`Added ${quantityToAdd} units to inventory!`);
       setQuantityToAdd(0);
-      setShowAddQuantityOption(false);
-    } catch (error) {
+      setAddQuantityInput('0');
+      
+      // Refresh the item data
+      try {
+        const refreshResponse = await barcodeAPI.scanBarcode(originalScannedCode);
+        const refreshData = (refreshResponse as any)?.data || refreshResponse;
+        setScannedItem(refreshData);
+      } catch (refreshError) {
+        console.error('Error refreshing item data:', refreshError);
+      }
+      
+    } catch (error: any) {
       console.error('Error adding quantity:', error);
-      setError('Failed to add quantity. Please try again.');
+      setError('Error adding quantity. Please try again.');
     }
   };
 
@@ -1071,8 +1109,9 @@ export default function BarcodeScanner() {
   const handleEditPO = (po: PurchaseOrder) => {
     setEditingPO(po);
     setEditPOQuantity(po.quantity);
+    setEditPOQuantityInput(po.quantity.toString());
     setEditPOTrackingNumber(po.trackingNumber || '');
-    setEditPOOrderDate(po.orderDate.split('T')[0]); // Format for date input
+    setEditPOOrderDate(po.orderDate.split('T')[0]);
     setShowEditPODialog(true);
   };
 
@@ -1217,9 +1256,8 @@ export default function BarcodeScanner() {
   const openEditDialog = () => {
     if (scannedItem) {
       setEditCurrentQuantity(scannedItem.currentInventory || 0);
-      setEditPendingPO(scannedItem.pendingPO || 0);
-      fetchPendingPOs(scannedItem.id);
-      setShowUsageDialog(false);
+      setEditCurrentQuantityInput((scannedItem.currentInventory || 0).toString());
+      setEditTabValue(0);
       setShowEditDialog(true);
     }
   };
@@ -1713,11 +1751,26 @@ export default function BarcodeScanner() {
                 <TextField
                   label="Quantity to Use"
                   type="number"
-                  value={quantityToUse}
-                  onChange={(e) => setQuantityToUse(Math.max(1, parseInt(e.target.value) || 1))}
-                  inputProps={{ min: 1, max: scannedItem.currentInventory }}
+                  value={quantityToUseInput}
+                  onChange={(e) => handleNumberInputChange(
+                    e.target.value, 
+                    setQuantityToUse, 
+                    setQuantityToUseInput, 
+                    1, 
+                    scannedItem?.currentInventory || 999999
+                  )}
+                  onBlur={(e) => {
+                    // Ensure valid value on blur
+                    const maxVal = scannedItem?.currentInventory || 999999;
+                    const value = parseInt(e.target.value) || 1;
+                    const finalValue = Math.max(1, Math.min(maxVal, value));
+                    setQuantityToUse(finalValue);
+                    setQuantityToUseInput(finalValue.toString());
+                  }}
+                  inputProps={{ min: 1, max: scannedItem?.currentInventory || 999999 }}
                   size="small"
                   fullWidth
+                  placeholder="Enter quantity"
                 />
                 
                 <FormControl size="small" required fullWidth>
@@ -2284,8 +2337,14 @@ export default function BarcodeScanner() {
                     fullWidth
                           label="New Quantity"
                     type="number"
-                    value={editCurrentQuantity}
-                    onChange={(e) => setEditCurrentQuantity(Math.max(0, parseInt(e.target.value) || 0))}
+                    value={editCurrentQuantityInput}
+                    onChange={(e) => handleNumberInputChange(e.target.value, setEditCurrentQuantity, setEditCurrentQuantityInput, 0)}
+                    onBlur={(e) => {
+                      // Ensure minimum value on blur
+                      const val = parseInt(e.target.value) || 0;
+                      setEditCurrentQuantity(Math.max(0, val));
+                      setEditCurrentQuantityInput(Math.max(0, val).toString());
+                    }}
                     inputProps={{ min: 0 }}
                           sx={{ 
                             '& .MuiOutlinedInput-root': {
@@ -2360,8 +2419,14 @@ export default function BarcodeScanner() {
                     fullWidth
                             label="Order Quantity"
                     type="number"
-                            value={newPOQuantity}
-                            onChange={(e) => setNewPOQuantity(Math.max(0, parseInt(e.target.value) || 0))}
+                            value={newPOQuantityInput}
+                            onChange={(e) => handleNumberInputChange(e.target.value, setNewPOQuantity, setNewPOQuantityInput, 1)}
+                            onBlur={(e) => {
+                              // Ensure minimum value on blur
+                              const value = parseInt(e.target.value) || 1;
+                              setNewPOQuantity(Math.max(1, value));
+                              setNewPOQuantityInput(Math.max(1, value).toString());
+                            }}
                             inputProps={{ min: 1 }}
                             sx={{ 
                               '& .MuiOutlinedInput-root': {
@@ -2624,9 +2689,16 @@ export default function BarcodeScanner() {
               fullWidth
               label="Quantity"
               type="number"
-              value={editPOQuantity}
-              onChange={(e) => setEditPOQuantity(Math.max(0, parseInt(e.target.value) || 0))}
+              value={editPOQuantityInput}
+              onChange={(e) => handleNumberInputChange(e.target.value, setEditPOQuantity, setEditPOQuantityInput, 1)}
+              onBlur={(e) => {
+                // Ensure minimum value on blur
+                const value = parseInt(e.target.value) || 1;
+                setEditPOQuantity(Math.max(1, value));
+                setEditPOQuantityInput(Math.max(1, value).toString());
+              }}
               inputProps={{ min: 1 }}
+              size="small"
             />
             <TextField
               fullWidth

@@ -16,7 +16,7 @@ public interface ItemRepository extends JpaRepository<Item, Long> {
     // Statistics Queries for Quick Stats Dashboard
     
     // Get items that are at or below 110% of safety stock (low stock warning threshold)
-    @Query("SELECT i FROM Item i WHERE i.currentInventory <= (i.safetyStockThreshold * 1.1) AND i.currentInventory > i.safetyStockThreshold AND i.safetyStockThreshold > 0")
+    @Query("SELECT i FROM Item i WHERE i.currentInventory <= CEILING(i.safetyStockThreshold * 1.1) AND i.currentInventory > i.safetyStockThreshold AND i.safetyStockThreshold > 0")
     List<Item> findLowStockItems();
     
     // Get items with configurable warning/critical stock levels for alerts

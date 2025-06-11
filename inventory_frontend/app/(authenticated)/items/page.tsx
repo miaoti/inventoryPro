@@ -160,6 +160,27 @@ export default function ItemsPage() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // State for number inputs to allow temporary empty states
+  const [quantityToAddInput, setQuantityToAddInput] = useState('0');
+  const [newPOQuantityInput, setNewPOQuantityInput] = useState('0');
+  const [editPOQuantityInput, setEditPOQuantityInput] = useState('0');
+
+  // Helper function for better number input handling
+  const handleNumberInputChange = (value: string, setter: (val: number) => void, inputSetter: (val: string) => void, min: number = 0) => {
+    // Allow empty string or partial numbers during typing
+    inputSetter(value);
+    
+    // Only parse and validate if it's a complete number
+    if (value === '') {
+      setter(min);
+    } else {
+      const parsed = parseInt(value);
+      if (!isNaN(parsed)) {
+        setter(Math.max(min, parsed));
+      }
+    }
+  };
+
   // Authentication guard - check immediately
   useEffect(() => {
     const checkAuth = () => {
@@ -400,6 +421,7 @@ export default function ItemsPage() {
   const handleOpenQuantityDialog = (item: Item) => {
     setSelectedItem(item);
     setQuantityToAdd(0);
+    setQuantityToAddInput('0');
     setOpenQuantityDialog(true);
   };
 
@@ -890,6 +912,7 @@ export default function ItemsPage() {
   const handleOpenCreatePODialog = (item: Item) => {
     setSelectedItem(item);
     setNewPOQuantity(0);
+    setNewPOQuantityInput('0');
     setNewPOTrackingNumber('');
     setShowCreatePODialog(true);
   };
@@ -941,6 +964,7 @@ export default function ItemsPage() {
   const handleEditPO = (po: PurchaseOrder) => {
     setEditingPO(po);
     setEditPOQuantity(po.quantity);
+    setEditPOQuantityInput(po.quantity.toString());
     setEditPOTrackingNumber(po.trackingNumber || '');
     setEditPOOrderDate(po.orderDate.split('T')[0]); // Format for date input
     setShowEditPODialog(true);
@@ -1761,11 +1785,18 @@ export default function ItemsPage() {
             <TextField
               label="Quantity to Add"
               type="number"
-              value={quantityToAdd}
-              onChange={(e) => setQuantityToAdd(Math.max(0, parseInt(e.target.value) || 0))}
+              value={quantityToAddInput}
+              onChange={(e) => handleNumberInputChange(e.target.value, setQuantityToAdd, setQuantityToAddInput, 1)}
+              onBlur={(e) => {
+                // Ensure minimum value on blur
+                const value = parseInt(e.target.value) || 1;
+                setQuantityToAdd(Math.max(1, value));
+                setQuantityToAddInput(Math.max(1, value).toString());
+              }}
               inputProps={{ min: 1 }}
               fullWidth
               autoFocus
+              placeholder="Enter quantity to add"
             />
             <Typography variant="body2" color="text.secondary">
               New Inventory Total: {(selectedItem?.currentInventory || selectedItem?.quantity || 0) + quantityToAdd}
@@ -2162,11 +2193,18 @@ export default function ItemsPage() {
                   fullWidth
                   label="Quantity to Order"
                   type="number"
-                  value={newPOQuantity}
-                  onChange={(e) => setNewPOQuantity(Math.max(0, parseInt(e.target.value) || 0))}
+                  value={newPOQuantityInput}
+                  onChange={(e) => handleNumberInputChange(e.target.value, setNewPOQuantity, setNewPOQuantityInput, 1)}
+                  onBlur={(e) => {
+                    // Ensure minimum value on blur
+                    const value = parseInt(e.target.value) || 1;
+                    setNewPOQuantity(Math.max(1, value));
+                    setNewPOQuantityInput(Math.max(1, value).toString());
+                  }}
                   inputProps={{ min: 1 }}
                   required
                   helperText="Enter the quantity to order"
+                  placeholder="Enter quantity"
                 />
 
                 <TextField
@@ -2333,8 +2371,14 @@ export default function ItemsPage() {
               fullWidth
               label="Quantity"
               type="number"
-              value={editPOQuantity}
-              onChange={(e) => setEditPOQuantity(Math.max(0, parseInt(e.target.value) || 0))}
+              value={editPOQuantityInput}
+              onChange={(e) => handleNumberInputChange(e.target.value, setEditPOQuantity, setEditPOQuantityInput, 1)}
+              onBlur={(e) => {
+                // Ensure minimum value on blur
+                const value = parseInt(e.target.value) || 1;
+                setEditPOQuantity(Math.max(1, value));
+                setEditPOQuantityInput(Math.max(1, value).toString());
+              }}
               inputProps={{ min: 1 }}
             />
             <TextField
