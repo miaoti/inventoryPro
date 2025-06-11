@@ -18,6 +18,10 @@ import {
   useMediaQuery,
   InputAdornment,
   Chip,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
 } from '@mui/material';
 import {
   Person as PersonIcon,
@@ -303,21 +307,30 @@ export default function QRUsagePage() {
                 }}
               />
               
-              <TextField
+              <FormControl
                 fullWidth
-                label="Department"
-                value={department}
-                onChange={(e) => setDepartment(e.target.value)}
                 required
                 margin="normal"
-                InputProps={{
-                  startAdornment: (
+              >
+                <InputLabel>Department</InputLabel>
+                <Select
+                  value={department}
+                  onChange={(e) => setDepartment(e.target.value)}
+                  label="Department"
+                  startAdornment={
                     <InputAdornment position="start">
                       <BusinessIcon />
                     </InputAdornment>
-                  ),
-                }}
-              />
+                  }
+                >
+                  <MenuItem value="Equipment">Equipment</MenuItem>
+                  <MenuItem value="Production">Production</MenuItem>
+                  <MenuItem value="Process">Process</MenuItem>
+                  <MenuItem value="Quality">Quality</MenuItem>
+                  <MenuItem value="Facility">Facility</MenuItem>
+                  <MenuItem value="Other">Other</MenuItem>
+                </Select>
+              </FormControl>
               
               <TextField
                 fullWidth
