@@ -2209,9 +2209,19 @@ export default function ItemsPage() {
                   }}
                 >
                   <MenuItem value="">Public (No Department)</MenuItem>
-                  {departments.map((dept) => (
-                    <MenuItem key={dept} value={dept}>{dept}</MenuItem>
-                  ))}
+                  {/* For ADMIN users, only show their own department if they have one */}
+                  {user?.role === 'ADMIN' ? (
+                    user.department && (
+                      <MenuItem key={user.department} value={user.department}>
+                        {user.department} (Your Department)
+                      </MenuItem>
+                    )
+                  ) : (
+                    /* For OWNER users, show all departments */
+                    departments.map((dept) => (
+                      <MenuItem key={dept} value={dept}>{dept}</MenuItem>
+                    ))
+                  )}
                   {/* Show create department option only for OWNER */}
                   {user?.role === 'OWNER' && (
                     <MenuItem 

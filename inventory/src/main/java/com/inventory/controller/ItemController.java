@@ -18,6 +18,8 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import com.inventory.entity.User;
 import com.inventory.repository.UserRepository;
+import com.inventory.repository.DepartmentRepository;
+import com.inventory.entity.Department;
 
 import java.io.*;
 import java.util.*;
@@ -48,6 +50,9 @@ public class ItemController {
 
     @Autowired
     private UserRepository userRepository;
+    
+    @Autowired
+    private DepartmentRepository departmentRepository;
 
     @GetMapping
     public List<ItemResponse> getAllItems(
@@ -97,13 +102,11 @@ public class ItemController {
         List<String> departments = new ArrayList<>();
         
         if (currentUser != null && currentUser.getRole() == User.UserRole.OWNER) {
-            // OWNER can see all departments
-            departments = itemRepository.findDistinctDepartments();
-            departments.add(0, "Public"); // Add "Public" option at the beginning
-        } else {
-            // ADMIN and others only see their own department and public
-            departments.add("Public");
-            if (currentUser != null && currentUser.getDepartment() != null) {
+            // OWNER can see all departments from the departments table
+            departments = departmentRepository.findAllDepartmentNames();
+        } else if (currentUser != null && currentUser.getRole() == User.UserRole.ADMIN) {
+            // ADMIN can only see their own department (if they have one)
+            if (currentUser.getDepartment() != null && !currentUser.getDepartment().trim().isEmpty()) {
                 departments.add(currentUser.getDepartment());
             }
         }
@@ -133,15 +136,18 @@ public class ItemController {
         
         departmentName = departmentName.trim();
         
-        // Check if department already exists
-        List<String> existingDepartments = itemRepository.findDistinctDepartments();
-        if (existingDepartments.contains(departmentName)) {
+        // Check if department already exists in the departments table
+        if (departmentRepository.existsByName(departmentName)) {
             return ResponseEntity.badRequest().body(Map.of("error", "Department already exists"));
         }
         
-        // Return success message (department will be created when first item is assigned to it)
+        // Create and save the department
+        User currentUser = userRepository.findByUsername(authentication.getName());
+        Department department = new Department(departmentName, currentUser.getUsername());
+        departmentRepository.save(department);
+        
         return ResponseEntity.ok(Map.of(
-            "message", "Department '" + departmentName + "' is ready to use",
+            "message", "Department '" + departmentName + "' created successfully",
             "department", departmentName
         ));
     }
@@ -167,9 +173,8 @@ public class ItemController {
         
         departmentName = departmentName.trim();
         
-        // Check if department exists
-        List<String> existingDepartments = itemRepository.findDistinctDepartments();
-        if (!existingDepartments.contains(departmentName)) {
+        // Check if department exists in the departments table
+        if (!departmentRepository.existsByName(departmentName)) {
             return ResponseEntity.badRequest().body(Map.of("error", "Department not found"));
         }
         
@@ -186,6 +191,9 @@ public class ItemController {
             user.setDepartment(null);
             userRepository.save(user);
         }
+        
+        // Delete the department from the departments table
+        departmentRepository.deleteByName(departmentName);
         
         return ResponseEntity.ok(Map.of(
             "message", "Department '" + departmentName + "' deleted successfully. " +

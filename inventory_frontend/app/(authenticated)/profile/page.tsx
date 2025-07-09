@@ -221,9 +221,13 @@ export default function ProfilePage() {
                         variant="outlined"
                         sx={{ ml: 1 }}
                       />
+                    ) : user.role === 'OWNER' ? (
+                      <span style={{ fontStyle: 'italic', color: '#757575' }}>
+                        Owner (No department required)
+                      </span>
                     ) : (
                       <span style={{ fontStyle: 'italic', color: '#757575' }}>
-                        No department - Contact owner for assignment
+                        No department assigned - Contact owner
                       </span>
                     )}
                   </Typography>

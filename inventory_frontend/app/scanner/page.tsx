@@ -2105,7 +2105,7 @@ export default function BarcodeScanner() {
                             fontSize: { xs: '0.9rem', sm: '1rem' },
                             wordBreak: 'break-word'
                           }}>
-                            <strong>Department:</strong> {scannedItem.displayDepartment || 'Public'}
+                            <strong>Department:</strong> {scannedItem.displayDepartment || 'Public (No Department)'}
                           </Typography>
                         </Box>
                       </Box>

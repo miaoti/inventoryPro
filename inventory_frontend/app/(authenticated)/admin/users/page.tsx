@@ -426,9 +426,13 @@ export default function UserManagementPage() {
                       size="small"
                       variant="outlined"
                     />
+                  ) : userItem.role === 'OWNER' ? (
+                    <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                      Owner (No department required)
+                    </Typography>
                   ) : (
                     <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
-                      No department - Contact owner
+                      No department assigned
                     </Typography>
                   )}
                 </TableCell>
@@ -536,7 +540,7 @@ export default function UserManagementPage() {
                 }}
                 label="Department"
               >
-                <MenuItem value="">No Department</MenuItem>
+                <MenuItem value="">No Department (Public Access)</MenuItem>
                 {departments.map((dept) => (
                   <MenuItem key={dept} value={dept}>{dept}</MenuItem>
                 ))}
@@ -599,7 +603,7 @@ export default function UserManagementPage() {
                 }}
                 label="Department"
               >
-                <MenuItem value="">No Department</MenuItem>
+                <MenuItem value="">No Department (Public Access)</MenuItem>
                 {departments.map((dept) => (
                   <MenuItem key={dept} value={dept}>{dept}</MenuItem>
                 ))}
@@ -670,6 +674,13 @@ export default function UserManagementPage() {
         <DialogTitle>Department Control</DialogTitle>
         <DialogContent>
           <Box sx={{ pt: 2 }}>
+            <Alert severity="info" sx={{ mb: 3 }}>
+              <Typography variant="body2">
+                <strong>Note:</strong> "Public" means items/users have no specific department assignment. 
+                They can be accessed by anyone with appropriate permissions.
+              </Typography>
+            </Alert>
+            
             {/* Create New Department Section */}
             <Typography variant="h6" gutterBottom>Create New Department</Typography>
             <Box sx={{ display: 'flex', gap: 2, mb: 4 }}>
