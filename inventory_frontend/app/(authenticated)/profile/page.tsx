@@ -5,6 +5,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import { RootState } from '../../store/store';
 import { setCredentials } from '../../store/slices/authSlice';
 import { profileAPI } from '../../services/api';
+import Cookies from 'js-cookie';
 import { ProfileUpdateRequest } from '../../types/user';
 import {
   Box,
@@ -67,6 +68,18 @@ export default function ProfilePage() {
         currentPassword: '',
         newPassword: '',
       });
+      
+      // Update Redux store with department information if it's different
+      if (user && profileData.department !== user.department) {
+        const token = Cookies.get('token') || '';
+        dispatch(setCredentials({
+          user: {
+            ...user,
+            department: profileData.department || undefined,
+          },
+          token: token
+        }));
+      }
     } catch (error) {
       console.error('Error fetching profile:', error);
       setSnackbar({ 
@@ -96,6 +109,7 @@ export default function ProfilePage() {
       
       // Update Redux store with new user info
       if (user) {
+        const token = Cookies.get('token') || '';
         dispatch(setCredentials({
           user: {
             ...user,
@@ -103,7 +117,7 @@ export default function ProfilePage() {
             email: profileForm.email || user.email,
             fullName: profileForm.fullName || user.fullName,
           },
-          token: user ? localStorage.getItem('token') || '' : ''
+          token: token
         }));
       }
 

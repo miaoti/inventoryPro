@@ -132,7 +132,8 @@ public class AuthController {
                         "username", user.getUsername(),
                         "email", user.getEmail(),
                         "fullName", user.getFullName(),
-                        "role", user.getRole()
+                        "role", user.getRole(),
+                        "department", user.getDepartment() != null ? user.getDepartment() : ""
                     ),
                     "debug", "login_success"
                 );
