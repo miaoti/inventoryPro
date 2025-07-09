@@ -148,11 +148,7 @@ export default function DashboardPage() {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch('/api/user/quick-actions', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
-      });
+      const response = await fetch('/api/user/quick-actions');
       
       if (!response.ok) {
         throw new Error('Failed to fetch quick actions');

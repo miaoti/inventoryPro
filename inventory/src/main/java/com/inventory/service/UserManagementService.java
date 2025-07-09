@@ -210,6 +210,7 @@ public class UserManagementService {
         response.setUsername(user.getUsername());
         response.setName(user.getName());
         response.setEmail(user.getEmail());
+        response.setAlertEmail(user.getAlertEmail());
         response.setRole(user.getRole());
         response.setDepartment(user.getDepartment());
         response.setWarningThreshold(user.getWarningThreshold());

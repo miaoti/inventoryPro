@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState } from '../../store/store';
 import { setCredentials } from '../../store/slices/authSlice';
-import { profileAPI } from '../../services/api';
+import { profileAPI, userAPI } from '../../services/api';
 import Cookies from 'js-cookie';
 import { ProfileUpdateRequest } from '../../types/user';
 import {
@@ -49,7 +49,16 @@ import {
   Palette as PaletteIcon,
   Visibility as VisibilityIcon,
   VisibilityOff as VisibilityOffIcon,
+  Notifications as NotificationsIcon,
 } from '@mui/icons-material';
+
+interface UserSettings {
+  alertEmail: string;
+  enableEmailAlerts: boolean;
+  enableDailyDigest: boolean;
+  warningThreshold: number;
+  criticalThreshold: number;
+}
 
 export default function ProfilePage() {
   const { user } = useSelector((state: RootState) => state.auth);
@@ -71,6 +80,14 @@ export default function ProfilePage() {
     currentPassword: '',
     newPassword: '',
   });
+
+  const [userSettings, setUserSettings] = useState<UserSettings>({
+    alertEmail: '',
+    enableEmailAlerts: true,
+    enableDailyDigest: false,
+    warningThreshold: 100,
+    criticalThreshold: 50,
+  });
   
   const [snackbar, setSnackbar] = useState({ 
     open: false, 
@@ -84,9 +101,14 @@ export default function ProfilePage() {
 
   const fetchProfileData = async () => {
     try {
-      // Fetch profile data
-      const profileResponse = await profileAPI.get();
+      // Fetch both profile and settings data
+      const [profileResponse, settingsResponse] = await Promise.all([
+        profileAPI.get(),
+        userAPI.getSettings()
+      ]);
+      
       const profileData = profileResponse.data || profileResponse;
+      const settingsData = settingsResponse.data || settingsResponse;
       
       setProfileForm({
         username: profileData.username,
@@ -94,6 +116,14 @@ export default function ProfilePage() {
         fullName: profileData.name,
         currentPassword: '',
         newPassword: '',
+      });
+
+      setUserSettings({
+        alertEmail: settingsData.alertEmail || profileData.email,
+        enableEmailAlerts: settingsData.enableEmailAlerts || false,
+        enableDailyDigest: settingsData.enableDailyDigest || false,
+        warningThreshold: settingsData.warningThreshold || 100,
+        criticalThreshold: settingsData.criticalThreshold || 50,
       });
       
       // Update Redux store with department information if it's different
@@ -386,19 +416,52 @@ export default function ProfilePage() {
                 </Grid>
                 <Grid item xs={12} sm={6}>
                   <TextField
-                    label="Email Address"
+                    label="Account Email"
                     type="email"
                     value={profileForm.email}
                     onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })}
                     fullWidth
                     disabled={!isEditing}
-                    helperText="Used for account access and all notifications"
+                    helperText="Primary email address for your account"
                     InputProps={{
                       startAdornment: <EmailIcon sx={{ mr: 1, color: 'action.active' }} />
                     }}
                     sx={{
                       '& .MuiOutlinedInput-root': {
                         bgcolor: isEditing ? 'background.paper' : alpha(theme.palette.grey[500], 0.05),
+                      }
+                    }}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    label="Alert Email"
+                    type="email"
+                    value={userSettings.alertEmail}
+                    fullWidth
+                    disabled={true}
+                    helperText={
+                      <Box component="span">
+                        Primary email for notifications. 
+                        <Typography 
+                          component="a" 
+                          href="/settings" 
+                          sx={{ 
+                            color: 'primary.main', 
+                            textDecoration: 'underline',
+                            ml: 0.5
+                          }}
+                        >
+                          Change in Settings
+                        </Typography>
+                      </Box>
+                    }
+                    InputProps={{
+                      startAdornment: <NotificationsIcon sx={{ mr: 1, color: 'action.active' }} />
+                    }}
+                    sx={{
+                      '& .MuiOutlinedInput-root': {
+                        bgcolor: alpha(theme.palette.grey[500], 0.05),
                       }
                     }}
                   />

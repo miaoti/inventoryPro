@@ -11,6 +11,7 @@ public class UserResponse {
     private String username;
     private String name;
     private String email;
+    private String alertEmail;
     private User.UserRole role;
     private String department;
     private Integer warningThreshold;

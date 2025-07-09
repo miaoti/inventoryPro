@@ -398,7 +398,8 @@ export default function UserManagementPage() {
             <TableRow>
               <TableCell>User</TableCell>
               <TableCell>Username</TableCell>
-              <TableCell>Email</TableCell>
+              <TableCell>Account Email</TableCell>
+              <TableCell>Alert Email</TableCell>
               <TableCell>Role</TableCell>
               <TableCell>Department</TableCell>
               <TableCell>Alert Thresholds</TableCell>
@@ -418,6 +419,7 @@ export default function UserManagementPage() {
                 </TableCell>
                   <TableCell>{userItem.username}</TableCell>
                   <TableCell>{userItem.email}</TableCell>
+                  <TableCell>{userItem.alertEmail || userItem.email}</TableCell>
                 <TableCell>
                   <Chip
                       label={userItem.role}
@@ -487,7 +489,7 @@ export default function UserManagementPage() {
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={8} align="center">
+                <TableCell colSpan={9} align="center">
                   <Typography color="text.secondary">
                     {loading ? 'Loading users...' : 'No users available or error occurred'}
                   </Typography>
