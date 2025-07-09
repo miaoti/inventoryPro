@@ -78,6 +78,9 @@ public class Item {
     @Column(length = 20)
     private String bin;
 
+    @Column(name = "department")
+    private String department; // NULL or empty means PUBLIC (accessible by all departments)
+
     // Weekly data stored as JSON to allow for dynamic weeks
     @Column(columnDefinition = "TEXT")
     private String weeklyData; // JSON format: {"22": 100, "23": 95, "24": 80, ...}
@@ -104,6 +107,22 @@ public class Item {
 
     public boolean needsRestock() {
         return (currentInventory + pendingPO - usedInventory) < safetyStockThreshold;
+    }
+
+    /**
+     * Check if this item is public (accessible by all departments)
+     * @return true if department is null or empty, false otherwise
+     */
+    public boolean isPublic() {
+        return department == null || department.trim().isEmpty();
+    }
+
+    /**
+     * Get the display department name
+     * @return "Public" if item is public, otherwise the department name
+     */
+    public String getDisplayDepartment() {
+        return isPublic() ? "Public" : department;
     }
 
     public enum ABCCategory {

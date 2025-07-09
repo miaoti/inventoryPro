@@ -72,6 +72,8 @@ interface Item {
   location: string;
   equipment?: string;
   category: 'A' | 'B' | 'C';
+  department?: string; // Department assignment (empty = Public)
+  displayDepartment?: string; // "Public" or department name for display
   weeklyData?: string; // JSON string for dynamic weekly data
   barcode: string;
   qrCodeId?: string;
@@ -144,6 +146,10 @@ export default function ItemsPage() {
   // QR code regeneration state
   const [regeneratingQR, setRegeneratingQR] = useState(false);
   
+  // Department filtering state
+  const [departments, setDepartments] = useState<string[]>([]);
+  const [selectedDepartment, setSelectedDepartment] = useState<string>('');
+  
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -155,6 +161,7 @@ export default function ItemsPage() {
     location: '',
     equipment: '',
     category: 'C' as 'A' | 'B' | 'C',
+    department: '', // Department assignment (empty = Public)
     weeklyData: '', // JSON string for dynamic weekly data
   });
 
@@ -195,11 +202,19 @@ export default function ItemsPage() {
       }
       
       // Only fetch data if authenticated
+      fetchDepartments();
       fetchItems();
     };
 
     checkAuth();
   }, [isAuthenticated, token, router]);
+
+  // Separate effect for department filtering
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchItems();
+    }
+  }, [selectedDepartment]);
 
   // Smart search effect
   useEffect(() => {
@@ -323,10 +338,20 @@ export default function ItemsPage() {
     return matrix[str2.length][str1.length];
   };
 
+  const fetchDepartments = async () => {
+    try {
+      const response = await itemsAPI.getDepartments();
+      setDepartments(response.data || []);
+    } catch (error) {
+      console.error('Error fetching departments:', error);
+      setDepartments([]);
+    }
+  };
+
   const fetchItems = async () => {
     try {
       setLoading(true);
-      const response = await itemsAPI.getAll();
+      const response = await itemsAPI.getAll(selectedDepartment || undefined);
       const itemsData = Array.isArray(response.data) ? response.data : (response.data?.data || []);
       
       console.log('🔍 DEBUG: Fetched items data:', itemsData.length, 'items');
@@ -374,6 +399,7 @@ export default function ItemsPage() {
         location: item.location,
         equipment: item.equipment || '',
         category: item.category,
+        department: item.department || '',
         weeklyData: item.weeklyData || '',
         pendingPO: item.pendingPO || 0,
       });
@@ -389,6 +415,7 @@ export default function ItemsPage() {
         location: '',
         equipment: '',
         category: 'C',
+        department: '',
         weeklyData: '',
         pendingPO: 0,
       });

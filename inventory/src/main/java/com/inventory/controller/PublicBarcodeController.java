@@ -129,6 +129,10 @@ public class PublicBarcodeController {
         response.put("usedInventory", item.getUsedInventory());
         response.put("pendingPO", item.getPendingPO());
         
+        // Always include department information
+        response.put("department", item.getDepartment());
+        response.put("displayDepartment", item.getDisplayDepartment());
+        
         return response;
     }
 

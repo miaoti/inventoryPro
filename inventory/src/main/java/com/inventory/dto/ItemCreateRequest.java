@@ -15,5 +15,6 @@ public class ItemCreateRequest {
     private String location;
     private String equipment;
     private ABCCategory category;
+    private String department; // Department that owns this item (null/empty = Public)
     private String weeklyData; // JSON string for dynamic weekly data
 } 

@@ -326,11 +326,18 @@ export const authAPI = {
 };
 
 export const itemsAPI = {
-  getAll: () => {
+  getAll: (department?: string) => {
     if (!ensureAuthenticated()) {
       return Promise.reject(new Error('Authentication required'));
     }
-    return api.get('/items');
+    const params = department ? `?department=${encodeURIComponent(department)}` : '';
+    return api.get(`/items${params}`);
+  },
+  getDepartments: () => {
+    if (!ensureAuthenticated()) {
+      return Promise.reject(new Error('Authentication required'));
+    }
+    return api.get('/items/departments');
   },
   getById: (id: number) => {
     if (!ensureAuthenticated()) {

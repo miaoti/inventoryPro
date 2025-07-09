@@ -16,6 +16,8 @@ import org.springframework.http.MediaType;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import com.inventory.entity.User;
+import com.inventory.repository.UserRepository;
 
 import java.io.*;
 import java.util.*;
@@ -44,11 +46,75 @@ public class ItemController {
     @Autowired
     private QRCodeService qrCodeService;
 
+    @Autowired
+    private UserRepository userRepository;
+
     @GetMapping
-    public List<ItemResponse> getAllItems() {
-        return itemRepository.findAll().stream()
+    public List<ItemResponse> getAllItems(
+            Authentication authentication,
+            @RequestParam(required = false) String department) {
+        
+        // Get current user information
+        User currentUser = null;
+        if (authentication != null) {
+            Optional<User> userOpt = userRepository.findByUsername(authentication.getName());
+            if (userOpt.isPresent()) {
+                currentUser = userOpt.get();
+            }
+        }
+        
+        List<Item> items;
+        
+        if (currentUser != null && currentUser.getRole() == User.UserRole.OWNER) {
+            // OWNER can see all items, optionally filtered by department
+            if (department != null && !department.isEmpty()) {
+                if ("Public".equalsIgnoreCase(department)) {
+                    items = itemRepository.findPublicItems();
+                } else {
+                    items = itemRepository.findByDepartment(department);
+                }
+            } else {
+                items = itemRepository.findAll();
+            }
+        } else if (currentUser != null && currentUser.getRole() == User.UserRole.ADMIN) {
+            // ADMIN can only see items from their department + public items
+            items = itemRepository.findByDepartmentOrPublic(currentUser.getDepartment());
+        } else {
+            // Non-authenticated users or regular users can only see public items
+            items = itemRepository.findPublicItems();
+        }
+        
+        return items.stream()
                 .map(this::convertToResponse)
                 .collect(Collectors.toList());
+    }
+
+    @GetMapping("/departments")
+    public ResponseEntity<List<String>> getAvailableDepartments(Authentication authentication) {
+        // Get current user information
+        User currentUser = null;
+        if (authentication != null) {
+            Optional<User> userOpt = userRepository.findByUsername(authentication.getName());
+            if (userOpt.isPresent()) {
+                currentUser = userOpt.get();
+            }
+        }
+        
+        List<String> departments = new ArrayList<>();
+        
+        if (currentUser != null && currentUser.getRole() == User.UserRole.OWNER) {
+            // OWNER can see all departments
+            departments = itemRepository.findDistinctDepartments();
+            departments.add(0, "Public"); // Add "Public" option at the beginning
+        } else {
+            // ADMIN and others only see their own department and public
+            departments.add("Public");
+            if (currentUser != null && currentUser.getDepartment() != null) {
+                departments.add(currentUser.getDepartment());
+            }
+        }
+        
+        return ResponseEntity.ok(departments);
     }
 
     @GetMapping("/{id}")
@@ -79,6 +145,7 @@ public class ItemController {
         item.setLocation(request.getLocation());
         item.setEquipment(request.getEquipment());
         item.setCategory(request.getCategory() != null ? request.getCategory() : ABCCategory.C);
+        item.setDepartment(request.getDepartment()); // Will be null/empty for public items
         item.setWeeklyData(request.getWeeklyData());
         
         // Generate barcode based on the provided code
@@ -260,10 +327,34 @@ public class ItemController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<ItemResponse> updateItem(@PathVariable Long id, @RequestBody ItemCreateRequest request) {
+    public ResponseEntity<ItemResponse> updateItem(
+            @PathVariable Long id, 
+            @RequestBody ItemCreateRequest request,
+            Authentication authentication) {
         Optional<Item> optionalItem = itemRepository.findById(id);
         if (optionalItem.isEmpty()) {
             return ResponseEntity.notFound().build();
+        }
+
+        Item item = optionalItem.get();
+
+        // Check department-based permissions
+        if (authentication != null) {
+            Optional<User> userOpt = userRepository.findByUsername(authentication.getName());
+            if (userOpt.isPresent()) {
+                User currentUser = userOpt.get();
+                
+                // ADMIN users can only modify items from their department or public items
+                if (currentUser.getRole() == User.UserRole.ADMIN) {
+                    boolean canModify = item.isPublic() || 
+                                      (item.getDepartment() != null && item.getDepartment().equals(currentUser.getDepartment()));
+                    
+                    if (!canModify) {
+                        return ResponseEntity.status(403).body(null); // Return 403 Forbidden with empty body
+                    }
+                }
+                // OWNER can modify any item (no restrictions)
+            }
         }
 
         // Validate required fields
@@ -273,8 +364,6 @@ public class ItemController {
         if (request.getCode() == null || request.getCode().trim().isEmpty()) {
             throw new RuntimeException("Item code is required");
         }
-
-        Item item = optionalItem.get();
         item.setName(request.getName());
         item.setDescription(request.getDescription());
         item.setEnglishDescription(request.getEnglishDescription());
@@ -285,6 +374,7 @@ public class ItemController {
         item.setLocation(request.getLocation());
         item.setEquipment(request.getEquipment());
         item.setCategory(request.getCategory() != null ? request.getCategory() : ABCCategory.C);
+        item.setDepartment(request.getDepartment()); // Update department field
         item.setWeeklyData(request.getWeeklyData());
         
         // Update barcode if code changed
@@ -488,6 +578,7 @@ public class ItemController {
             String englishDescription = getValueByColumnName(row, columnMap, "english description");
             String location = getValueByColumnName(row, columnMap, "location");
             String equipment = getValueByColumnName(row, columnMap, "equipment");
+            String department = getValueByColumnName(row, columnMap, "department");
             Integer previousInventory = getIntValueByColumnName(row, columnMap, "previous wk inventory");
             Integer currentInventory = getIntValueByColumnName(row, columnMap, "current inventory");
             Integer openPOnTheWay = getIntValueByColumnName(row, columnMap, "open p on the way");
@@ -508,6 +599,7 @@ public class ItemController {
             item.setCode(partNumber != null && !partNumber.trim().isEmpty() ? partNumber.trim() : generateItemCodeFromDescription(description));
             item.setLocation(location);
             item.setEquipment(equipment);
+            item.setDepartment(department); // Will be null/empty for public items
             item.setCurrentInventory(currentInventory != null ? currentInventory : 0);
             item.setPendingPO(openPOnTheWay != null ? openPOnTheWay : 0);
             item.setSafetyStockThreshold(safetyStock != null ? safetyStock : 0);
@@ -565,6 +657,7 @@ public class ItemController {
             String englishDescription = getValueByColumnName(row, columnMap, "english description");
             String location = getValueByColumnName(row, columnMap, "location");
             String equipment = getValueByColumnName(row, columnMap, "equipment");
+            String department = getValueByColumnName(row, columnMap, "department");
             Integer previousInventory = getIntValueByColumnName(row, columnMap, "previous wk inventory");
             Integer currentInventory = getIntValueByColumnName(row, columnMap, "current inventory");
             Integer openPOnTheWay = getIntValueByColumnName(row, columnMap, "open p on the way");
@@ -585,6 +678,7 @@ public class ItemController {
             item.setCode(partNumber != null && !partNumber.trim().isEmpty() ? partNumber.trim() : generateItemCodeFromDescription(description));
             item.setLocation(location);
             item.setEquipment(equipment);
+            item.setDepartment(department); // Will be null/empty for public items
             item.setCurrentInventory(currentInventory != null ? currentInventory : 0);
             item.setPendingPO(openPOnTheWay != null ? openPOnTheWay : 0);
             item.setSafetyStockThreshold(safetyStock != null ? safetyStock : 0);
@@ -861,6 +955,8 @@ public class ItemController {
         response.setPendingPO(pendingPO);
         response.setAvailableQuantity(availableQuantity);
         response.setNeedsRestock(needsRestock);
+        response.setDepartment(item.getDepartment());
+        response.setDisplayDepartment(item.getDisplayDepartment());
         
         return response;
     }

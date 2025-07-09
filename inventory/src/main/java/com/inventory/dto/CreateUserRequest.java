@@ -27,4 +27,6 @@ public class CreateUserRequest {
     
     @NotNull(message = "Role is required")
     private String role; // "ADMIN" or "USER"
+    
+    private String department; // Department assignment (optional)
 } 

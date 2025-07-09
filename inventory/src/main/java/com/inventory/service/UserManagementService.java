@@ -50,6 +50,9 @@ public class UserManagementService {
         if (request.getRole() != null) {
             user.setRole(request.getRole());
         }
+        if (request.getDepartment() != null) {
+            user.setDepartment(request.getDepartment());
+        }
         if (request.getPassword() != null && !request.getPassword().isEmpty()) {
             user.setPassword(passwordEncoder.encode(request.getPassword()));
         }
@@ -103,6 +106,11 @@ public class UserManagementService {
         user.setEnabled(true);
         user.setEnableEmailAlerts(true);
         user.setEnableDailyDigest(false);
+        
+        // Set department if provided
+        if (request.getDepartment() != null) {
+            user.setDepartment(request.getDepartment());
+        }
         
         User savedUser = userRepository.save(user);
         return convertToResponse(savedUser);
@@ -166,6 +174,7 @@ public class UserManagementService {
         response.setName(user.getName());
         response.setEmail(user.getEmail());
         response.setRole(user.getRole());
+        response.setDepartment(user.getDepartment());
         response.setCreatedAt(user.getCreatedAt());
         response.setUpdatedAt(user.getUpdatedAt());
         return response;

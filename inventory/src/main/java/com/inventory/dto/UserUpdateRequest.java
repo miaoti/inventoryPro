@@ -8,5 +8,6 @@ public class UserUpdateRequest {
     private String name;
     private String email;
     private User.UserRole role;
+    private String department;
     private String password; // Optional - only if changing password
 } 

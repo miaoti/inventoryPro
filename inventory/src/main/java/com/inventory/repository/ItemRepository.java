@@ -47,4 +47,32 @@ public interface ItemRepository extends JpaRepository<Item, Long> {
     @Deprecated
     @Query("SELECT i FROM Item i WHERE i.currentInventory <= (i.safetyStockThreshold * 0.5) AND i.safetyStockThreshold > 0")
     List<Item> findLegacyCriticalStockItems();
+    
+    // Department-based access control queries
+    
+    // Find items accessible by a specific department (department items + public items)
+    @Query("SELECT i FROM Item i WHERE i.department IS NULL OR i.department = '' OR i.department = :department")
+    List<Item> findByDepartmentOrPublic(@Param("department") String department);
+    
+    // Find all items by department (for owner filtering)
+    @Query("SELECT i FROM Item i WHERE i.department = :department")
+    List<Item> findByDepartment(@Param("department") String department);
+    
+    // Find only public items (department is null or empty)
+    @Query("SELECT i FROM Item i WHERE i.department IS NULL OR i.department = ''")
+    List<Item> findPublicItems();
+    
+    // Get distinct departments from items (for filter dropdown)
+    @Query("SELECT DISTINCT i.department FROM Item i WHERE i.department IS NOT NULL AND i.department != '' ORDER BY i.department")
+    List<String> findDistinctDepartments();
+    
+    // Department-aware low stock items
+    @Query("SELECT i FROM Item i WHERE (i.department IS NULL OR i.department = '' OR i.department = :department) " +
+           "AND i.currentInventory <= CEILING(i.safetyStockThreshold * 1.1) AND i.currentInventory > i.safetyStockThreshold AND i.safetyStockThreshold > 0")
+    List<Item> findLowStockItemsByDepartment(@Param("department") String department);
+    
+    // Department-aware critical stock items
+    @Query("SELECT i FROM Item i WHERE (i.department IS NULL OR i.department = '' OR i.department = :department) " +
+           "AND i.currentInventory <= (i.safetyStockThreshold * :criticalThresholdPercent / 100.0) AND i.safetyStockThreshold > 0")
+    List<Item> findCriticalStockItemsByDepartment(@Param("department") String department, @Param("criticalThresholdPercent") int criticalThresholdPercent);
 } 

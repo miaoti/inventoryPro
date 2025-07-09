@@ -34,6 +34,8 @@ public class ItemResponse {
     private Integer pendingPO; // Pending purchase orders
     private Integer availableQuantity; // Calculated: quantity + pendingPO - usedInventory
     private boolean needsRestock; // true if available quantity <= minQuantity
+    private String department; // Department that owns this item (null/empty = Public)
+    private String displayDepartment; // "Public" or department name for display
 
     public ItemResponse(Long id, String name, Integer quantity, Integer minQuantity, String location, String barcode) {
         this.id = id;

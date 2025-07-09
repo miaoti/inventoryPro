@@ -50,6 +50,9 @@ public class User {
     @Column(name = "enable_daily_digest")
     private Boolean enableDailyDigest = false;
 
+    @Column(name = "department")
+    private String department = "General";
+
     public enum UserRole {
         OWNER,
         ADMIN,
