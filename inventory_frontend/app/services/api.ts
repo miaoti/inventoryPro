@@ -456,9 +456,11 @@ export const userAPI = {
     return api.get('/user/settings');
   },
   updateSettings: (settings: {
-    alertEmail: string;
-    enableEmailAlerts: boolean;
-    enableDailyDigest: boolean;
+    alertEmail?: string;
+    enableEmailAlerts?: boolean;
+    enableDailyDigest?: boolean;
+    warningThreshold?: number;
+    criticalThreshold?: number;
   }) => {
     if (!ensureAuthenticated()) {
       return Promise.reject(new Error('Authentication required'));

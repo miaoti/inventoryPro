@@ -25,8 +25,7 @@ public class AlertService {
     @Autowired
     private UserService userService;
     
-    @Autowired
-    private AdminSettingsService adminSettingsService;
+
     
     @Value("${app.alerts.notification-email:miaotingshuo@gmail.com}")
     private String fallbackNotificationEmail;
@@ -47,7 +46,7 @@ public class AlertService {
         System.out.println("Current Inventory: " + currentInventory);
         System.out.println("Safety Threshold: " + safetyThreshold);
         
-        // Get user-specific thresholds or fall back to global admin settings
+        // Use user-specific thresholds only (no global fallback)
         double warningThresholdPercent;
         double criticalThresholdPercent;
         
@@ -57,10 +56,10 @@ public class AlertService {
             criticalThresholdPercent = user.getCriticalThreshold() / 100.0;
             System.out.println("Using user-specific thresholds for: " + user.getUsername());
         } else {
-            // Fall back to global admin settings
-            warningThresholdPercent = adminSettingsService.getWarningThreshold() / 100.0;
-            criticalThresholdPercent = adminSettingsService.getCriticalThreshold() / 100.0;
-            System.out.println("Using global admin thresholds (no user context)");
+            // No user context - use default thresholds
+            warningThresholdPercent = 100.0 / 100.0; // Default: 100%
+            criticalThresholdPercent = 50.0 / 100.0;  // Default: 50%
+            System.out.println("No user context - using default thresholds (Warning: 100%, Critical: 50%)");
         }
         
         System.out.println("Warning Threshold %: " + (warningThresholdPercent * 100));

@@ -3,6 +3,7 @@ package com.inventory.controller;
 import com.inventory.dto.UserSettingsRequest;
 import com.inventory.entity.User;
 import com.inventory.service.UserService;
+import com.inventory.service.AlertService;
 import com.inventory.util.JwtUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -26,6 +27,9 @@ public class UserController {
     @Autowired
     private JwtUtil jwtUtil;
     
+    @Autowired
+    private AlertService alertService;
+    
     @GetMapping("/settings")
     public ResponseEntity<?> getUserSettings(HttpServletRequest request) {
         try {
@@ -42,7 +46,9 @@ public class UserController {
             return ResponseEntity.ok(Map.of(
                 "alertEmail", user.getAlertEmail() != null ? user.getAlertEmail() : user.getEmail(),
                 "enableEmailAlerts", user.getEnableEmailAlerts(),
-                "enableDailyDigest", user.getEnableDailyDigest()
+                "enableDailyDigest", user.getEnableDailyDigest(),
+                "warningThreshold", user.getWarningThreshold(),
+                "criticalThreshold", user.getCriticalThreshold()
             ));
             
         } catch (Exception e) {
@@ -87,8 +93,45 @@ public class UserController {
                 logger.info("Daily digest enabled: {}", user.getEnableDailyDigest());
             }
             
+            // Track if thresholds are being updated for alert re-evaluation
+            boolean thresholdChanged = false;
+            Integer oldWarningThreshold = user.getWarningThreshold();
+            Integer oldCriticalThreshold = user.getCriticalThreshold();
+            
+            if (settingsRequest.getWarningThreshold() != null) {
+                user.setWarningThreshold(settingsRequest.getWarningThreshold());
+                if (!settingsRequest.getWarningThreshold().equals(oldWarningThreshold)) {
+                    thresholdChanged = true;
+                }
+                logger.info("Warning threshold set to: {}%", user.getWarningThreshold());
+            }
+            
+            if (settingsRequest.getCriticalThreshold() != null) {
+                user.setCriticalThreshold(settingsRequest.getCriticalThreshold());
+                if (!settingsRequest.getCriticalThreshold().equals(oldCriticalThreshold)) {
+                    thresholdChanged = true;
+                }
+                logger.info("Critical threshold set to: {}%", user.getCriticalThreshold());
+            }
+            
             // Save updated user
             userService.save(user);
+            
+            // Re-evaluate alerts if thresholds changed
+            if (thresholdChanged) {
+                logger.info("User thresholds changed for {} - Warning: {}% -> {}%, Critical: {}% -> {}%", 
+                    user.getUsername(), 
+                    oldWarningThreshold, user.getWarningThreshold(),
+                    oldCriticalThreshold, user.getCriticalThreshold());
+                // We need to inject AlertService here
+                try {
+                    // This will be handled by importing AlertService
+                    alertService.reevaluateAlertsForUserThresholds(user);
+                } catch (Exception e) {
+                    logger.warn("Failed to re-evaluate alerts after threshold change: {}", e.getMessage());
+                    // Don't fail the settings update if alert re-evaluation fails
+                }
+            }
             
             // Log the effective alert email for debugging
             String effectiveEmail = user.getEffectiveAlertEmail();
@@ -100,6 +143,8 @@ public class UserController {
                     "alertEmail", user.getAlertEmail() != null ? user.getAlertEmail() : user.getEmail(),
                     "enableEmailAlerts", user.getEnableEmailAlerts(),
                     "enableDailyDigest", user.getEnableDailyDigest(),
+                    "warningThreshold", user.getWarningThreshold(),
+                    "criticalThreshold", user.getCriticalThreshold(),
                     "effectiveAlertEmail", effectiveEmail
                 )
             ));

@@ -84,17 +84,17 @@ export default function AdminSettingsPage() {
   const fetchAlertThresholds = async () => {
     try {
       setThresholdsLoading(true);
-      const response = await adminAPI.getAlertThresholds();
+      const response = await userAPI.getSettings();
       const responseData = (response as any)?.data || response || {};
       const thresholds = {
-        warningThreshold: responseData.warningThreshold || 120,
+        warningThreshold: responseData.warningThreshold || 100,
         criticalThreshold: responseData.criticalThreshold || 50,
       };
       setAlertThresholds(thresholds);
       setWarningThresholdInput(thresholds.warningThreshold.toString());
       setCriticalThresholdInput(thresholds.criticalThreshold.toString());
     } catch (err) {
-      console.error('Failed to load alert thresholds:', err);
+      console.error('Failed to load user alert thresholds:', err);
       setError('Failed to load alert thresholds. Please try again.');
     } finally {
       setThresholdsLoading(false);
@@ -172,11 +172,14 @@ export default function AdminSettingsPage() {
         return;
       }
 
-      await adminAPI.updateAlertThresholds(alertThresholds);
-      setMessage('Alert thresholds saved successfully');
+      await userAPI.updateSettings({
+        warningThreshold: alertThresholds.warningThreshold,
+        criticalThreshold: alertThresholds.criticalThreshold
+      });
+      setMessage('Your alert thresholds saved successfully');
     } catch (error) {
-      console.error('Error saving alert thresholds:', error);
-      setError('Failed to save alert thresholds');
+      console.error('Error saving your alert thresholds:', error);
+      setError('Failed to save your alert thresholds');
     } finally {
       setThresholdsSaving(false);
     }
@@ -257,10 +260,10 @@ export default function AdminSettingsPage() {
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>
-                Stock Alert Thresholds
+                Your Stock Alert Thresholds
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-                Configure when warning and critical alerts should be triggered based on safety stock percentages
+                Configure your personal alert thresholds for when warning and critical alerts should be triggered based on safety stock percentages
               </Typography>
 
               <Stack spacing={3}>
