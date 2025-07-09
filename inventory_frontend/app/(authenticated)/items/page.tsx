@@ -223,24 +223,30 @@ export default function ItemsPage() {
     checkAuth();
   }, [isAuthenticated, token, router]);
 
-  // Separate effect for department filtering
+  // Apply search and department filtering whenever items, searchQuery, or selectedDepartment changes
   useEffect(() => {
-    if (isAuthenticated) {
-      fetchItems();
+    let filtered = [...items];
+    
+    // Apply search filter
+    if (searchQuery.trim()) {
+      filtered = performSmartSearch(filtered, searchQuery);
     }
-  }, [selectedDepartment]);
-
-  // Smart search effect
-  useEffect(() => {
-    if (!searchQuery.trim()) {
-      setFilteredItems(items);
-    } else {
-      const searchResults = performSmartSearch(items, searchQuery);
-      setFilteredItems(searchResults);
+    
+    // Apply department filter for Owner users
+    if (user?.role === 'OWNER' && selectedDepartment) {
+      if (selectedDepartment === 'public') {
+        // Show only public items (no department assigned)
+        filtered = filtered.filter(item => !item.department || item.department.trim() === '');
+      } else {
+        // Show items from specific department
+        filtered = filtered.filter(item => item.department === selectedDepartment);
+      }
     }
-    // Reset mobile pagination when search changes
+    
+    setFilteredItems(filtered);
+    // Reset mobile pagination when filters change
     setMobilePage(0);
-  }, [items, searchQuery]);
+  }, [items, searchQuery, selectedDepartment, user?.role]);
 
   // Refresh data when page becomes visible (after using scanner)
   useEffect(() => {
@@ -1155,325 +1161,501 @@ export default function ItemsPage() {
       p: { xs: 1, sm: 2, md: 3 }, 
       width: '100%',
       maxWidth: '100vw',
-      overflow: 'hidden'
+      overflow: 'hidden',
+      bgcolor: 'grey.50',
+      minHeight: '100vh'
     }}>
-      <Box sx={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', mb: 3, gap: 2 }}>
-        <Typography variant="h4">Inventory Items</Typography>
-        <Box sx={{ 
-          display: 'flex', 
-          gap: 1, 
-          flexWrap: 'wrap',
-          justifyContent: isMobile ? 'center' : 'flex-end'
-        }}>
-          {selectedItems.length > 0 && (
+      {/* Header Section */}
+      <Box sx={{ mb: 4 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', mb: 3, flexWrap: 'wrap', gap: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flex: 1, minWidth: 0 }}>
+            <Box sx={{ 
+              p: 2, 
+              borderRadius: 2, 
+              bgcolor: 'primary.main', 
+              color: 'white',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}>
+              <InventoryIcon sx={{ fontSize: { xs: 28, md: 32 } }} />
+            </Box>
+            <Box sx={{ flex: 1, minWidth: 0 }}>
+              <Typography 
+                variant="h4" 
+                component="h1" 
+                sx={{ 
+                  fontWeight: 'bold', 
+                  mb: 0.5,
+                  fontSize: { xs: '1.75rem', md: '2.125rem' }
+                }}
+              >
+                Inventory Items
+              </Typography>
+              <Typography variant="body1" color="text.secondary">
+                Manage your inventory items, stock levels, and purchase orders
+              </Typography>
+            </Box>
+          </Box>
+          
+          {/* Quick Stats */}
+          <Box sx={{ 
+            display: 'flex', 
+            gap: 2, 
+            flexWrap: 'wrap',
+            minWidth: { xs: '100%', md: 'auto' }
+          }}>
+            <Paper sx={{ px: 2, py: 1, textAlign: 'center', minWidth: 80 }}>
+              <Typography variant="h6" color="primary" sx={{ fontWeight: 'bold' }}>
+                {filteredItems.length}
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                {searchQuery || (user?.role === 'OWNER' && selectedDepartment) ? 'Filtered' : 'Total'}
+              </Typography>
+            </Paper>
+            {selectedItems.length > 0 && (
+              <Paper sx={{ px: 2, py: 1, textAlign: 'center', minWidth: 80, bgcolor: 'warning.light' }}>
+                <Typography variant="h6" color="warning.dark" sx={{ fontWeight: 'bold' }}>
+                  {selectedItems.length}
+                </Typography>
+                <Typography variant="caption" color="warning.dark">
+                  Selected
+                </Typography>
+              </Paper>
+            )}
+          </Box>
+        </Box>
+
+        {/* Action Bar - Reorganized into logical groups */}
+        <Box sx={{ mb: 3 }}>
+          <Grid container spacing={2}>
+            {/* Search and Filters */}
+            <Grid item xs={12} md={6}>
+              <Paper sx={{ p: 2 }}>
+                <Typography variant="subtitle2" sx={{ mb: 2, color: 'text.secondary', fontWeight: 'bold' }}>
+                  Search & Filter
+                </Typography>
+                <Stack spacing={2}>
+                  {/* Search Bar */}
+                  <TextField
+                    fullWidth
+                    variant="outlined"
+                    placeholder="Search items by name, code, description, location..."
+                    value={searchQuery}
+                    onChange={handleSearchChange}
+                    size="small"
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <SearchIcon color="action" />
+                        </InputAdornment>
+                      ),
+                      endAdornment: searchQuery && (
+                        <InputAdornment position="end">
+                          <IconButton onClick={clearSearch} size="small" edge="end">
+                            <ClearIcon />
+                          </IconButton>
+                        </InputAdornment>
+                      ),
+                    }}
+                    sx={{ bgcolor: 'background.paper' }}
+                  />
+                  
+                  {/* Department Filter for Owner */}
+                  {user?.role === 'OWNER' && (
+                    <FormControl fullWidth size="small">
+                      <InputLabel>Department Filter</InputLabel>
+                      <Select
+                        value={selectedDepartment}
+                        onChange={(e) => setSelectedDepartment(e.target.value)}
+                        label="Department Filter"
+                        sx={{ bgcolor: 'background.paper' }}
+                      >
+                        <MenuItem value="">All Departments</MenuItem>
+                        <MenuItem value="public">Public Items Only</MenuItem>
+                        {departments.map((dept) => (
+                          <MenuItem key={dept} value={dept}>{dept}</MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  )}
+                  
+                  {/* Search Results Info */}
+                  {(searchQuery || (user?.role === 'OWNER' && selectedDepartment)) && (
+                    <Typography variant="body2" color="text.secondary">
+                      Found {filteredItems.length} item{filteredItems.length !== 1 ? 's' : ''}
+                      {searchQuery && ` matching "${searchQuery}"`}
+                      {selectedDepartment && selectedDepartment !== 'public' && ` in ${selectedDepartment}`}
+                      {selectedDepartment === 'public' && ` with public access`}
+                    </Typography>
+                  )}
+                </Stack>
+              </Paper>
+            </Grid>
+
+            {/* Primary Actions */}
+            <Grid item xs={12} md={3}>
+              <Paper sx={{ p: 2, height: '100%' }}>
+                <Typography variant="subtitle2" sx={{ mb: 2, color: 'text.secondary', fontWeight: 'bold' }}>
+                  Quick Actions
+                </Typography>
+                <Stack spacing={1}>
+                  <Button
+                    variant="contained"
+                    startIcon={<AddIcon />}
+                    onClick={() => handleOpenDialog()}
+                    fullWidth
+                    size="large"
+                  >
+                    Add Item
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    startIcon={<RefreshIcon />}
+                    onClick={() => {
+                      setLoading(true);
+                      fetchItems();
+                    }}
+                    fullWidth
+                    disabled={loading}
+                  >
+                    {loading ? 'Refreshing...' : 'Refresh'}
+                  </Button>
+                </Stack>
+              </Paper>
+            </Grid>
+
+            {/* Bulk Operations */}
+            <Grid item xs={12} md={3}>
+              <Paper sx={{ p: 2, height: '100%' }}>
+                <Typography variant="subtitle2" sx={{ mb: 2, color: 'text.secondary', fontWeight: 'bold' }}>
+                  Bulk & Export
+                </Typography>
+                <Stack spacing={1}>
+                  <Button
+                    variant="outlined"
+                    startIcon={<UploadIcon />}
+                    onClick={() => setOpenImportDialog(true)}
+                    fullWidth
+                    color="info"
+                  >
+                    Import CSV
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    startIcon={<DownloadIcon />}
+                    onClick={handleExportBarcodes}
+                    fullWidth
+                    color="info"
+                  >
+                    Export Barcodes
+                  </Button>
+                  {selectedItems.length > 0 && (
+                    <Button
+                      variant="outlined"
+                      startIcon={bulkDeleteLoading ? <CircularProgress size={16} /> : <DeleteIcon />}
+                      onClick={handleBulkDelete}
+                      fullWidth
+                      color="error"
+                      disabled={bulkDeleteLoading}
+                    >
+                      Delete ({selectedItems.length})
+                    </Button>
+                  )}
+                </Stack>
+              </Paper>
+            </Grid>
+          </Grid>
+
+          {/* Secondary Actions - Utilities */}
+          <Box sx={{ mt: 2, display: 'flex', gap: 1, flexWrap: 'wrap', justifyContent: 'center' }}>
             <Button
-              variant="outlined"
-              startIcon={bulkDeleteLoading ? <CircularProgress size={20} /> : <DeleteIcon />}
-              onClick={handleBulkDelete}
-              color="error"
-              disabled={bulkDeleteLoading}
-              size={isMobile ? 'small' : 'medium'}
+              variant="text"
+              startIcon={regeneratingQR ? <CircularProgress size={16} /> : <QrCodeIcon />}
+              onClick={handleRegenerateQRCodes}
+              color="info"
+              disabled={regeneratingQR}
+              size="small"
             >
-              {bulkDeleteLoading ? 'Deleting...' : `Delete (${selectedItems.length})`}
+              {regeneratingQR ? 'Generating QR Codes...' : 'Generate QR Codes'}
             </Button>
-          )}
-          <Button
-            variant="outlined"
-            startIcon={<RefreshIcon />}
-            onClick={fetchItems}
-            disabled={loading}
-            size={isMobile ? 'small' : 'medium'}
-          >
-            {isMobile ? 'Refresh' : 'Refresh'}
-          </Button>
-          <Button
-            variant="outlined"
-            startIcon={<DownloadIcon />}
-            onClick={handleExportBarcodes}
-            color="secondary"
-            size={isMobile ? 'small' : 'medium'}
-          >
-            {isMobile ? 'Export' : 'Export Barcodes'}
-          </Button>
-          <Button
-            variant="outlined"
-            startIcon={regeneratingQR ? <CircularProgress size={20} /> : <QrCodeIcon />}
-            onClick={handleRegenerateQRCodes}
-            color="info"
-            disabled={regeneratingQR}
-            size={isMobile ? 'small' : 'medium'}
-          >
-            {regeneratingQR ? 'Generating...' : (isMobile ? 'QR Codes' : 'Generate QR Codes')}
-          </Button>
-          <Button
-            variant="outlined"
-            startIcon={<UploadIcon />}
-            onClick={() => setOpenImportDialog(true)}
-            color="info"
-            size={isMobile ? 'small' : 'medium'}
-          >
-            {isMobile ? 'Import' : 'Import CSV/Excel'}
-          </Button>
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={() => handleOpenDialog()}
-            size={isMobile ? 'small' : 'medium'}
-          >
-            Add Item
-          </Button>
+            {filteredItems.length > 0 && (
+              <Button
+                variant="text"
+                startIcon={<Checkbox />}
+                onClick={handleSelectAll}
+                color="primary"
+                size="small"
+              >
+                {selectedItems.length === filteredItems.length ? 'Deselect All' : 'Select All'}
+              </Button>
+            )}
+          </Box>
         </Box>
       </Box>
 
-      {/* Smart Search Bar */}
-      <Box sx={{ mb: 3 }}>
-        <TextField
-          fullWidth
-          variant="outlined"
-          placeholder="Search items by name, code, description, location, equipment... (e.g., 'white belt', 'belt', 'B001')"
-          value={searchQuery}
-          onChange={handleSearchChange}
-          InputProps={{
-            startAdornment: (
-              <InputAdornment position="start">
-                <SearchIcon color="action" />
-              </InputAdornment>
-            ),
-            endAdornment: searchQuery && (
-              <InputAdornment position="end">
-                <IconButton onClick={clearSearch} size="small" edge="end">
-                  <ClearIcon />
-                </IconButton>
-              </InputAdornment>
-            ),
-          }}
-          sx={{
-            '& .MuiOutlinedInput-root': {
-              backgroundColor: 'background.paper',
-            },
-          }}
-        />
-        {searchQuery && (
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-            Found {filteredItems.length} item{filteredItems.length !== 1 ? 's' : ''} matching "{searchQuery}"
-          </Typography>
-        )}
-      </Box>
-
-      {/* Responsive Layout */}
-      {isMobile ? (
-        /* Mobile Card Layout */
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {loading ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
-              <CircularProgress />
-            </Box>
-          ) : filteredItems.length === 0 ? (
-            <Paper sx={{ p: 4, textAlign: 'center' }}>
-              <Typography variant="h6" color="text.secondary">
-                No items found
-              </Typography>
-            </Paper>
-          ) : (
-            <>
-              {/* Mobile Items Display */}
-              {filteredItems
-                .slice(mobilePage * mobilePageSize, (mobilePage + 1) * mobilePageSize)
-                .map((item) => (
-              <Card key={item.id} sx={{ position: 'relative' }}>
-                <CardContent>
-                  {/* Selection Checkbox */}
-                  <Box sx={{ position: 'absolute', top: 8, left: 8 }}>
-                    <Checkbox
-                      checked={selectedItems.includes(item.id)}
-                      onChange={(e) => {
-                        e.stopPropagation();
-                        handleItemSelect(item.id);
-                      }}
-                      size="small"
-                    />
-                  </Box>
-
-                  {/* Main Content */}
-                  <Box sx={{ ml: 5 }}>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-                      <Box sx={{ flex: 1 }}>
-                        <Typography variant="h6" gutterBottom>
-                          {item.name}
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary">
-                          Code: {item.code || 'N/A'}
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary">
-                          Location: {item.location || 'N/A'}
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary">
-                          Department: {item.department && item.department.trim() !== '' ? (
-                            <Chip 
-                              label={item.department} 
-                              color="info"
-                              size="small"
-                              sx={{ ml: 0.5, fontSize: '0.75rem' }}
-                            />
-                          ) : (
-                            <Chip 
-                              label="Public" 
-                              color="default"
-                              size="small"
-                              variant="outlined"
-                              sx={{ ml: 0.5, fontSize: '0.75rem' }}
-                            />
-                          )}
-                        </Typography>
-                      </Box>
-                      <Chip 
-                        label={item.category} 
-                        color={getCategoryColor(item.category) as any}
-                        size="small"
-                      />
-                    </Box>
-
-                    {/* Inventory Info */}
-                    <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap' }}>
-                      <Box sx={{ textAlign: 'center', minWidth: 60 }}>
-                        <Typography variant="h6" color="primary">
-                          {item.quantity || 0}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          Current
-                        </Typography>
-                      </Box>
-                      <Box sx={{ textAlign: 'center', minWidth: 60 }}>
-                        <Button
-                          variant="outlined"
-                          size="small"
-                          color={item.pendingPO && item.pendingPO > 0 ? "warning" : "inherit"}
-                          onClick={() => handleOpenPODialog(item)}
-                          sx={{ 
-                            minWidth: 60,
-                            flexDirection: 'column',
-                            height: 'auto',
-                            py: 0.5,
-                            px: 1
-                          }}
-                        >
-                          <Typography variant="h6" component="span">
-                            {item.pendingPO || 0}
-                          </Typography>
-                          <Typography variant="caption" component="span">
-                            Manage PO
-                          </Typography>
-                        </Button>
-                      </Box>
-                      <Box sx={{ textAlign: 'center', minWidth: 60 }}>
-                        <Typography variant="h6" color="error.main">
-                          {item.minQuantity || 0}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          Min
-                        </Typography>
-                      </Box>
-                    </Box>
-
-                    {/* Barcode */}
-                    {item.barcode && (
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-                        <img 
-                          src={`${API_URL}/public/barcode-image/${item.barcode}`}
-                          alt={`Barcode: ${item.barcode}`}
-                          style={{ height: 20, maxWidth: 80 }}
-                        />
-                        <Typography variant="caption" color="text.secondary">
-                          {item.barcode}
-                        </Typography>
-                      </Box>
-                    )}
-                  </Box>
-                </CardContent>
-                
-                <CardActions sx={{ justifyContent: 'space-between', px: 2, pb: 2 }}>
+      {/* Content Section */}
+      <Box sx={{ bgcolor: 'background.paper', borderRadius: 2, overflow: 'hidden' }}>
+        {/* Responsive Layout */}
+        {isMobile ? (
+          /* Mobile Card Layout */
+          <Box sx={{ p: 2 }}>
+            {loading ? (
+              <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
+                <CircularProgress />
+              </Box>
+            ) : filteredItems.length === 0 ? (
+              <Box sx={{ textAlign: 'center', p: 4 }}>
+                <InventoryIcon sx={{ fontSize: 64, color: 'text.disabled', mb: 2 }} />
+                <Typography variant="h6" color="text.secondary" gutterBottom>
+                  {searchQuery || (user?.role === 'OWNER' && selectedDepartment) ? 'No items found' : 'No items available'}
+                </Typography>
+                <Typography variant="body2" color="text.disabled">
+                  {searchQuery || (user?.role === 'OWNER' && selectedDepartment) 
+                    ? 'Try adjusting your search or filter criteria'
+                    : 'Start by adding your first item to the inventory'
+                  }
+                </Typography>
+                {!searchQuery && (!selectedDepartment || selectedDepartment === '') && (
                   <Button
-                    size="small"
-                    startIcon={<ViewIcon />}
-                    onClick={() => handleOpenDetailDialog(item)}
+                    variant="contained"
+                    startIcon={<AddIcon />}
+                    onClick={() => handleOpenDialog()}
+                    sx={{ mt: 2 }}
                   >
-                    View
+                    Add First Item
                   </Button>
-                  <IconButton
-                    onClick={(e) => handleActionMenuOpen(e, item)}
-                    size="small"
-                  >
-                    <MoreVertIcon />
-                  </IconButton>
-                </CardActions>
-              </Card>
-                ))}
-              
-              {/* Mobile Pagination */}
-              {filteredItems.length > mobilePageSize && (
-                <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
-                  <Stack spacing={2} alignItems="center">
+                )}
+              </Box>
+            ) : (
+              <>
+                {/* Mobile Items Display */}
+                <Stack spacing={2}>
+                  {filteredItems
+                    .slice(mobilePage * mobilePageSize, (mobilePage + 1) * mobilePageSize)
+                    .map((item) => (
+                  <Card key={item.id} sx={{ 
+                    position: 'relative',
+                    border: selectedItems.includes(item.id) ? 2 : 1,
+                    borderColor: selectedItems.includes(item.id) ? 'primary.main' : 'divider',
+                    '&:hover': {
+                      boxShadow: 2,
+                      transform: 'translateY(-1px)',
+                      transition: 'all 0.2s ease-in-out'
+                    }
+                  }}>
+                    <CardContent>
+                      {/* Selection Checkbox */}
+                      <Box sx={{ position: 'absolute', top: 8, left: 8 }}>
+                        <Checkbox
+                          checked={selectedItems.includes(item.id)}
+                          onChange={(e) => {
+                            e.stopPropagation();
+                            handleItemSelect(item.id);
+                          }}
+                          size="small"
+                        />
+                      </Box>
+
+                      {/* Main Content */}
+                      <Box sx={{ ml: 5 }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+                          <Box sx={{ flex: 1 }}>
+                            <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold' }}>
+                              {item.name}
+                            </Typography>
+                            <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ mb: 1 }}>
+                              <Chip label={`Code: ${item.code || 'N/A'}`} size="small" variant="outlined" />
+                              <Chip label={`Location: ${item.location || 'N/A'}`} size="small" variant="outlined" />
+                            </Stack>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                              <Typography variant="body2" color="text.secondary">
+                                Department:
+                              </Typography>
+                              {item.department && item.department.trim() !== '' ? (
+                                <Chip 
+                                  label={item.department} 
+                                  color="info"
+                                  size="small"
+                                />
+                              ) : (
+                                <Chip 
+                                  label="Public" 
+                                  color="default"
+                                  size="small"
+                                  variant="outlined"
+                                />
+                              )}
+                            </Box>
+                          </Box>
+                          <Chip 
+                            label={item.category} 
+                            color={getCategoryColor(item.category) as any}
+                            size="small"
+                            sx={{ fontWeight: 'bold' }}
+                          />
+                        </Box>
+
+                        {/* Inventory Info */}
+                        <Grid container spacing={2} sx={{ mb: 2 }}>
+                          <Grid item xs={4}>
+                            <Paper sx={{ p: 1.5, textAlign: 'center', bgcolor: 'primary.50' }}>
+                              <Typography variant="h6" color="primary" sx={{ fontWeight: 'bold' }}>
+                                {item.quantity || 0}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                Current
+                              </Typography>
+                            </Paper>
+                          </Grid>
+                          <Grid item xs={4}>
+                            <Paper 
+                              sx={{ 
+                                p: 1.5, 
+                                textAlign: 'center', 
+                                bgcolor: item.pendingPO && item.pendingPO > 0 ? 'warning.50' : 'grey.50',
+                                cursor: 'pointer',
+                                '&:hover': { bgcolor: 'action.hover' }
+                              }}
+                              onClick={() => handleOpenPODialog(item)}
+                            >
+                              <Typography 
+                                variant="h6" 
+                                color={item.pendingPO && item.pendingPO > 0 ? "warning.main" : "text.secondary"}
+                                sx={{ fontWeight: 'bold' }}
+                              >
+                                {item.pendingPO || 0}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                Pending PO
+                              </Typography>
+                            </Paper>
+                          </Grid>
+                          <Grid item xs={4}>
+                            <Paper sx={{ p: 1.5, textAlign: 'center', bgcolor: 'error.50' }}>
+                              <Typography variant="h6" color="error.main" sx={{ fontWeight: 'bold' }}>
+                                {item.minQuantity || 0}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                Min Stock
+                              </Typography>
+                            </Paper>
+                          </Grid>
+                        </Grid>
+
+                        {/* Barcode */}
+                        {item.barcode && (
+                          <Box sx={{ 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            gap: 1, 
+                            mb: 2,
+                            p: 1,
+                            bgcolor: 'grey.50',
+                            borderRadius: 1
+                          }}>
+                            <img 
+                              src={`${API_URL}/public/barcode-image/${item.barcode}`}
+                              alt={`Barcode: ${item.barcode}`}
+                              style={{ height: 24, maxWidth: 100 }}
+                            />
+                            <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'monospace' }}>
+                              {item.barcode}
+                            </Typography>
+                          </Box>
+                        )}
+                      </Box>
+                    </CardContent>
+                    
+                    <CardActions sx={{ justifyContent: 'space-between', px: 2, pb: 2, bgcolor: 'grey.25' }}>
+                      <Button
+                        size="small"
+                        startIcon={<ViewIcon />}
+                        onClick={() => handleOpenDetailDialog(item)}
+                        variant="outlined"
+                      >
+                        View Details
+                      </Button>
+                      
+                      <Box sx={{ display: 'flex', gap: 1 }}>
+                        <IconButton
+                          size="small"
+                          onClick={() => handleOpenDialog(item)}
+                          color="primary"
+                        >
+                          <EditIcon />
+                        </IconButton>
+                        <IconButton
+                          size="small"
+                          onClick={(e) => handleActionMenuOpen(e, item)}
+                          color="default"
+                        >
+                          <MoreVertIcon />
+                        </IconButton>
+                      </Box>
+                    </CardActions>
+                  </Card>
+                  ))}
+                </Stack>
+
+                {/* Mobile Pagination */}
+                {filteredItems.length > mobilePageSize && (
+                  <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
                     <Pagination
                       count={Math.ceil(filteredItems.length / mobilePageSize)}
                       page={mobilePage + 1}
-                      onChange={(event, value) => setMobilePage(value - 1)}
+                      onChange={(_, page) => setMobilePage(page - 1)}
                       color="primary"
-                      size="large"
-                      showFirstButton 
-                      showLastButton
                     />
-                    <Typography variant="body2" color="text.secondary">
-                      Showing {(mobilePage * mobilePageSize) + 1}-{Math.min((mobilePage + 1) * mobilePageSize, filteredItems.length)} of {filteredItems.length} items
-                    </Typography>
-                  </Stack>
-                </Box>
-              )}
-            </>
-          )}
-        </Box>
-      ) : (
-        /* Desktop Table Layout */
-        <Paper sx={{ 
-          height: 600, 
-          width: '100%',
-          overflow: 'hidden'
-        }}>
-          <DataGrid
-            rows={filteredItems || []}
-            columns={columns}
-            loading={loading}
-            pageSizeOptions={[10, 25, 50, 100]}
-            initialState={{
-              pagination: { paginationModel: { pageSize: 25 } },
-            }}
-            pagination
-            disableRowSelectionOnClick
-            getRowId={(row) => row?.id || `temp-${Math.random()}`}
-            sx={{
-              width: '100%',
-              '& .MuiDataGrid-root': {
-                minWidth: 0,
-              },
-              '& .MuiDataGrid-columnHeaders': {
-                minWidth: 0,
-              },
-              '& .MuiDataGrid-virtualScroller': {
-                minWidth: 0,
-              },
-              '& .MuiDataGrid-row': {
-                '&:hover': {
-                  backgroundColor: 'rgba(0, 0, 0, 0.04)',
+                  </Box>
+                )}
+              </>
+            )}
+          </Box>
+        ) : (
+          /* Desktop Table Layout */
+          <Paper sx={{ 
+            height: 600, 
+            width: '100%',
+            overflow: 'hidden'
+          }}>
+            <DataGrid
+              rows={filteredItems || []}
+              columns={columns}
+              loading={loading}
+              pageSizeOptions={[10, 25, 50, 100]}
+              initialState={{
+                pagination: { paginationModel: { pageSize: 25 } },
+              }}
+              pagination
+              disableRowSelectionOnClick
+              getRowId={(row) => row?.id || `temp-${Math.random()}`}
+              sx={{
+                width: '100%',
+                '& .MuiDataGrid-root': {
+                  minWidth: 0,
                 },
-                minWidth: 0,
-              },
-              '& .MuiDataGrid-footerContainer': {
-                minHeight: 52,
-                justifyContent: 'center'
-              }
-            }}
-          />
-        </Paper>
-      )}
+                '& .MuiDataGrid-columnHeaders': {
+                  minWidth: 0,
+                },
+                '& .MuiDataGrid-virtualScroller': {
+                  minWidth: 0,
+                },
+                '& .MuiDataGrid-row': {
+                  '&:hover': {
+                    backgroundColor: 'rgba(0, 0, 0, 0.04)',
+                  },
+                  minWidth: 0,
+                },
+                '& .MuiDataGrid-footerContainer': {
+                  minHeight: 52,
+                  justifyContent: 'center'
+                }
+              }}
+            />
+          </Paper>
+        )}
+      </Box>
 
       {/* Action Menu */}
       <Menu

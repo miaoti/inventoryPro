@@ -60,6 +60,9 @@ public class User {
     @Column(name = "critical_threshold")
     private Integer criticalThreshold = 50; // Default: 50% of safety stock
 
+    @Column(name = "quick_actions", columnDefinition = "TEXT")
+    private String quickActions; // Comma-separated list of enabled quick actions
+
     public enum UserRole {
         OWNER,
         ADMIN,
@@ -112,6 +115,14 @@ public class User {
 
     public void setCriticalThreshold(Integer criticalThreshold) {
         this.criticalThreshold = criticalThreshold;
+    }
+
+    public String getQuickActions() {
+        return quickActions;
+    }
+
+    public void setQuickActions(String quickActions) {
+        this.quickActions = quickActions;
     }
 
     // Convenience methods for fullName as name (for backward compatibility)
