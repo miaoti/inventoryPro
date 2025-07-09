@@ -245,18 +245,28 @@ public class AlertService {
         try {
             System.out.println("=== EMAIL NOTIFICATION DEBUG ===");
             
-            // Get all users who have email alerts enabled
-            List<User> users = userService.findUsersWithEmailAlertsEnabled();
-            System.out.println("Found " + users.size() + " users with email alerts enabled");
+            Item alertItem = alert.getItem();
+            System.out.println("Alert for item: " + alertItem.getName() + " (Department: " + alertItem.getDisplayDepartment() + ")");
             
-            if (users.isEmpty()) {
-                // Fallback to global notification email if no users have alerts enabled
-                System.out.println("No users with alerts enabled, sending to fallback email: " + fallbackNotificationEmail);
+            // Get all users who have email alerts enabled
+            List<User> allUsers = userService.findUsersWithEmailAlertsEnabled();
+            System.out.println("Found " + allUsers.size() + " users with email alerts enabled");
+            
+            // Filter users based on department access
+            List<User> eligibleUsers = allUsers.stream()
+                    .filter(user -> shouldUserReceiveAlert(user, alertItem))
+                    .collect(java.util.stream.Collectors.toList());
+            
+            System.out.println("After department filtering: " + eligibleUsers.size() + " eligible users");
+            
+            if (eligibleUsers.isEmpty()) {
+                // Fallback to global notification email if no eligible users
+                System.out.println("No eligible users for this alert, sending to fallback email: " + fallbackNotificationEmail);
                 emailService.sendAlertNotification(alert, fallbackNotificationEmail);
                 System.out.println("ALERT EMAIL SENT (fallback): " + alert.getMessage());
             } else {
-                // Send alert to each user who wants email notifications
-                for (User user : users) {
+                // Send alert to each eligible user
+                for (User user : eligibleUsers) {
                     String alertEmail = user.getEffectiveAlertEmail();
                     
                     // Validate email address before sending
@@ -265,7 +275,7 @@ public class AlertService {
                         continue;
                     }
                     
-                    System.out.println("Sending alert to user: " + user.getUsername() + " (" + alertEmail + ")");
+                    System.out.println("Sending alert to user: " + user.getUsername() + " (" + user.getRole() + ", Dept: " + user.getDepartment() + ") -> " + alertEmail);
                     emailService.sendAlertNotification(alert, alertEmail);
                     System.out.println("ALERT EMAIL SENT to " + alertEmail + ": " + alert.getMessage());
                 }
@@ -277,12 +287,61 @@ public class AlertService {
             // Continue operation even if email fails
         }
     }
+
+    /**
+     * Determine if a user should receive an alert for a specific item based on department access
+     */
+    private boolean shouldUserReceiveAlert(User user, Item item) {
+        System.out.println("Checking alert eligibility for user: " + user.getUsername() + " (Role: " + user.getRole() + ", Dept: " + user.getDepartment() + ")");
+        
+        // OWNER users receive ALL alerts
+        if (user.getRole() == User.UserRole.OWNER) {
+            System.out.println("  -> OWNER: Receives all alerts");
+            return true;
+        }
+        
+        // ADMIN users receive alerts for their department + public items
+        if (user.getRole() == User.UserRole.ADMIN) {
+            // Public items (no department) - all admins can receive alerts
+            if (item.isPublic()) {
+                System.out.println("  -> ADMIN: Public item - alert allowed");
+                return true;
+            }
+            
+            // Department-specific items - only admins from the same department
+            if (item.getDepartment() != null && item.getDepartment().equals(user.getDepartment())) {
+                System.out.println("  -> ADMIN: Item department matches user department - alert allowed");
+                return true;
+            }
+            
+            System.out.println("  -> ADMIN: Item department (" + item.getDepartment() + ") doesn't match user department (" + user.getDepartment() + ") - alert blocked");
+            return false;
+        }
+        
+        // USER role typically shouldn't receive alerts (they can't manage inventory)
+        // But if they have alerts enabled, only send for public items
+        if (user.getRole() == User.UserRole.USER) {
+            if (item.isPublic()) {
+                System.out.println("  -> USER: Public item - alert allowed");
+                return true;
+            }
+            System.out.println("  -> USER: Department-specific item - alert blocked");
+            return false;
+        }
+        
+        System.out.println("  -> Unknown role - alert blocked");
+        return false;
+    }
     
     /**
      * Send daily summary of active alerts to all users who want daily digest
+     * Note: For daily summaries, we send the total count but users will only see alerts 
+     * for items they have access to when they log into the system
      */
     public void sendDailySummary() {
         try {
+            // For daily summaries, we send the overall count since it's just a summary
+            // When users log in, the actual alert list will be filtered by department
             long activeAlertCount = getActiveAlertCount();
             
             // Get all users who have daily digest enabled
@@ -294,10 +353,18 @@ public class AlertService {
                 System.out.println("Daily summary email sent (fallback) with " + activeAlertCount + " active alerts");
             } else {
                 // Send daily summary to each user who wants it
+                // Note: Daily summaries show total counts; actual alert filtering happens in the UI
                 for (User user : users) {
                     String alertEmail = user.getEffectiveAlertEmail();
+                    
+                    // Validate email address
+                    if (alertEmail == null || alertEmail.trim().isEmpty()) {
+                        System.err.println("Warning: User " + user.getUsername() + " has daily digest enabled but no valid email address");
+                        continue;
+                    }
+                    
                     emailService.sendLowStockSummary(alertEmail, activeAlertCount);
-                    System.out.println("Daily summary email sent to " + alertEmail + " with " + activeAlertCount + " active alerts");
+                    System.out.println("Daily summary email sent to " + alertEmail + " (" + user.getRole() + ", Dept: " + user.getDepartment() + ") with " + activeAlertCount + " active alerts");
                 }
             }
         } catch (Exception e) {
