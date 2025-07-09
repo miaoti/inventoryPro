@@ -212,6 +212,23 @@ export default function ProfilePage() {
                   />
                 </Box>
                 <Box>
+                  <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500 }}>
+                    Department: {user.department ? (
+                      <Chip 
+                        label={user.department} 
+                        color="info"
+                        size="small"
+                        variant="outlined"
+                        sx={{ ml: 1 }}
+                      />
+                    ) : (
+                      <span style={{ fontStyle: 'italic', color: '#757575' }}>
+                        No department - Contact owner for assignment
+                      </span>
+                    )}
+                  </Typography>
+                </Box>
+                <Box>
                   <Typography variant="body2" color="text.secondary">
                     {user.email}
                   </Typography>

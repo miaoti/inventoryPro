@@ -8,6 +8,7 @@ interface User {
   email: string;
   fullName: string;
   role: 'OWNER' | 'ADMIN' | 'USER';
+  department?: string;
 }
 
 interface AuthState {

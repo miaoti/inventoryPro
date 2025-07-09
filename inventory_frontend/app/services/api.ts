@@ -345,6 +345,12 @@ export const itemsAPI = {
     }
     return api.post('/items/departments', { name });
   },
+  deleteDepartment: (departmentName: string) => {
+    if (!ensureAuthenticated()) {
+      return Promise.reject(new Error('Authentication required'));
+    }
+    return api.delete(`/items/departments/${encodeURIComponent(departmentName)}`);
+  },
   getById: (id: number) => {
     if (!ensureAuthenticated()) {
       return Promise.reject(new Error('Authentication required'));

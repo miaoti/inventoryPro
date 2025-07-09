@@ -4,6 +4,7 @@ export interface User {
   name: string;
   email: string;
   role: 'OWNER' | 'ADMIN' | 'USER';
+  department?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -12,6 +13,7 @@ export interface UserUpdateRequest {
   name?: string;
   email?: string;
   role?: 'OWNER' | 'ADMIN' | 'USER';
+  department?: string;
   password?: string;
 }
 
@@ -21,6 +23,7 @@ export interface CreateUserRequest {
   email: string;
   fullName: string;
   role: 'ADMIN' | 'USER';
+  department?: string;
 }
 
 export interface UpdateUsernameRequest {

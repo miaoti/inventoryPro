@@ -359,11 +359,16 @@ export default function ItemsPage() {
     }
 
     try {
-      await itemsAPI.createDepartment(newDepartmentName.trim());
+      const departmentName = newDepartmentName.trim();
+      await itemsAPI.createDepartment(departmentName);
       setNewDepartmentName('');
       setShowCreateDepartmentDialog(false);
-      fetchDepartments(); // Refresh departments list
-      alert(`Department "${newDepartmentName.trim()}" created successfully!`);
+      await fetchDepartments(); // Refresh departments list
+      
+      // Set the newly created department as selected in form
+      setFormData({ ...formData, department: departmentName });
+      
+      alert(`Department "${departmentName}" created successfully!`);
     } catch (error: any) {
       console.error('Error creating department:', error);
       const errorMessage = error.response?.data?.error || error.message || 'Error creating department';

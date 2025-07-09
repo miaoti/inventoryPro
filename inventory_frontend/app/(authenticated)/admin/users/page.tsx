@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useSelector } from 'react-redux';
 import { RootState } from '../../../store/store';
-import { userManagementAPI } from '../../../services/api';
+import { userManagementAPI, itemsAPI } from '../../../services/api';
 import { User, UserUpdateRequest, CreateUserRequest, UpdateUsernameRequest } from '../../../types/user';
 import {
   Box,
@@ -59,10 +59,18 @@ export default function UserManagementPage() {
     password: '',
     email: '',
     fullName: '',
-    role: 'USER'
+    role: 'USER',
+    department: ''
   });
   const [usernameForm, setUsernameForm] = useState<UpdateUsernameRequest>({ username: '' });
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
+  
+  // Department management state
+  const [departments, setDepartments] = useState<string[]>([]);
+  const [departmentDialogOpen, setDepartmentDialogOpen] = useState(false);
+  const [newDepartmentName, setNewDepartmentName] = useState('');
+  const [departmentToDelete, setDepartmentToDelete] = useState<string>('');
+  const [deleteDepartmentDialogOpen, setDeleteDepartmentDialogOpen] = useState(false);
 
   // Check if current user is owner
   if (user?.role !== 'OWNER') {
@@ -82,6 +90,7 @@ export default function UserManagementPage() {
 
   useEffect(() => {
     fetchUsers();
+    fetchDepartments();
   }, []);
 
   const fetchUsers = async () => {
@@ -117,7 +126,8 @@ export default function UserManagementPage() {
         password: '',
         email: '',
         fullName: '',
-        role: 'USER'
+        role: 'USER',
+        department: ''
       });
       fetchUsers();
     } catch (error: any) {
@@ -133,6 +143,7 @@ export default function UserManagementPage() {
       name: userItem.name,
       email: userItem.email,
       role: userItem.role,
+      department: userItem.department || '',
     });
     setEditDialogOpen(true);
   };
@@ -190,6 +201,58 @@ export default function UserManagementPage() {
       console.error('Error deleting user:', error);
       const message = error.response?.data?.message || 'Failed to delete user';
       setSnackbar({ open: true, message, severity: 'error' });
+    }
+  };
+
+  // Department management functions
+  const fetchDepartments = async () => {
+    try {
+      const response = await itemsAPI.getDepartments();
+      setDepartments(response.data || []);
+    } catch (error) {
+      console.error('Error fetching departments:', error);
+      setDepartments([]);
+    }
+  };
+
+  const handleCreateDepartment = async () => {
+    if (!newDepartmentName.trim()) {
+      setSnackbar({ open: true, message: 'Department name is required', severity: 'error' });
+      return;
+    }
+
+    try {
+      await itemsAPI.createDepartment(newDepartmentName.trim());
+      setSnackbar({ open: true, message: `Department "${newDepartmentName.trim()}" created successfully`, severity: 'success' });
+      setNewDepartmentName('');
+      setDepartmentDialogOpen(false);
+      await fetchDepartments();
+    } catch (error: any) {
+      console.error('Error creating department:', error);
+      const errorMessage = error.response?.data?.error || error.message || 'Error creating department';
+      setSnackbar({ open: true, message: errorMessage, severity: 'error' });
+    }
+  };
+
+  const handleDeleteDepartment = async () => {
+    if (!departmentToDelete) return;
+
+    try {
+      const response = await itemsAPI.deleteDepartment(departmentToDelete);
+      const result = response.data;
+      setSnackbar({ 
+        open: true, 
+        message: `${result.message} (${result.usersAffected} users and ${result.itemsAffected} items affected)`, 
+        severity: 'success' 
+      });
+      setDeleteDepartmentDialogOpen(false);
+      setDepartmentToDelete('');
+      await fetchDepartments();
+      await fetchUsers(); // Refresh users to show updated departments
+    } catch (error: any) {
+      console.error('Error deleting department:', error);
+      const errorMessage = error.response?.data?.error || error.message || 'Error deleting department';
+      setSnackbar({ open: true, message: errorMessage, severity: 'error' });
     }
   };
 
@@ -273,19 +336,35 @@ export default function UserManagementPage() {
         >
         User Management
       </Typography>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={() => setCreateDialogOpen(true)}
-          sx={{
-            background: 'linear-gradient(45deg, #667eea, #764ba2)',
-            '&:hover': {
-              background: 'linear-gradient(45deg, #5a6fd8, #6a4190)',
-            }
-          }}
-        >
-          Create User
-        </Button>
+        <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
+          <Button
+            variant="outlined"
+            onClick={() => setDepartmentDialogOpen(true)}
+            sx={{
+              borderColor: '#667eea',
+              color: '#667eea',
+              '&:hover': {
+                borderColor: '#5a6fd8',
+                backgroundColor: 'rgba(102, 126, 234, 0.1)',
+              }
+            }}
+          >
+            Department Control
+          </Button>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={() => setCreateDialogOpen(true)}
+            sx={{
+              background: 'linear-gradient(45deg, #667eea, #764ba2)',
+              '&:hover': {
+                background: 'linear-gradient(45deg, #5a6fd8, #6a4190)',
+              }
+            }}
+          >
+            Create User
+          </Button>
+        </Box>
       </Box>
 
       {/* User Statistics */}
@@ -315,6 +394,7 @@ export default function UserManagementPage() {
               <TableCell>Username</TableCell>
               <TableCell>Email</TableCell>
               <TableCell>Role</TableCell>
+              <TableCell>Department</TableCell>
               <TableCell>Created</TableCell>
               <TableCell>Actions</TableCell>
             </TableRow>
@@ -337,6 +417,20 @@ export default function UserManagementPage() {
                       color={getRoleColor(userItem.role) as any}
                     size="small"
                   />
+                </TableCell>
+                <TableCell>
+                  {userItem.department ? (
+                    <Chip
+                      label={userItem.department}
+                      color="info"
+                      size="small"
+                      variant="outlined"
+                    />
+                  ) : (
+                    <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                      No department - Contact owner
+                    </Typography>
+                  )}
                 </TableCell>
                 <TableCell>
                     {new Date(userItem.createdAt).toLocaleDateString()}
@@ -372,7 +466,7 @@ export default function UserManagementPage() {
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={6} align="center">
+                <TableCell colSpan={7} align="center">
                   <Typography color="text.secondary">
                     {loading ? 'Loading users...' : 'No users available or error occurred'}
                   </Typography>
@@ -429,6 +523,31 @@ export default function UserManagementPage() {
                 <MenuItem value="USER">User</MenuItem>
               </Select>
             </FormControl>
+            <FormControl fullWidth>
+              <InputLabel>Department</InputLabel>
+              <Select
+                value={createForm.department || ''}
+                onChange={(e) => {
+                  if (e.target.value === '__CREATE_NEW__') {
+                    setDepartmentDialogOpen(true);
+                  } else {
+                    setCreateForm({ ...createForm, department: e.target.value });
+                  }
+                }}
+                label="Department"
+              >
+                <MenuItem value="">No Department</MenuItem>
+                {departments.map((dept) => (
+                  <MenuItem key={dept} value={dept}>{dept}</MenuItem>
+                ))}
+                <MenuItem 
+                  value="__CREATE_NEW__" 
+                  sx={{ color: 'primary.main', fontStyle: 'italic' }}
+                >
+                  + Create New Department
+                </MenuItem>
+              </Select>
+            </FormControl>
           </Box>
         </DialogContent>
         <DialogActions>
@@ -465,6 +584,31 @@ export default function UserManagementPage() {
                 <MenuItem value="OWNER">Owner</MenuItem>
                 <MenuItem value="ADMIN">Admin</MenuItem>
                 <MenuItem value="USER">User</MenuItem>
+              </Select>
+            </FormControl>
+            <FormControl fullWidth>
+              <InputLabel>Department</InputLabel>
+              <Select
+                value={editForm.department || ''}
+                onChange={(e) => {
+                  if (e.target.value === '__CREATE_NEW__') {
+                    setDepartmentDialogOpen(true);
+                  } else {
+                    setEditForm({ ...editForm, department: e.target.value });
+                  }
+                }}
+                label="Department"
+              >
+                <MenuItem value="">No Department</MenuItem>
+                {departments.map((dept) => (
+                  <MenuItem key={dept} value={dept}>{dept}</MenuItem>
+                ))}
+                <MenuItem 
+                  value="__CREATE_NEW__" 
+                  sx={{ color: 'primary.main', fontStyle: 'italic' }}
+                >
+                  + Create New Department
+                </MenuItem>
               </Select>
             </FormControl>
             <TextField
@@ -517,6 +661,87 @@ export default function UserManagementPage() {
           <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
           <Button onClick={handleConfirmDelete} color="error" variant="contained">
             Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Department Control Dialog */}
+      <Dialog open={departmentDialogOpen} onClose={() => setDepartmentDialogOpen(false)} maxWidth="md" fullWidth>
+        <DialogTitle>Department Control</DialogTitle>
+        <DialogContent>
+          <Box sx={{ pt: 2 }}>
+            {/* Create New Department Section */}
+            <Typography variant="h6" gutterBottom>Create New Department</Typography>
+            <Box sx={{ display: 'flex', gap: 2, mb: 4 }}>
+              <TextField
+                label="Department Name"
+                value={newDepartmentName}
+                onChange={(e) => setNewDepartmentName(e.target.value)}
+                placeholder="Enter department name (e.g., Engineering, IT, Operations)"
+                fullWidth
+              />
+              <Button 
+                onClick={handleCreateDepartment}
+                variant="contained"
+                disabled={!newDepartmentName.trim()}
+                sx={{ minWidth: 'auto', px: 3 }}
+              >
+                Create
+              </Button>
+            </Box>
+
+            {/* Existing Departments Section */}
+            <Typography variant="h6" gutterBottom>Existing Departments</Typography>
+            {departments.length === 0 ? (
+              <Typography color="text.secondary" sx={{ fontStyle: 'italic', py: 2 }}>
+                No departments created yet.
+              </Typography>
+            ) : (
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                {departments.map((dept) => (
+                  <Paper key={dept} sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Typography variant="body1">{dept}</Typography>
+                    <Button
+                      variant="outlined"
+                      color="error"
+                      size="small"
+                      onClick={() => {
+                        setDepartmentToDelete(dept);
+                        setDeleteDepartmentDialogOpen(true);
+                      }}
+                    >
+                      Delete
+                    </Button>
+                  </Paper>
+                ))}
+              </Box>
+            )}
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDepartmentDialogOpen(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Delete Department Confirmation Dialog */}
+      <Dialog open={deleteDepartmentDialogOpen} onClose={() => setDeleteDepartmentDialogOpen(false)}>
+        <DialogTitle>Confirm Department Deletion</DialogTitle>
+        <DialogContent>
+          <Typography gutterBottom>
+            Are you sure you want to delete the department "{departmentToDelete}"?
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+            <strong>This action will:</strong>
+            <br />• Remove the department assignment from all users
+            <br />• Make all items in this department "Public"
+            <br />• Users without departments will see "No department - Contact owner"
+            <br />• This action cannot be undone
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteDepartmentDialogOpen(false)}>Cancel</Button>
+          <Button onClick={handleDeleteDepartment} color="error" variant="contained">
+            Delete Department
           </Button>
         </DialogActions>
       </Dialog>

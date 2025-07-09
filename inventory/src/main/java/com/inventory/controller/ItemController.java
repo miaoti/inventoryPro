@@ -146,6 +146,55 @@ public class ItemController {
         ));
     }
 
+    @DeleteMapping("/departments/{departmentName}")
+    public ResponseEntity<Map<String, String>> deleteDepartment(
+            @PathVariable String departmentName,
+            Authentication authentication) {
+        
+        // Only OWNER can delete departments
+        if (authentication != null) {
+            User currentUser = userRepository.findByUsername(authentication.getName());
+            if (currentUser == null || currentUser.getRole() != User.UserRole.OWNER) {
+                return ResponseEntity.status(403).body(Map.of("error", "Only owners can delete departments"));
+            }
+        } else {
+            return ResponseEntity.status(401).body(Map.of("error", "Authentication required"));
+        }
+        
+        if (departmentName == null || departmentName.trim().isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Department name is required"));
+        }
+        
+        departmentName = departmentName.trim();
+        
+        // Check if department exists
+        List<String> existingDepartments = itemRepository.findDistinctDepartments();
+        if (!existingDepartments.contains(departmentName)) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Department not found"));
+        }
+        
+        // Update all items with this department to public (NULL department)
+        List<Item> itemsInDepartment = itemRepository.findByDepartment(departmentName);
+        for (Item item : itemsInDepartment) {
+            item.setDepartment(null); // Make them public
+            itemRepository.save(item);
+        }
+        
+        // Update all users with this department to no department (NULL)
+        List<User> usersInDepartment = userRepository.findByDepartment(departmentName);
+        for (User user : usersInDepartment) {
+            user.setDepartment(null);
+            userRepository.save(user);
+        }
+        
+        return ResponseEntity.ok(Map.of(
+            "message", "Department '" + departmentName + "' deleted successfully. " +
+                      "Affected items are now public, and affected users have no department assigned.",
+            "itemsAffected", String.valueOf(itemsInDepartment.size()),
+            "usersAffected", String.valueOf(usersInDepartment.size())
+        ));
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<ItemResponse> getItemById(@PathVariable Long id) {
         Optional<Item> item = itemRepository.findById(id);
