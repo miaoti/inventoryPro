@@ -37,6 +37,7 @@ import {
   CardActions,
   Pagination,
   Stack,
+  Snackbar,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -92,6 +93,8 @@ interface ImportResult {
   totalProcessed: number;
   created: number;
   skippedDuplicates: number;
+  departmentFiltered?: number;
+  departmentFilterMessage?: string;
   errors: number;
   errorDetails: string[];
   items: Item[];
@@ -153,6 +156,13 @@ export default function ItemsPage() {
   // Department creation state
   const [showCreateDepartmentDialog, setShowCreateDepartmentDialog] = useState(false);
   const [newDepartmentName, setNewDepartmentName] = useState('');
+  
+  // Snackbar state for error messages
+  const [snackbar, setSnackbar] = useState({ 
+    open: false, 
+    message: '', 
+    severity: 'success' as 'success' | 'error' | 'info' | 'warning'
+  });
   
   const [formData, setFormData] = useState({
     name: '',
@@ -545,25 +555,57 @@ export default function ItemsPage() {
 
   const handleSave = async () => {
     if (!formData.name.trim()) {
-      alert('Item name is required');
+      setSnackbar({ 
+        open: true, 
+        message: 'Item name is required', 
+        severity: 'error' 
+      });
       return;
     }
     if (!formData.code.trim()) {
-      alert('Item code is required');
+      setSnackbar({ 
+        open: true, 
+        message: 'Item code is required', 
+        severity: 'error' 
+      });
       return;
     }
 
     try {
       if (selectedItem) {
         await itemsAPI.update(selectedItem.id, formData);
+        setSnackbar({ 
+          open: true, 
+          message: 'Item updated successfully', 
+          severity: 'success' 
+        });
       } else {
         await itemsAPI.create(formData);
+        setSnackbar({ 
+          open: true, 
+          message: 'Item created successfully', 
+          severity: 'success' 
+        });
       }
       fetchItems();
       setOpenDialog(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving item:', error);
-      alert('Error saving item. Please try again.');
+      
+      let errorMessage = 'Error saving item. Please try again.';
+      if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.response?.data && typeof error.response.data === 'string') {
+        errorMessage = error.response.data;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      setSnackbar({ 
+        open: true, 
+        message: errorMessage, 
+        severity: 'error' 
+      });
     }
   };
 
@@ -815,6 +857,33 @@ export default function ItemsPage() {
     { field: 'pendingPO', headerName: 'PO', type: 'number', width: 70 },
     { field: 'minQuantity', headerName: 'Min', type: 'number', width: 70 },
     { field: 'location', headerName: 'Location', flex: 1 },
+    { 
+      field: 'department', 
+      headerName: 'Department', 
+      width: 120,
+      renderCell: (params) => {
+        const department = params.value;
+        if (!department || department.trim() === '') {
+          return (
+            <Chip 
+              label="Public" 
+              color="default"
+              size="small"
+              variant="outlined"
+              sx={{ fontSize: '0.75rem' }}
+            />
+          );
+        }
+        return (
+          <Chip 
+            label={department} 
+            color="info"
+            size="small"
+            sx={{ fontSize: '0.75rem' }}
+          />
+        );
+      }
+    },
     { 
       field: 'barcode', 
       headerName: 'Barcode', 
@@ -1237,6 +1306,24 @@ export default function ItemsPage() {
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
                           Location: {item.location || 'N/A'}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          Department: {item.department && item.department.trim() !== '' ? (
+                            <Chip 
+                              label={item.department} 
+                              color="info"
+                              size="small"
+                              sx={{ ml: 0.5, fontSize: '0.75rem' }}
+                            />
+                          ) : (
+                            <Chip 
+                              label="Public" 
+                              color="default"
+                              size="small"
+                              variant="outlined"
+                              sx={{ ml: 0.5, fontSize: '0.75rem' }}
+                            />
+                          )}
                         </Typography>
                       </Box>
                       <Chip 
@@ -2000,6 +2087,22 @@ export default function ItemsPage() {
                   </Grid>
                 </Grid>
 
+                {/* Department Filtering Alert for Admin Users */}
+                {importResult.departmentFiltered && importResult.departmentFiltered > 0 && (
+                  <Alert severity="warning" sx={{ mt: 2, mb: 2 }}>
+                    <Typography variant="subtitle2" gutterBottom>
+                      🏢 Department Filtering Applied
+                    </Typography>
+                    <Typography variant="body2">
+                      {importResult.departmentFilterMessage || 
+                       `${importResult.departmentFiltered} items were skipped because they don't belong to your department.`}
+                    </Typography>
+                    <Typography variant="body2" sx={{ mt: 1, fontStyle: 'italic' }}>
+                      Admin users can only create items for their assigned department or public items (no department).
+                    </Typography>
+                  </Alert>
+                )}
+
                 {/* Success Rate Progress */}
                 {importResult.totalProcessed > 0 && (
                   <Box sx={{ mb: 2 }}>
@@ -2532,6 +2635,22 @@ export default function ItemsPage() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Snackbar for error/success messages */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert 
+          severity={snackbar.severity} 
+          onClose={() => setSnackbar({ ...snackbar, open: false })}
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 } 

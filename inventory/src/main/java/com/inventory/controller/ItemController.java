@@ -474,7 +474,7 @@ public class ItemController {
                                       (item.getDepartment() != null && item.getDepartment().equals(currentUser.getDepartment()));
                     
                     if (!canModify) {
-                        return ResponseEntity.status(403).body(null); // Return 403 Forbidden with empty body
+                        throw new RuntimeException("You cannot edit this item since it does not belong to your department (" + currentUser.getDepartment() + ")");
                     }
                 }
                 // OWNER can modify any item (no restrictions)
