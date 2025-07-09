@@ -27,7 +27,7 @@ import {
   Error as ErrorIcon,
   Percent as PercentIcon,
 } from '@mui/icons-material';
-import { adminAPI } from '../../services/api';
+import { adminAPI, userAPI } from '../../services/api';
 
 export default function AdminSettingsPage() {
   const [scanFields, setScanFields] = useState<string[]>([]);
