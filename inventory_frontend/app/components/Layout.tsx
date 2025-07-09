@@ -620,10 +620,11 @@ export default function Layout({ children }: LayoutProps) {
               ml: { sm: `${drawerWidth}px` },
               maxWidth: '100vw',
               overflow: 'hidden',
-              background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
+              background: 'rgba(255, 255, 255, 0.9)',
               backdropFilter: 'blur(20px)',
-              borderBottom: '1px solid rgba(0,0,0,0.08)',
-              color: '#1a202c'
+              borderBottom: '1px solid rgba(0,0,0,0.06)',
+              color: '#1a202c',
+              display: { xs: 'block', sm: 'none' } // Only show on mobile for hamburger menu
             }}
           >
             <Toolbar sx={{ 
@@ -631,8 +632,9 @@ export default function Layout({ children }: LayoutProps) {
               width: '100%',
               maxWidth: '100%',
               overflow: 'hidden',
-              minHeight: { xs: 56, sm: 64 },
-              px: { xs: 2, sm: 3 }
+              minHeight: 56,
+              px: 2,
+              justifyContent: 'flex-start'
             }}>
               <IconButton
                 color="inherit"
@@ -640,8 +642,6 @@ export default function Layout({ children }: LayoutProps) {
                 edge="start"
                 onClick={handleDrawerToggle}
                 sx={{ 
-                  mr: 2, 
-                  display: { sm: 'none' },
                   bgcolor: 'rgba(103,126,234,0.1)',
                   '&:hover': {
                     bgcolor: 'rgba(103,126,234,0.2)',
@@ -652,26 +652,6 @@ export default function Layout({ children }: LayoutProps) {
               >
                 <MenuIcon sx={{ color: '#667eea' }} />
               </IconButton>
-              
-              <Typography 
-                variant="h5" 
-                component="div" 
-                sx={{ 
-                  flexGrow: 1,
-                  fontWeight: 700,
-                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                  backgroundClip: 'text',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  fontSize: { xs: '1.25rem', sm: '1.5rem' },
-                  letterSpacing: '-0.025em',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap'
-                }}
-              >
-                Inventory Management
-              </Typography>
             </Toolbar>
           </AppBar>
           
@@ -732,7 +712,8 @@ export default function Layout({ children }: LayoutProps) {
           minWidth: 0
         }}
       >
-        {isAuthenticated && <Toolbar />}
+        {/* Only add Toolbar spacer on mobile where AppBar is visible */}
+        {isAuthenticated && <Toolbar sx={{ display: { xs: 'block', sm: 'none' } }} />}
         {children}
       </Box>
     </Box>

@@ -148,7 +148,7 @@ export default function DashboardPage() {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch('/api/users/quick-actions', {
+      const response = await fetch('/api/user/quick-actions', {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
         },

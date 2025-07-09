@@ -170,7 +170,7 @@ export default function QuickActionsManager({ open, onClose, onUpdate }: QuickAc
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch('/api/users/quick-actions', {
+      const response = await fetch('/api/user/quick-actions', {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
         },
@@ -203,7 +203,7 @@ export default function QuickActionsManager({ open, onClose, onUpdate }: QuickAc
     setSaving(true);
     setError(null);
     try {
-      const response = await fetch('/api/users/quick-actions', {
+      const response = await fetch('/api/user/quick-actions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

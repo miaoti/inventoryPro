@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
 
-    const response = await fetch(`${API_BASE_URL}/users/quick-actions`, {
+    const response = await fetch(`${API_BASE_URL}/user/quick-actions`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
 
-    const response = await fetch(`${API_BASE_URL}/users/quick-actions`, {
+    const response = await fetch(`${API_BASE_URL}/user/quick-actions`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,

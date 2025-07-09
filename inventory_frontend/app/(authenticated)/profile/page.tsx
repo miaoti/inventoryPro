@@ -47,6 +47,8 @@ import {
   CheckCircle as CheckCircleIcon,
   Info as InfoIcon,
   Palette as PaletteIcon,
+  Visibility as VisibilityIcon,
+  VisibilityOff as VisibilityOffIcon,
 } from '@mui/icons-material';
 
 export default function ProfilePage() {
@@ -55,6 +57,8 @@ export default function ProfilePage() {
   const theme = useTheme();
   const [loading, setLoading] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
   
   // Role-based access control
   const isOwner = user?.role === 'OWNER';
@@ -75,13 +79,15 @@ export default function ProfilePage() {
   });
 
   useEffect(() => {
-    fetchProfile();
+    fetchProfileData();
   }, []);
 
-  const fetchProfile = async () => {
+  const fetchProfileData = async () => {
     try {
-      const response: any = await profileAPI.get();
-      const profileData = response.data || response;
+      // Fetch profile data
+      const profileResponse = await profileAPI.get();
+      const profileData = profileResponse.data || profileResponse;
+      
       setProfileForm({
         username: profileData.username,
         email: profileData.email,
@@ -102,10 +108,10 @@ export default function ProfilePage() {
         }));
       }
     } catch (error) {
-      console.error('Error fetching profile:', error);
+      console.error('Error fetching profile data:', error);
       setSnackbar({ 
         open: true, 
-        message: 'Failed to load profile', 
+        message: 'Failed to load profile data', 
         severity: 'error' 
       });
     }
@@ -119,9 +125,11 @@ export default function ProfilePage() {
       updateRequest.username = user?.username;
     }
     
-    // Remove password fields since password change is not allowed
-    delete updateRequest.currentPassword;
-    delete updateRequest.newPassword;
+    // Only include password fields if they're filled
+    if (!updateRequest.currentPassword || !updateRequest.newPassword) {
+      delete updateRequest.currentPassword;
+      delete updateRequest.newPassword;
+    }
 
     try {
       setLoading(true);
@@ -149,6 +157,12 @@ export default function ProfilePage() {
       });
       
       setIsEditing(false);
+      // Clear password fields
+      setProfileForm(prev => ({
+        ...prev,
+        currentPassword: '',
+        newPassword: ''
+      }));
       
     } catch (error: any) {
       console.error('Error updating profile:', error);
@@ -212,474 +226,303 @@ export default function ProfilePage() {
       bgcolor: 'grey.50',
       py: 4
     }}>
-      <Container maxWidth="lg">
-        {/* Header Section */}
+      <Container maxWidth="md">
+        {/* Simplified Header */}
         <Fade in timeout={600}>
-          <Box sx={{ mb: 4 }}>
-            <Box sx={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              mb: 3, 
-              flexWrap: 'wrap', 
-              gap: 2 
-            }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flex: 1, minWidth: 0 }}>
-                <Box sx={{ 
-                  p: 2, 
-                  borderRadius: 3, 
-                  background: getRoleGradient(user.role), 
-                  color: 'white',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  boxShadow: 3
-                }}>
-                  <SettingsIcon sx={{ fontSize: { xs: 28, md: 32 } }} />
-                </Box>
-                <Box sx={{ flex: 1, minWidth: 0 }}>
-                  <Typography 
-                    variant="h4" 
-                    component="h1" 
-                    sx={{ 
-                      fontWeight: 'bold', 
-                      mb: 0.5,
-                      fontSize: { xs: '1.75rem', md: '2.125rem' }
-                    }}
-                  >
-                    Profile Settings
-                  </Typography>
-                  <Typography variant="body1" color="text.secondary">
-                    Manage your account information and preferences
-                  </Typography>
-                </Box>
-              </Box>
-              
-              {/* Status Indicators */}
-              <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+          <Box sx={{ mb: 4, textAlign: 'center' }}>
+            <Avatar 
+              sx={{ 
+                width: 80, 
+                height: 80, 
+                mx: 'auto', 
+                mb: 2,
+                background: getRoleGradient(user.role),
+                fontSize: '2rem',
+                boxShadow: 4
+              }}
+            >
+              {user.fullName?.charAt(0)?.toUpperCase() || user.username?.charAt(0)?.toUpperCase() || 'U'}
+            </Avatar>
+            <Typography variant="h4" component="h1" sx={{ fontWeight: 'bold', mb: 1 }}>
+              {user.fullName}
+            </Typography>
+            <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
+              @{user.username}
+            </Typography>
+            <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center', flexWrap: 'wrap' }}>
+              <Chip 
+                icon={getRoleIcon(user.role)}
+                label={user.role} 
+                color={getRoleColor(user.role) as any}
+                size="small"
+                sx={{ fontWeight: 'bold' }}
+              />
+              {user.department && (
                 <Chip 
-                  icon={<CheckCircleIcon />}
-                  label="Active Account" 
-                  color="success"
+                  icon={<BusinessIcon />}
+                  label={user.department} 
+                  color="info"
+                  size="small"
                   variant="outlined"
-                  size="small"
                 />
-                <Chip 
-                  icon={getRoleIcon(user.role)}
-                  label={user.role} 
-                  color={getRoleColor(user.role) as any}
-                  size="small"
-                  sx={{ fontWeight: 'bold' }}
-                />
-              </Box>
+              )}
             </Box>
           </Box>
         </Fade>
 
-        {/* Content Grid */}
-        <Grid container spacing={3}>
-          {/* Profile Overview Card */}
-          <Grid item xs={12} lg={4}>
-            <Slide direction="right" in timeout={800}>
-              <Card sx={{ 
-                height: 'fit-content',
-                background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.1)} 0%, ${alpha(theme.palette.primary.main, 0.05)} 100%)`,
-                border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
-                borderRadius: 3,
-                boxShadow: '0 8px 32px rgba(0,0,0,0.08)'
-              }}>
-                <CardContent sx={{ p: 4 }}>
-                  {/* Avatar and Basic Info */}
-                  <Box sx={{ textAlign: 'center', mb: 4 }}>
-                    <Avatar 
-                      sx={{ 
-                        width: 100, 
-                        height: 100, 
-                        mx: 'auto', 
-                        mb: 2,
-                        background: getRoleGradient(user.role),
-                        fontSize: '2.5rem',
-                        boxShadow: 4
-                      }}
+        {/* Main Profile Card */}
+        <Slide direction="up" in timeout={800}>
+          <Card sx={{ 
+            borderRadius: 3,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.08)',
+            overflow: 'hidden'
+          }}>
+            <CardHeader 
+              title={
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                  <AccountIcon color="primary" />
+                  <Typography variant="h6">Account Information</Typography>
+                </Box>
+              }
+              action={
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                  {!isEditing ? (
+                    <Button
+                      variant="outlined"
+                      startIcon={<EditIcon />}
+                      onClick={() => setIsEditing(true)}
+                      size="small"
                     >
-                      {user.fullName?.charAt(0)?.toUpperCase() || user.username?.charAt(0)?.toUpperCase() || 'U'}
-                    </Avatar>
-                    <Typography variant="h5" sx={{ fontWeight: 'bold', mb: 1 }}>
-                      {user.fullName}
-                    </Typography>
-                    <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
-                      @{user.username}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ 
-                      fontFamily: 'monospace',
-                      bgcolor: alpha(theme.palette.grey[500], 0.1),
-                      px: 2,
-                      py: 1,
-                      borderRadius: 1,
-                      fontSize: '0.875rem'
-                    }}>
-                      {user.email}
-                    </Typography>
-                  </Box>
-
-                  <Divider sx={{ mb: 3 }} />
-
-                  {/* Role and Department Info */}
-                  <Stack spacing={2}>
-                    <Box>
-                      <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-                        Role & Permissions
-                      </Typography>
-                      <Chip 
-                        icon={getRoleIcon(user.role)}
-                        label={user.role} 
-                        color={getRoleColor(user.role) as any}
-                        size="medium"
-                        sx={{ fontWeight: 'bold', width: '100%' }}
-                      />
-                    </Box>
-
-                    <Box>
-                      <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-                        Department Access
-                      </Typography>
-                      {user.department ? (
-                        <Chip 
-                          icon={<BusinessIcon />}
-                          label={user.department} 
-                          color="info"
-                          size="medium"
-                          variant="outlined"
-                          sx={{ width: '100%' }}
-                        />
-                      ) : user.role === 'OWNER' ? (
-                        <Chip 
-                          icon={<BusinessIcon />}
-                          label="All Departments" 
-                          color="success"
-                          size="medium"
-                          variant="outlined"
-                          sx={{ width: '100%' }}
-                        />
-                      ) : (
-                        <Chip 
-                          icon={<InfoIcon />}
-                          label="No Department" 
-                          color="warning"
-                          size="medium"
-                          variant="outlined"
-                          sx={{ width: '100%' }}
-                        />
-                      )}
-                    </Box>
-                  </Stack>
-                </CardContent>
-              </Card>
-            </Slide>
-          </Grid>
-
-          {/* Account Information Card */}
-          <Grid item xs={12} lg={8}>
-            <Slide direction="left" in timeout={800}>
-              <Card sx={{ 
-                borderRadius: 3,
-                boxShadow: '0 8px 32px rgba(0,0,0,0.08)',
-                overflow: 'hidden'
-              }}>
-                <CardHeader 
-                  title={
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                      <AccountIcon color="primary" />
-                      <Typography variant="h6">Account Information</Typography>
-                    </Box>
-                  }
-                  action={
-                    <Box sx={{ display: 'flex', gap: 1 }}>
-                      {!isEditing ? (
-                        <Button
-                          variant="outlined"
-                          startIcon={<EditIcon />}
-                          onClick={() => setIsEditing(true)}
-                          size="small"
-                        >
-                          Edit Profile
-                        </Button>
-                      ) : (
-                        <>
-                          <Button
-                            variant="outlined"
-                            onClick={() => {
-                              setIsEditing(false);
-                              fetchProfile(); // Reset form
-                            }}
-                            size="small"
-                          >
-                            Cancel
-                          </Button>
-                          <Button
-                            variant="contained"
-                            startIcon={loading ? undefined : <SaveIcon />}
-                            onClick={handleUpdateProfile}
-                            disabled={loading}
-                            size="small"
-                          >
-                            {loading ? 'Saving...' : 'Save Changes'}
-                          </Button>
-                        </>
-                      )}
-                    </Box>
-                  }
-                  sx={{ 
-                    bgcolor: alpha(theme.palette.primary.main, 0.05),
-                    borderBottom: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`
-                  }}
-                />
-                <CardContent sx={{ p: 4 }}>
-                  {/* Loading Progress */}
-                  {loading && (
-                    <Box sx={{ width: '100%', mb: 3 }}>
-                      <LinearProgress color="primary" />
-                    </Box>
-                  )}
-
-                  {/* Access Control Notices */}
-                  <Stack spacing={2} sx={{ mb: 4 }}>
-                    {!canEditUsername && (
-                      <Alert 
-                        severity="info" 
-                        icon={<LockIcon />}
-                        sx={{ borderRadius: 2 }}
+                      Edit Profile
+                    </Button>
+                  ) : (
+                    <>
+                      <Button
+                        variant="outlined"
+                        onClick={() => {
+                          setIsEditing(false);
+                          fetchProfileData(); // Reset form
+                        }}
+                        size="small"
                       >
-                        <Typography variant="body2">
-                          <strong>Username Restriction:</strong> As an {user?.role}, you cannot change your username. 
-                          Only the Owner has permission to modify usernames.
-                        </Typography>
-                      </Alert>
-                    )}
+                        Cancel
+                      </Button>
+                      <Button
+                        variant="contained"
+                        startIcon={loading ? undefined : <SaveIcon />}
+                        onClick={handleUpdateProfile}
+                        disabled={loading}
+                        size="small"
+                      >
+                        {loading ? 'Saving...' : 'Save Changes'}
+                      </Button>
+                    </>
+                  )}
+                </Box>
+              }
+              sx={{ 
+                bgcolor: alpha(theme.palette.primary.main, 0.05),
+                borderBottom: `1px solid ${alpha(theme.palette.primary.main, 0.1)}`
+              }}
+            />
+            <CardContent sx={{ p: 4 }}>
+              {/* Loading Progress */}
+              {loading && (
+                <Box sx={{ width: '100%', mb: 3 }}>
+                  <LinearProgress color="primary" />
+                </Box>
+              )}
 
-                    <Alert 
-                      severity="info" 
-                      icon={<InfoIcon />}
-                      sx={{ borderRadius: 2 }}
-                    >
-                      <Typography variant="body2">
-                        <strong>Email Notifications:</strong> To configure email alerts and notification preferences, 
-                        please visit the <a href="/settings" style={{ textDecoration: 'underline', color: 'inherit' }}>Settings page</a>.
+              {/* Access Control Notice */}
+              {!canEditUsername && (
+                <Alert 
+                  severity="info" 
+                  icon={<LockIcon />}
+                  sx={{ borderRadius: 2, mb: 3 }}
+                >
+                  <Typography variant="body2">
+                    <strong>Username Restriction:</strong> As an {user?.role}, you cannot change your username. 
+                    Only the Owner has permission to modify usernames.
+                  </Typography>
+                </Alert>
+              )}
+
+              {/* Form Fields */}
+              <Grid container spacing={3}>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    label="Username"
+                    value={profileForm.username}
+                    onChange={(e) => setProfileForm({ ...profileForm, username: e.target.value })}
+                    fullWidth
+                    disabled={!canEditUsername || !isEditing}
+                    helperText={!canEditUsername ? "Only the Owner can change usernames" : "Username for system login"}
+                    InputProps={{
+                      startAdornment: <AccountIcon sx={{ mr: 1, color: 'action.active' }} />
+                    }}
+                    sx={{
+                      '& .MuiOutlinedInput-root': {
+                        bgcolor: isEditing ? 'background.paper' : alpha(theme.palette.grey[500], 0.05),
+                      }
+                    }}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    label="Full Name"
+                    value={profileForm.fullName}
+                    onChange={(e) => setProfileForm({ ...profileForm, fullName: e.target.value })}
+                    fullWidth
+                    disabled={!isEditing}
+                    InputProps={{
+                      startAdornment: <PersonIcon sx={{ mr: 1, color: 'action.active' }} />
+                    }}
+                    sx={{
+                      '& .MuiOutlinedInput-root': {
+                        bgcolor: isEditing ? 'background.paper' : alpha(theme.palette.grey[500], 0.05),
+                      }
+                    }}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    label="Email Address"
+                    type="email"
+                    value={profileForm.email}
+                    onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })}
+                    fullWidth
+                    disabled={!isEditing}
+                    helperText="Used for account access and all notifications"
+                    InputProps={{
+                      startAdornment: <EmailIcon sx={{ mr: 1, color: 'action.active' }} />
+                    }}
+                    sx={{
+                      '& .MuiOutlinedInput-root': {
+                        bgcolor: isEditing ? 'background.paper' : alpha(theme.palette.grey[500], 0.05),
+                      }
+                    }}
+                  />
+                </Grid>
+
+                {/* Password Fields - Only show when editing */}
+                {isEditing && (
+                  <>
+                    <Grid item xs={12} sm={6}>
+                      <TextField
+                        label="Current Password"
+                        type={showPassword ? 'text' : 'password'}
+                        value={profileForm.currentPassword}
+                        onChange={(e) => setProfileForm({ ...profileForm, currentPassword: e.target.value })}
+                        fullWidth
+                        helperText="Required to change password"
+                        InputProps={{
+                          startAdornment: <LockIcon sx={{ mr: 1, color: 'action.active' }} />,
+                          endAdornment: (
+                            <IconButton
+                              onClick={() => setShowPassword(!showPassword)}
+                              edge="end"
+                            >
+                              {showPassword ? <VisibilityOffIcon /> : <VisibilityIcon />}
+                            </IconButton>
+                          )
+                        }}
+                      />
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <TextField
+                        label="New Password"
+                        type={showNewPassword ? 'text' : 'password'}
+                        value={profileForm.newPassword}
+                        onChange={(e) => setProfileForm({ ...profileForm, newPassword: e.target.value })}
+                        fullWidth
+                        helperText="Leave blank to keep current password"
+                        InputProps={{
+                          startAdornment: <LockIcon sx={{ mr: 1, color: 'action.active' }} />,
+                          endAdornment: (
+                            <IconButton
+                              onClick={() => setShowNewPassword(!showNewPassword)}
+                              edge="end"
+                            >
+                              {showNewPassword ? <VisibilityOffIcon /> : <VisibilityIcon />}
+                            </IconButton>
+                          )
+                        }}
+                      />
+                    </Grid>
+                  </>
+                )}
+              </Grid>
+
+              {/* Additional Information */}
+              <Divider sx={{ my: 4 }} />
+              
+              <Box>
+                <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <InfoIcon color="primary" />
+                  Account Details
+                </Typography>
+                <Grid container spacing={2}>
+                  <Grid item xs={12} sm={4}>
+                    <Box sx={{ 
+                      p: 2, 
+                      bgcolor: alpha(theme.palette.info.main, 0.05),
+                      borderRadius: 2,
+                      border: `1px solid ${alpha(theme.palette.info.main, 0.2)}`
+                    }}>
+                      <Typography variant="subtitle2" color="text.secondary">
+                        Account Type
                       </Typography>
-                    </Alert>
-                  </Stack>
-
-                  {/* Form Fields */}
-                  <Grid container spacing={3}>
-                    <Grid item xs={12} sm={6}>
-                      <TextField
-                        label="Username"
-                        value={profileForm.username}
-                        onChange={(e) => setProfileForm({ ...profileForm, username: e.target.value })}
-                        fullWidth
-                        disabled={!canEditUsername || !isEditing}
-                        helperText={!canEditUsername ? "Only the Owner can change usernames" : "Username for system login"}
-                        InputProps={{
-                          startAdornment: <AccountIcon sx={{ mr: 1, color: 'action.active' }} />
-                        }}
-                        sx={{
-                          '& .MuiOutlinedInput-root': {
-                            bgcolor: isEditing ? 'background.paper' : alpha(theme.palette.grey[500], 0.05),
-                          }
-                        }}
-                      />
-                    </Grid>
-                    <Grid item xs={12} sm={6}>
-                      <TextField
-                        label="Full Name"
-                        value={profileForm.fullName}
-                        onChange={(e) => setProfileForm({ ...profileForm, fullName: e.target.value })}
-                        fullWidth
-                        disabled={!isEditing}
-                        InputProps={{
-                          startAdornment: <PersonIcon sx={{ mr: 1, color: 'action.active' }} />
-                        }}
-                        sx={{
-                          '& .MuiOutlinedInput-root': {
-                            bgcolor: isEditing ? 'background.paper' : alpha(theme.palette.grey[500], 0.05),
-                          }
-                        }}
-                      />
-                    </Grid>
-                    <Grid item xs={12}>
-                      <TextField
-                        label="Email Address"
-                        type="email"
-                        value={profileForm.email}
-                        onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })}
-                        fullWidth
-                        disabled={!isEditing}
-                        helperText="Primary email address for your account and notifications"
-                        InputProps={{
-                          startAdornment: <EmailIcon sx={{ mr: 1, color: 'action.active' }} />
-                        }}
-                        sx={{
-                          '& .MuiOutlinedInput-root': {
-                            bgcolor: isEditing ? 'background.paper' : alpha(theme.palette.grey[500], 0.05),
-                          }
-                        }}
-                      />
-                    </Grid>
+                      <Typography variant="body1" sx={{ fontWeight: 'bold' }}>
+                        {user.role} User
+                      </Typography>
+                    </Box>
                   </Grid>
-
-                  {/* Additional Information */}
-                  <Divider sx={{ my: 4 }} />
-                  
-                  <Box>
-                    <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <InfoIcon color="primary" />
-                      Account Details
-                    </Typography>
-                    <Grid container spacing={2}>
-                      <Grid item xs={12} sm={6}>
-                        <Box sx={{ 
-                          p: 2, 
-                          bgcolor: alpha(theme.palette.info.main, 0.05),
-                          borderRadius: 2,
-                          border: `1px solid ${alpha(theme.palette.info.main, 0.2)}`
-                        }}>
-                          <Typography variant="subtitle2" color="text.secondary">
-                            Account Type
-                          </Typography>
-                          <Typography variant="body1" sx={{ fontWeight: 'bold' }}>
-                            {user.role} User
-                          </Typography>
-                        </Box>
-                      </Grid>
-                      <Grid item xs={12} sm={6}>
-                        <Box sx={{ 
-                          p: 2, 
-                          bgcolor: alpha(theme.palette.success.main, 0.05),
-                          borderRadius: 2,
-                          border: `1px solid ${alpha(theme.palette.success.main, 0.2)}`
-                        }}>
-                          <Typography variant="subtitle2" color="text.secondary">
-                            Account Status
-                          </Typography>
-                          <Typography variant="body1" sx={{ fontWeight: 'bold', color: 'success.main' }}>
-                            Active
-                          </Typography>
-                        </Box>
-                      </Grid>
-                    </Grid>
-                  </Box>
-                </CardContent>
-              </Card>
-            </Slide>
-          </Grid>
-        </Grid>
-
-        {/* Quick Links */}
-        <Fade in timeout={1000}>
-          <Box sx={{ mt: 4 }}>
-            <Typography variant="h6" gutterBottom sx={{ mb: 2 }}>
-              Quick Actions
-            </Typography>
-            <Grid container spacing={2}>
-              <Grid item xs={12} sm={6} md={3}>
-                <Card sx={{ 
-                  cursor: 'pointer',
-                  transition: 'transform 0.2s ease-in-out',
-                  '&:hover': {
-                    transform: 'translateY(-2px)',
-                    boxShadow: 4
-                  },
-                  borderRadius: 2
-                }}>
-                  <CardContent sx={{ textAlign: 'center', py: 3 }}>
-                    <SettingsIcon color="primary" sx={{ fontSize: 40, mb: 1 }} />
-                    <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
-                      Settings
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Configure notifications and preferences
-                    </Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
-              <Grid item xs={12} sm={6} md={3}>
-                <Card sx={{ 
-                  cursor: 'pointer',
-                  transition: 'transform 0.2s ease-in-out',
-                  '&:hover': {
-                    transform: 'translateY(-2px)',
-                    boxShadow: 4
-                  },
-                  borderRadius: 2
-                }}>
-                  <CardContent sx={{ textAlign: 'center', py: 3 }}>
-                    <BadgeIcon color="secondary" sx={{ fontSize: 40, mb: 1 }} />
-                    <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
-                      Dashboard
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      View your activity and statistics
-                    </Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
-              <Grid item xs={12} sm={6} md={3}>
-                <Card sx={{ 
-                  cursor: 'pointer',
-                  transition: 'transform 0.2s ease-in-out',
-                  '&:hover': {
-                    transform: 'translateY(-2px)',
-                    boxShadow: 4
-                  },
-                  borderRadius: 2
-                }}>
-                  <CardContent sx={{ textAlign: 'center', py: 3 }}>
-                    <BusinessIcon color="info" sx={{ fontSize: 40, mb: 1 }} />
-                    <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
-                      Items
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Manage inventory items
-                    </Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
-              <Grid item xs={12} sm={6} md={3}>
-                <Card sx={{ 
-                  cursor: 'pointer',
-                  transition: 'transform 0.2s ease-in-out',
-                  '&:hover': {
-                    transform: 'translateY(-2px)',
-                    boxShadow: 4
-                  },
-                  borderRadius: 2
-                }}>
-                  <CardContent sx={{ textAlign: 'center', py: 3 }}>
-                    <PaletteIcon color="warning" sx={{ fontSize: 40, mb: 1 }} />
-                    <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
-                      Alerts
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Check inventory alerts
-                    </Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
-            </Grid>
-          </Box>
-        </Fade>
+                  <Grid item xs={12} sm={4}>
+                    <Box sx={{ 
+                      p: 2, 
+                      bgcolor: alpha(theme.palette.success.main, 0.05),
+                      borderRadius: 2,
+                      border: `1px solid ${alpha(theme.palette.success.main, 0.2)}`
+                    }}>
+                      <Typography variant="subtitle2" color="text.secondary">
+                        Account Status
+                      </Typography>
+                      <Typography variant="body1" sx={{ fontWeight: 'bold', color: 'success.main' }}>
+                        Active
+                      </Typography>
+                    </Box>
+                  </Grid>
+                  <Grid item xs={12} sm={4}>
+                    <Box sx={{ 
+                      p: 2, 
+                      bgcolor: alpha(theme.palette.warning.main, 0.05),
+                      borderRadius: 2,
+                      border: `1px solid ${alpha(theme.palette.warning.main, 0.2)}`
+                    }}>
+                      <Typography variant="subtitle2" color="text.secondary">
+                        Department
+                      </Typography>
+                      <Typography variant="body1" sx={{ fontWeight: 'bold' }}>
+                        {user.department || 'None Assigned'}
+                      </Typography>
+                    </Box>
+                  </Grid>
+                </Grid>
+              </Box>
+            </CardContent>
+          </Card>
+        </Slide>
 
         {/* Snackbar for notifications */}
         <Snackbar
           open={snackbar.open}
           autoHideDuration={6000}
           onClose={() => setSnackbar({ ...snackbar, open: false })}
-          anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
         >
           <Alert 
-            severity={snackbar.severity} 
-            onClose={() => setSnackbar({ ...snackbar, open: false })}
-            variant="filled"
-            sx={{ borderRadius: 2 }}
+            onClose={() => setSnackbar({ ...snackbar, open: false })} 
+            severity={snackbar.severity}
+            sx={{ width: '100%' }}
           >
             {snackbar.message}
           </Alert>
