@@ -60,7 +60,9 @@ export default function UserManagementPage() {
     email: '',
     fullName: '',
     role: 'USER',
-    department: ''
+    department: '',
+    warningThreshold: undefined,
+    criticalThreshold: undefined
   });
   const [usernameForm, setUsernameForm] = useState<UpdateUsernameRequest>({ username: '' });
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
@@ -127,7 +129,9 @@ export default function UserManagementPage() {
         email: '',
         fullName: '',
         role: 'USER',
-        department: ''
+        department: '',
+        warningThreshold: undefined,
+        criticalThreshold: undefined
       });
       fetchUsers();
     } catch (error: any) {
@@ -144,6 +148,8 @@ export default function UserManagementPage() {
       email: userItem.email,
       role: userItem.role,
       department: userItem.department || '',
+      warningThreshold: userItem.warningThreshold,
+      criticalThreshold: userItem.criticalThreshold,
     });
     setEditDialogOpen(true);
   };
@@ -395,6 +401,7 @@ export default function UserManagementPage() {
               <TableCell>Email</TableCell>
               <TableCell>Role</TableCell>
               <TableCell>Department</TableCell>
+              <TableCell>Alert Thresholds</TableCell>
               <TableCell>Created</TableCell>
               <TableCell>Actions</TableCell>
             </TableRow>
@@ -437,6 +444,16 @@ export default function UserManagementPage() {
                   )}
                 </TableCell>
                 <TableCell>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                    <Typography variant="caption" color="text.secondary">
+                      Warning: {userItem.warningThreshold || 100}%
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Critical: {userItem.criticalThreshold || 50}%
+                    </Typography>
+                  </Box>
+                </TableCell>
+                <TableCell>
                     {new Date(userItem.createdAt).toLocaleDateString()}
                 </TableCell>
                 <TableCell>
@@ -470,7 +487,7 @@ export default function UserManagementPage() {
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={7} align="center">
+                <TableCell colSpan={8} align="center">
                   <Typography color="text.secondary">
                     {loading ? 'Loading users...' : 'No users available or error occurred'}
                   </Typography>
@@ -552,6 +569,26 @@ export default function UserManagementPage() {
                 </MenuItem>
               </Select>
             </FormControl>
+            <Box sx={{ display: 'flex', gap: 2 }}>
+              <TextField
+                label="Warning Threshold (%)"
+                type="number"
+                value={createForm.warningThreshold || ''}
+                onChange={(e) => setCreateForm({ ...createForm, warningThreshold: e.target.value ? parseInt(e.target.value) : undefined })}
+                fullWidth
+                inputProps={{ min: 0, max: 100 }}
+                helperText="Default: 100%"
+              />
+              <TextField
+                label="Critical Threshold (%)"
+                type="number"
+                value={createForm.criticalThreshold || ''}
+                onChange={(e) => setCreateForm({ ...createForm, criticalThreshold: e.target.value ? parseInt(e.target.value) : undefined })}
+                fullWidth
+                inputProps={{ min: 0, max: 100 }}
+                helperText="Default: 50%"
+              />
+            </Box>
           </Box>
         </DialogContent>
         <DialogActions>
@@ -623,6 +660,26 @@ export default function UserManagementPage() {
               fullWidth
               helperText="Leave empty to keep current password"
             />
+            <Box sx={{ display: 'flex', gap: 2 }}>
+              <TextField
+                label="Warning Threshold (%)"
+                type="number"
+                value={editForm.warningThreshold || ''}
+                onChange={(e) => setEditForm({ ...editForm, warningThreshold: e.target.value ? parseInt(e.target.value) : undefined })}
+                fullWidth
+                inputProps={{ min: 0, max: 100 }}
+                helperText="Default: 100%"
+              />
+              <TextField
+                label="Critical Threshold (%)"
+                type="number"
+                value={editForm.criticalThreshold || ''}
+                onChange={(e) => setEditForm({ ...editForm, criticalThreshold: e.target.value ? parseInt(e.target.value) : undefined })}
+                fullWidth
+                inputProps={{ min: 0, max: 100 }}
+                helperText="Default: 50%"
+              />
+            </Box>
           </Box>
         </DialogContent>
         <DialogActions>

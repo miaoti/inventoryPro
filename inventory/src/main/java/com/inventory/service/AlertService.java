@@ -371,4 +371,127 @@ public class AlertService {
             System.err.println("Failed to send daily summary: " + e.getMessage());
         }
     }
+
+    /**
+     * Re-evaluate all unresolved alerts when user thresholds are updated.
+     * This method updates alert types and moves alerts between active/ignored categories
+     * based on the new threshold values.
+     */
+    public void reevaluateAlertsForUserThresholds(User user) {
+        try {
+            System.out.println("=== RE-EVALUATING ALERTS FOR USER THRESHOLD CHANGE ===");
+            System.out.println("User: " + user.getUsername() + " (Role: " + user.getRole() + ", Dept: " + user.getDepartment() + ")");
+            System.out.println("New thresholds - Warning: " + user.getWarningThreshold() + "%, Critical: " + user.getCriticalThreshold() + "%");
+            
+            // Get all unresolved alerts (both active and ignored, but not resolved)
+            List<Alert> unresolvedAlerts = alertRepository.findByResolvedFalseOrderByCreatedAtDesc();
+            System.out.println("Found " + unresolvedAlerts.size() + " total unresolved alerts to evaluate");
+            
+            // Filter alerts to only those that this user should see based on department access
+            List<Alert> userAccessibleAlerts = unresolvedAlerts.stream()
+                    .filter(alert -> shouldUserReceiveAlert(user, alert.getItem()))
+                    .collect(java.util.stream.Collectors.toList());
+            
+            System.out.println("User has access to " + userAccessibleAlerts.size() + " of these alerts");
+            
+            int updatedCount = 0;
+            int movedToIgnored = 0;
+            int movedToActive = 0;
+            
+            for (Alert alert : userAccessibleAlerts) {
+                Item item = alert.getItem();
+                int currentInventory = alert.getCurrentInventory();
+                int safetyThreshold = alert.getSafetyStockThreshold();
+                
+                System.out.println("\nEvaluating alert for item: " + item.getName() + " (" + item.getCode() + ")");
+                System.out.println("Current inventory: " + currentInventory + ", Safety threshold: " + safetyThreshold);
+                
+                // Calculate new threshold values based on user's updated thresholds
+                double warningThresholdPercent = user.getWarningThreshold() / 100.0;
+                double criticalThresholdPercent = user.getCriticalThreshold() / 100.0;
+                
+                int warningThreshold = (int) Math.round(safetyThreshold * warningThresholdPercent);
+                int criticalThreshold = (int) Math.round(safetyThreshold * criticalThresholdPercent);
+                
+                System.out.println("New thresholds - Warning: " + warningThreshold + ", Critical: " + criticalThreshold);
+                
+                String oldAlertType = alert.getAlertType();
+                boolean wasIgnored = alert.getIgnored();
+                
+                // Determine new alert type based on current inventory and new thresholds
+                String newAlertType;
+                boolean shouldBeIgnored;
+                
+                if (currentInventory <= warningThreshold && safetyThreshold > 0) {
+                    // Should be an active alert
+                    newAlertType = determineAlertType(currentInventory, warningThreshold, criticalThreshold);
+                    shouldBeIgnored = false;
+                } else {
+                    // Inventory is above warning threshold - should be ignored
+                    newAlertType = "NORMAL_STOCK";
+                    shouldBeIgnored = true;
+                }
+                
+                System.out.println("Old alert type: " + oldAlertType + ", New alert type: " + newAlertType);
+                System.out.println("Was ignored: " + wasIgnored + ", Should be ignored: " + shouldBeIgnored);
+                
+                boolean alertUpdated = false;
+                
+                // Update alert type if it changed
+                if (!oldAlertType.equals(newAlertType)) {
+                    alert.setAlertType(newAlertType);
+                    
+                    // Update the message to reflect new severity
+                    double currentPercent = safetyThreshold > 0 ? (double) currentInventory / safetyThreshold * 100 : 0;
+                    alert.setMessage(String.format(
+                        "%s alert: %s (%s) has current inventory of %d units (%.1f%% of safety stock), evaluated with updated thresholds.",
+                        newAlertType.replace("_", " ").toLowerCase(), 
+                        item.getName(), 
+                        item.getCode(), 
+                        currentInventory,
+                        currentPercent
+                    ));
+                    
+                    alertUpdated = true;
+                    System.out.println("Alert type updated from " + oldAlertType + " to " + newAlertType);
+                }
+                
+                // Update ignored status if it should change
+                if (wasIgnored != shouldBeIgnored) {
+                    if (shouldBeIgnored) {
+                        // Move to ignored
+                        alert.ignore();
+                        movedToIgnored++;
+                        System.out.println("Alert moved to ignored (inventory above warning threshold)");
+                    } else {
+                        // Move back to active (unignore)
+                        alert.setIgnored(false);
+                        alert.setIgnoredAt(null);
+                        movedToActive++;
+                        System.out.println("Alert moved back to active (inventory below warning threshold)");
+                    }
+                    alertUpdated = true;
+                }
+                
+                // Save the alert if any changes were made
+                if (alertUpdated) {
+                    alertRepository.save(alert);
+                    updatedCount++;
+                    System.out.println("Alert updated and saved");
+                } else {
+                    System.out.println("No changes needed for this alert");
+                }
+            }
+            
+            System.out.println("\n=== RE-EVALUATION SUMMARY ===");
+            System.out.println("Total alerts updated: " + updatedCount);
+            System.out.println("Moved to ignored: " + movedToIgnored);
+            System.out.println("Moved to active: " + movedToActive);
+            System.out.println("========================================");
+            
+        } catch (Exception e) {
+            System.err.println("Error during alert re-evaluation: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
 } 

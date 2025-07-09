@@ -5,6 +5,8 @@ export interface User {
   email: string;
   role: 'OWNER' | 'ADMIN' | 'USER';
   department?: string;
+  warningThreshold?: number;
+  criticalThreshold?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -15,6 +17,8 @@ export interface UserUpdateRequest {
   role?: 'OWNER' | 'ADMIN' | 'USER';
   department?: string;
   password?: string;
+  warningThreshold?: number;
+  criticalThreshold?: number;
 }
 
 export interface CreateUserRequest {
@@ -24,6 +28,8 @@ export interface CreateUserRequest {
   fullName: string;
   role: 'ADMIN' | 'USER';
   department?: string;
+  warningThreshold?: number;
+  criticalThreshold?: number;
 }
 
 export interface UpdateUsernameRequest {

@@ -24,6 +24,9 @@ public class UserManagementService {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
+    @Autowired
+    private AlertService alertService;
+
     public List<UserResponse> getAllUsers() {
         return userRepository.findAll().stream()
                 .map(this::convertToResponse)
@@ -41,6 +44,11 @@ public class UserManagementService {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
+        // Track if thresholds are being updated
+        boolean thresholdChanged = false;
+        Integer oldWarningThreshold = user.getWarningThreshold();
+        Integer oldCriticalThreshold = user.getCriticalThreshold();
+
         if (request.getName() != null) {
             user.setName(request.getName());
         }
@@ -55,15 +63,30 @@ public class UserManagementService {
         }
         if (request.getWarningThreshold() != null) {
             user.setWarningThreshold(request.getWarningThreshold());
+            if (!request.getWarningThreshold().equals(oldWarningThreshold)) {
+                thresholdChanged = true;
+            }
         }
         if (request.getCriticalThreshold() != null) {
             user.setCriticalThreshold(request.getCriticalThreshold());
+            if (!request.getCriticalThreshold().equals(oldCriticalThreshold)) {
+                thresholdChanged = true;
+            }
         }
         if (request.getPassword() != null && !request.getPassword().isEmpty()) {
             user.setPassword(passwordEncoder.encode(request.getPassword()));
         }
 
         User savedUser = userRepository.save(user);
+        
+        // Re-evaluate alerts if thresholds changed
+        if (thresholdChanged) {
+            System.out.println("User thresholds changed for " + savedUser.getUsername() + 
+                " - Warning: " + oldWarningThreshold + "% -> " + savedUser.getWarningThreshold() + "%, " +
+                "Critical: " + oldCriticalThreshold + "% -> " + savedUser.getCriticalThreshold() + "%");
+            alertService.reevaluateAlertsForUserThresholds(savedUser);
+        }
+        
         return convertToResponse(savedUser);
     }
 
