@@ -1580,13 +1580,7 @@ export default function BarcodeScanner() {
         </Box>
       </Paper>
 
-      {/* Error/Success Messages - Only show if dialog is NOT open */}
-      {!showUsageDialog && error && (
-        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
-          {error}
-        </Alert>
-      )}
-
+      {/* Success Messages - Only show if dialog is NOT open */}
       {!showUsageDialog && success && (
         <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess('')}>
           {success}

@@ -21,6 +21,10 @@ import {
   useTheme,
   useMediaQuery,
   Badge,
+  Avatar,
+  Chip,
+  Divider,
+  Paper,
 } from '@mui/material';
 import {
   Menu as MenuIcon,
@@ -160,91 +164,420 @@ export default function Layout({ children }: LayoutProps) {
     window.location.href = '/login';
   };
 
-  // Don't render the drawer if not authenticated
+  // Modern drawer with enhanced styling
   const drawer = (
-    <div>
-      <Toolbar />
-      <List>
-        <ListItem button onClick={() => handleNavigation('/dashboard')}>
-          <ListItemIcon>
+    <Box sx={{ 
+      height: '100%',
+      background: 'linear-gradient(180deg, #667eea 0%, #764ba2 100%)',
+      color: 'white',
+      display: 'flex',
+      flexDirection: 'column'
+    }}>
+      {/* Logo/Brand Section */}
+      <Box sx={{ 
+        p: 3, 
+        display: 'flex', 
+        alignItems: 'center',
+        background: 'rgba(255,255,255,0.1)',
+        backdropFilter: 'blur(10px)',
+        borderBottom: '1px solid rgba(255,255,255,0.1)'
+      }}>
+        <Avatar sx={{ 
+          bgcolor: 'rgba(255,255,255,0.2)', 
+          mr: 2,
+          width: 48,
+          height: 48
+        }}>
+          <InventoryIcon sx={{ color: 'white', fontSize: '1.5rem' }} />
+        </Avatar>
+        <Box>
+          <Typography variant="h6" sx={{ 
+            fontWeight: 700,
+            fontSize: '1.1rem',
+            lineHeight: 1.2,
+            mb: 0.5
+          }}>
+            Inventory
+          </Typography>
+          <Typography variant="caption" sx={{ 
+            opacity: 0.8,
+            fontSize: '0.75rem'
+          }}>
+            Management System
+          </Typography>
+        </Box>
+      </Box>
+
+      {/* User Info Section */}
+      {user && (
+        <Box sx={{ 
+          p: 2, 
+          display: 'flex', 
+          alignItems: 'center',
+          background: 'rgba(255,255,255,0.05)',
+          borderBottom: '1px solid rgba(255,255,255,0.1)'
+        }}>
+          <Avatar sx={{ 
+            bgcolor: 'rgba(255,255,255,0.15)', 
+            mr: 2,
+            width: 40,
+            height: 40,
+            fontSize: '1rem',
+            fontWeight: 600
+          }}>
+            {user.fullName?.charAt(0) || user.username?.charAt(0) || 'U'}
+          </Avatar>
+          <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+            <Typography variant="body2" sx={{ 
+              fontWeight: 600,
+              fontSize: '0.875rem',
+              lineHeight: 1.2,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap'
+            }}>
+              {user.fullName || user.username}
+            </Typography>
+            <Chip 
+              label={user.role} 
+              size="small"
+              sx={{ 
+                mt: 0.5,
+                height: 20,
+                fontSize: '0.65rem',
+                bgcolor: user.role === 'OWNER' ? 'rgba(255,193,7,0.3)' : 
+                         user.role === 'ADMIN' ? 'rgba(33,150,243,0.3)' : 'rgba(76,175,80,0.3)',
+                color: 'white',
+                border: '1px solid rgba(255,255,255,0.2)'
+              }}
+            />
+          </Box>
+        </Box>
+      )}
+
+      {/* Navigation List */}
+      <List sx={{ flexGrow: 1, py: 1 }}>
+        {/* Main Navigation */}
+        <ListItem 
+          button 
+          onClick={() => handleNavigation('/dashboard')}
+          sx={{ 
+            mx: 1, 
+            mb: 0.5,
+            borderRadius: 2,
+            '&:hover': {
+              backgroundColor: 'rgba(255,255,255,0.1)',
+              transform: 'translateX(4px)',
+              transition: 'all 0.2s ease'
+            }
+          }}
+        >
+          <ListItemIcon sx={{ color: 'white', minWidth: 40 }}>
             <DashboardIcon />
           </ListItemIcon>
-          <ListItemText primary="Dashboard" />
+          <ListItemText 
+            primary="Dashboard" 
+            primaryTypographyProps={{ 
+              fontSize: '0.875rem', 
+              fontWeight: 500 
+            }} 
+          />
         </ListItem>
-        <ListItem button onClick={() => handleNavigation('/quick-stats')}>
-          <ListItemIcon>
+
+        <ListItem 
+          button 
+          onClick={() => handleNavigation('/quick-stats')}
+          sx={{ 
+            mx: 1, 
+            mb: 0.5,
+            borderRadius: 2,
+            '&:hover': {
+              backgroundColor: 'rgba(255,255,255,0.1)',
+              transform: 'translateX(4px)',
+              transition: 'all 0.2s ease'
+            }
+          }}
+        >
+          <ListItemIcon sx={{ color: 'white', minWidth: 40 }}>
             <AnalyticsIcon />
           </ListItemIcon>
-          <ListItemText primary="Quick Stats" />
+          <ListItemText 
+            primary="Quick Stats" 
+            primaryTypographyProps={{ 
+              fontSize: '0.875rem', 
+              fontWeight: 500 
+            }} 
+          />
         </ListItem>
-        <ListItem button onClick={() => handleNavigation('/items')}>
-          <ListItemIcon>
+
+        <ListItem 
+          button 
+          onClick={() => handleNavigation('/items')}
+          sx={{ 
+            mx: 1, 
+            mb: 0.5,
+            borderRadius: 2,
+            '&:hover': {
+              backgroundColor: 'rgba(255,255,255,0.1)',
+              transform: 'translateX(4px)',
+              transition: 'all 0.2s ease'
+            }
+          }}
+        >
+          <ListItemIcon sx={{ color: 'white', minWidth: 40 }}>
             <InventoryIcon />
           </ListItemIcon>
-          <ListItemText primary="Items" />
+          <ListItemText 
+            primary="Items" 
+            primaryTypographyProps={{ 
+              fontSize: '0.875rem', 
+              fontWeight: 500 
+            }} 
+          />
         </ListItem>
-        <ListItem button onClick={() => handleNavigation('/alerts')}>
-          <ListItemIcon>
+
+        <ListItem 
+          button 
+          onClick={() => handleNavigation('/alerts')}
+          sx={{ 
+            mx: 1, 
+            mb: 0.5,
+            borderRadius: 2,
+            '&:hover': {
+              backgroundColor: 'rgba(255,255,255,0.1)',
+              transform: 'translateX(4px)',
+              transition: 'all 0.2s ease'
+            }
+          }}
+        >
+          <ListItemIcon sx={{ color: 'white', minWidth: 40 }}>
             <Badge badgeContent={unreadAlerts} color="error">
               <AlertIcon />
             </Badge>
           </ListItemIcon>
-          <ListItemText primary="Alerts" />
+          <ListItemText 
+            primary="Alerts" 
+            primaryTypographyProps={{ 
+              fontSize: '0.875rem', 
+              fontWeight: 500 
+            }} 
+          />
         </ListItem>
-        <ListItem button onClick={() => handleNavigation('/usage-reports')}>
-          <ListItemIcon>
+
+        <ListItem 
+          button 
+          onClick={() => handleNavigation('/usage-reports')}
+          sx={{ 
+            mx: 1, 
+            mb: 0.5,
+            borderRadius: 2,
+            '&:hover': {
+              backgroundColor: 'rgba(255,255,255,0.1)',
+              transform: 'translateX(4px)',
+              transition: 'all 0.2s ease'
+            }
+          }}
+        >
+          <ListItemIcon sx={{ color: 'white', minWidth: 40 }}>
             <ReportsIcon />
           </ListItemIcon>
-          <ListItemText primary="Usage Reports" />
+          <ListItemText 
+            primary="Usage Reports" 
+            primaryTypographyProps={{ 
+              fontSize: '0.875rem', 
+              fontWeight: 500 
+            }} 
+          />
         </ListItem>
-        <ListItem button onClick={() => handleNavigation('/scanner')}>
-          <ListItemIcon>
+
+        <ListItem 
+          button 
+          onClick={() => handleNavigation('/scanner')}
+          sx={{ 
+            mx: 1, 
+            mb: 0.5,
+            borderRadius: 2,
+            '&:hover': {
+              backgroundColor: 'rgba(255,255,255,0.1)',
+              transform: 'translateX(4px)',
+              transition: 'all 0.2s ease'
+            }
+          }}
+        >
+          <ListItemIcon sx={{ color: 'white', minWidth: 40 }}>
             <ScannerIcon />
           </ListItemIcon>
-          <ListItemText primary="Barcode Scanner" />
+          <ListItemText 
+            primary="Barcode Scanner" 
+            primaryTypographyProps={{ 
+              fontSize: '0.875rem', 
+              fontWeight: 500 
+            }} 
+          />
         </ListItem>
-        <ListItem button onClick={() => handleNavigation('/settings')}>
-          <ListItemIcon>
+
+        <ListItem 
+          button 
+          onClick={() => handleNavigation('/settings')}
+          sx={{ 
+            mx: 1, 
+            mb: 0.5,
+            borderRadius: 2,
+            '&:hover': {
+              backgroundColor: 'rgba(255,255,255,0.1)',
+              transform: 'translateX(4px)',
+              transition: 'all 0.2s ease'
+            }
+          }}
+        >
+          <ListItemIcon sx={{ color: 'white', minWidth: 40 }}>
             <SettingsIcon />
           </ListItemIcon>
-          <ListItemText primary="Settings" />
+          <ListItemText 
+            primary="Settings" 
+            primaryTypographyProps={{ 
+              fontSize: '0.875rem', 
+              fontWeight: 500 
+            }} 
+          />
         </ListItem>
         
-        {/* Remove admin/settings navigation - settings moved to main /settings page */}
-        
-        {/* Owner-only menu items */}
+        {/* Owner-only section */}
         {user?.role === 'OWNER' && (
           <>
-            <ListItem button onClick={() => handleNavigation('/admin/users')}>
-              <ListItemIcon>
+            <Divider sx={{ 
+              my: 2, 
+              mx: 2, 
+              borderColor: 'rgba(255,255,255,0.2)' 
+            }} />
+            
+            <Typography variant="overline" sx={{ 
+              px: 2, 
+              mb: 1, 
+              fontSize: '0.7rem',
+              fontWeight: 600,
+              opacity: 0.7,
+              letterSpacing: 1
+            }}>
+              ADMINISTRATION
+            </Typography>
+
+            <ListItem 
+              button 
+              onClick={() => handleNavigation('/admin/users')}
+              sx={{ 
+                mx: 1, 
+                mb: 0.5,
+                borderRadius: 2,
+                '&:hover': {
+                  backgroundColor: 'rgba(255,255,255,0.1)',
+                  transform: 'translateX(4px)',
+                  transition: 'all 0.2s ease'
+                }
+              }}
+            >
+              <ListItemIcon sx={{ color: 'white', minWidth: 40 }}>
                 <UsersIcon />
               </ListItemIcon>
-              <ListItemText primary="User Management" />
+              <ListItemText 
+                primary="User Management" 
+                primaryTypographyProps={{ 
+                  fontSize: '0.875rem', 
+                  fontWeight: 500 
+                }} 
+              />
             </ListItem>
-            <ListItem button onClick={() => handleNavigation('/admin/purchase-orders')}>
-              <ListItemIcon>
+
+            <ListItem 
+              button 
+              onClick={() => handleNavigation('/admin/purchase-orders')}
+              sx={{ 
+                mx: 1, 
+                mb: 0.5,
+                borderRadius: 2,
+                '&:hover': {
+                  backgroundColor: 'rgba(255,255,255,0.1)',
+                  transform: 'translateX(4px)',
+                  transition: 'all 0.2s ease'
+                }
+              }}
+            >
+              <ListItemIcon sx={{ color: 'white', minWidth: 40 }}>
                 <POStatsIcon />
               </ListItemIcon>
-              <ListItemText primary="PO Statistics" />
+              <ListItemText 
+                primary="PO Statistics" 
+                primaryTypographyProps={{ 
+                  fontSize: '0.875rem', 
+                  fontWeight: 500 
+                }} 
+              />
             </ListItem>
           </>
         )}
+      </List>
+
+      {/* Bottom section */}
+      <Box sx={{ mt: 'auto' }}>
+        <Divider sx={{ 
+          mb: 2, 
+          mx: 2, 
+          borderColor: 'rgba(255,255,255,0.2)' 
+        }} />
         
-        <ListItem button onClick={() => handleNavigation('/profile')}>
-          <ListItemIcon>
+        <ListItem 
+          button 
+          onClick={() => handleNavigation('/profile')}
+          sx={{ 
+            mx: 1, 
+            mb: 0.5,
+            borderRadius: 2,
+            '&:hover': {
+              backgroundColor: 'rgba(255,255,255,0.1)',
+              transform: 'translateX(4px)',
+              transition: 'all 0.2s ease'
+            }
+          }}
+        >
+          <ListItemIcon sx={{ color: 'white', minWidth: 40 }}>
             <ProfileIcon />
           </ListItemIcon>
-          <ListItemText primary="Profile" />
+          <ListItemText 
+            primary="Profile" 
+            primaryTypographyProps={{ 
+              fontSize: '0.875rem', 
+              fontWeight: 500 
+            }} 
+          />
         </ListItem>
         
-        <ListItem button onClick={handleLogout}>
-          <ListItemIcon>
+        <ListItem 
+          button 
+          onClick={handleLogout}
+          sx={{ 
+            mx: 1, 
+            mb: 2,
+            borderRadius: 2,
+            '&:hover': {
+              backgroundColor: 'rgba(244,67,54,0.2)',
+              transform: 'translateX(4px)',
+              transition: 'all 0.2s ease'
+            }
+          }}
+        >
+          <ListItemIcon sx={{ color: 'white', minWidth: 40 }}>
             <LogoutIcon />
           </ListItemIcon>
-          <ListItemText primary="Logout" />
+          <ListItemText 
+            primary="Logout" 
+            primaryTypographyProps={{ 
+              fontSize: '0.875rem', 
+              fontWeight: 500 
+            }} 
+          />
         </ListItem>
-      </List>
-    </div>
+      </Box>
+    </Box>
   );
 
   // Use conditional rendering instead of early returns to avoid hooks issues
@@ -262,41 +595,105 @@ export default function Layout({ children }: LayoutProps) {
         <>
           <AppBar
             position="fixed"
+            elevation={0}
             sx={{
               width: { xs: '100%', sm: `calc(100% - ${drawerWidth}px)` },
               ml: { sm: `${drawerWidth}px` },
               maxWidth: '100vw',
-              overflow: 'hidden'
+              overflow: 'hidden',
+              background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
+              backdropFilter: 'blur(20px)',
+              borderBottom: '1px solid rgba(0,0,0,0.08)',
+              color: '#1a202c'
             }}
           >
             <Toolbar sx={{ 
               minWidth: 0,
               width: '100%',
               maxWidth: '100%',
-              overflow: 'hidden'
+              overflow: 'hidden',
+              minHeight: { xs: 56, sm: 64 },
+              px: { xs: 2, sm: 3 }
             }}>
               <IconButton
                 color="inherit"
                 aria-label="open drawer"
                 edge="start"
                 onClick={handleDrawerToggle}
-                sx={{ mr: 2, display: { sm: 'none' } }}
-              >
-                <MenuIcon />
-              </IconButton>
-              <Typography 
-                variant="h6" 
-                noWrap 
-                component="div" 
                 sx={{ 
-                  flexGrow: 1,
-                  minWidth: 0,
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis'
+                  mr: 2, 
+                  display: { sm: 'none' },
+                  bgcolor: 'rgba(103,126,234,0.1)',
+                  '&:hover': {
+                    bgcolor: 'rgba(103,126,234,0.2)',
+                    transform: 'scale(1.05)',
+                    transition: 'all 0.2s ease'
+                  }
                 }}
               >
-                Inventory Management
-              </Typography>
+                <MenuIcon sx={{ color: '#667eea' }} />
+              </IconButton>
+              
+              <Box sx={{ flexGrow: 1, display: 'flex', alignItems: 'center' }}>
+                <Typography 
+                  variant="h5" 
+                  component="div" 
+                  sx={{ 
+                    fontWeight: 700,
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    backgroundClip: 'text',
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
+                    fontSize: { xs: '1.25rem', sm: '1.5rem' },
+                    letterSpacing: '-0.025em',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  Inventory Management
+                </Typography>
+              </Box>
+
+              {/* User Info in Header */}
+              {user && (
+                <Box sx={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: 2,
+                  bgcolor: 'rgba(103,126,234,0.05)',
+                  borderRadius: 3,
+                  px: 2,
+                  py: 1,
+                  border: '1px solid rgba(103,126,234,0.1)'
+                }}>
+                  <Box sx={{ textAlign: 'right', display: { xs: 'none', md: 'block' } }}>
+                    <Typography variant="body2" sx={{ 
+                      fontWeight: 600,
+                      fontSize: '0.875rem',
+                      color: '#2d3748'
+                    }}>
+                      {user.fullName || user.username}
+                    </Typography>
+                    <Typography variant="caption" sx={{ 
+                      color: '#718096',
+                      fontSize: '0.75rem'
+                    }}>
+                      {user.department || 'No Department'}
+                    </Typography>
+                  </Box>
+                  <Avatar sx={{ 
+                    width: 36, 
+                    height: 36,
+                    bgcolor: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    fontSize: '0.875rem',
+                    fontWeight: 600,
+                    boxShadow: '0 4px 12px rgba(103,126,234,0.3)'
+                  }}>
+                    {user.fullName?.charAt(0) || user.username?.charAt(0) || 'U'}
+                  </Avatar>
+                </Box>
+              )}
             </Toolbar>
           </AppBar>
           
@@ -320,7 +717,22 @@ export default function Layout({ children }: LayoutProps) {
                   boxSizing: 'border-box',
                   width: drawerWidth,
                   maxWidth: '100vw',
-                  overflow: 'hidden'
+                  overflow: 'hidden',
+                  border: 'none',
+                  boxShadow: '4px 0 20px rgba(0,0,0,0.1)',
+                  '&::-webkit-scrollbar': {
+                    width: '6px'
+                  },
+                  '&::-webkit-scrollbar-track': {
+                    background: 'rgba(255,255,255,0.1)'
+                  },
+                  '&::-webkit-scrollbar-thumb': {
+                    background: 'rgba(255,255,255,0.3)',
+                    borderRadius: '3px',
+                    '&:hover': {
+                      background: 'rgba(255,255,255,0.5)'
+                    }
+                  }
                 },
               }}
             >
