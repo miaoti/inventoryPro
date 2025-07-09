@@ -32,6 +32,16 @@ jobs:
       run: |
         echo "🚀 Verifying dependencies on self-hosted runner..."
         
+        # Check if we have sudo access without password
+        if sudo -n true 2>/dev/null; then
+          echo "✅ Passwordless sudo is configured"
+        else
+          echo "❌ ERROR: Passwordless sudo is not configured for user $(whoami)"
+          echo "Please run the sudo configuration script on your GCP instance:"
+          echo "curl -sSL https://raw.githubusercontent.com/miaoti/inventoryPro/main/fix-sudo-permissions.sh | bash"
+          exit 1
+        fi
+        
         # Update package list and install dependencies
         sudo apt-get update -y
         sudo apt-get install -y --no-install-recommends apt-transport-https ca-certificates curl gnupg lsb-release git openssl
@@ -44,7 +54,7 @@ jobs:
           sudo apt-get update -y
           sudo apt-get install -y docker-ce docker-ce-cli containerd.io
           sudo usermod -aG docker $USER
-          echo "✅ Docker installed. NOTE: A new shell session or restart is needed for group changes to apply. Using sudo."
+          echo "✅ Docker installed successfully"
         else
           echo "✅ Docker is already installed."
         fi
@@ -52,11 +62,23 @@ jobs:
         # Install Docker Compose if not present
         if ! [ -x "$(command -v docker-compose)" ]; then
           echo "🔧 Installing Docker Compose..."
-          sudo curl -L "https://github.com/docker/compose/releases/download/1.29.2/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+          sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
           sudo chmod +x /usr/local/bin/docker-compose
-          echo "✅ Docker Compose installed."
+          echo "✅ Docker Compose installed successfully"
         else
           echo "✅ Docker Compose is already installed."
+        fi
+        
+        # Ensure user is in docker group for future runs
+        sudo usermod -aG docker $(whoami)
+        
+        # Check if Docker daemon is running
+        if sudo systemctl is-active --quiet docker; then
+          echo "✅ Docker daemon is running"
+        else
+          echo "🔧 Starting Docker daemon..."
+          sudo systemctl start docker
+          sudo systemctl enable docker
         fi
         
         echo "✅ Runner setup complete."
