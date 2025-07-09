@@ -15,6 +15,7 @@ export interface User {
 export interface UserUpdateRequest {
   name?: string;
   email?: string;
+  alertEmail?: string;
   role?: 'OWNER' | 'ADMIN' | 'USER';
   department?: string;
   password?: string;

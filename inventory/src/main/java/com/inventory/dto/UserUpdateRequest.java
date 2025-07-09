@@ -7,6 +7,7 @@ import lombok.Data;
 public class UserUpdateRequest {
     private String name;
     private String email;
+    private String alertEmail;
     private User.UserRole role;
     private String department;
     private Integer warningThreshold;

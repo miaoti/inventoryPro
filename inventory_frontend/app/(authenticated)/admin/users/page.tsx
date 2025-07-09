@@ -146,6 +146,7 @@ export default function UserManagementPage() {
     setEditForm({
       name: userItem.name,
       email: userItem.email,
+      alertEmail: userItem.alertEmail,
       role: userItem.role,
       department: userItem.department || '',
       warningThreshold: userItem.warningThreshold,
@@ -611,11 +612,20 @@ export default function UserManagementPage() {
               fullWidth
             />
             <TextField
-              label="Email"
+              label="Account Email"
               type="email"
               value={editForm.email || ''}
               onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
               fullWidth
+              helperText="Primary email for user account access"
+            />
+            <TextField
+              label="Alert Email"
+              type="email"
+              value={editForm.alertEmail || ''}
+              onChange={(e) => setEditForm({ ...editForm, alertEmail: e.target.value })}
+              fullWidth
+              helperText="Email for notifications (leave empty to use account email)"
             />
             <FormControl fullWidth>
               <InputLabel>Role</InputLabel>

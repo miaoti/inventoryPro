@@ -55,6 +55,10 @@ public class UserManagementService {
         if (request.getEmail() != null) {
             user.setEmail(request.getEmail());
         }
+        if (request.getAlertEmail() != null) {
+            String alertEmail = request.getAlertEmail().trim();
+            user.setAlertEmail(alertEmail.isEmpty() ? null : alertEmail);
+        }
         if (request.getRole() != null) {
             user.setRole(request.getRole());
         }

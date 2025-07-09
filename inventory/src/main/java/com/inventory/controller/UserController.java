@@ -19,7 +19,6 @@ import java.util.List;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.time.LocalDateTime;
-import org.springframework.security.core.Authentication;
 import com.inventory.repository.UserRepository;
 
 @RestController
@@ -166,12 +165,13 @@ public class UserController {
     }
 
     @GetMapping("/quick-actions")
-    public ResponseEntity<Map<String, Object>> getQuickActions(Authentication authentication) {
-        if (authentication == null) {
+    public ResponseEntity<Map<String, Object>> getQuickActions(HttpServletRequest request) {
+        String username = getCurrentUsername(request);
+        if (username == null) {
             return ResponseEntity.status(401).body(Map.of("error", "Authentication required"));
         }
 
-        User user = userRepository.findByUsername(authentication.getName());
+        User user = userRepository.findByUsername(username);
         if (user == null) {
             return ResponseEntity.status(404).body(Map.of("error", "User not found"));
         }
@@ -196,13 +196,14 @@ public class UserController {
     @PostMapping("/quick-actions")
     public ResponseEntity<Map<String, String>> updateQuickActions(
             @RequestBody Map<String, List<String>> request,
-            Authentication authentication) {
+            HttpServletRequest httpRequest) {
         
-        if (authentication == null) {
+        String username = getCurrentUsername(httpRequest);
+        if (username == null) {
             return ResponseEntity.status(401).body(Map.of("error", "Authentication required"));
         }
 
-        User user = userRepository.findByUsername(authentication.getName());
+        User user = userRepository.findByUsername(username);
         if (user == null) {
             return ResponseEntity.status(404).body(Map.of("error", "User not found"));
         }
