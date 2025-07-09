@@ -13,6 +13,8 @@ public class UserResponse {
     private String email;
     private User.UserRole role;
     private String department;
+    private Integer warningThreshold;
+    private Integer criticalThreshold;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 } 

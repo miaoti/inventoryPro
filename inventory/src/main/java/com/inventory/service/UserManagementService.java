@@ -53,6 +53,12 @@ public class UserManagementService {
         if (request.getDepartment() != null) {
             user.setDepartment(request.getDepartment());
         }
+        if (request.getWarningThreshold() != null) {
+            user.setWarningThreshold(request.getWarningThreshold());
+        }
+        if (request.getCriticalThreshold() != null) {
+            user.setCriticalThreshold(request.getCriticalThreshold());
+        }
         if (request.getPassword() != null && !request.getPassword().isEmpty()) {
             user.setPassword(passwordEncoder.encode(request.getPassword()));
         }
@@ -110,6 +116,14 @@ public class UserManagementService {
         // Set department if provided
         if (request.getDepartment() != null) {
             user.setDepartment(request.getDepartment());
+        }
+        
+        // Set alert thresholds if provided, otherwise use defaults
+        if (request.getWarningThreshold() != null) {
+            user.setWarningThreshold(request.getWarningThreshold());
+        }
+        if (request.getCriticalThreshold() != null) {
+            user.setCriticalThreshold(request.getCriticalThreshold());
         }
         
         User savedUser = userRepository.save(user);
@@ -175,6 +189,8 @@ public class UserManagementService {
         response.setEmail(user.getEmail());
         response.setRole(user.getRole());
         response.setDepartment(user.getDepartment());
+        response.setWarningThreshold(user.getWarningThreshold());
+        response.setCriticalThreshold(user.getCriticalThreshold());
         response.setCreatedAt(user.getCreatedAt());
         response.setUpdatedAt(user.getUpdatedAt());
         return response;

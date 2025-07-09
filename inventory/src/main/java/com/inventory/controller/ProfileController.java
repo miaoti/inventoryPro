@@ -41,6 +41,8 @@ public class ProfileController {
         response.setEmail(user.getEmail());
         response.setRole(user.getRole());
         response.setDepartment(user.getDepartment());
+        response.setWarningThreshold(user.getWarningThreshold());
+        response.setCriticalThreshold(user.getCriticalThreshold());
         response.setCreatedAt(user.getCreatedAt());
         response.setUpdatedAt(user.getUpdatedAt());
         

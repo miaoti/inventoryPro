@@ -29,4 +29,7 @@ public class CreateUserRequest {
     private String role; // "ADMIN" or "USER"
     
     private String department; // Department assignment (optional)
+    
+    private Integer warningThreshold; // Warning threshold percentage (optional, defaults to 100)
+    private Integer criticalThreshold; // Critical threshold percentage (optional, defaults to 50)
 } 

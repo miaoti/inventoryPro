@@ -256,7 +256,25 @@ export default function Layout({ children }: LayoutProps) {
       )}
 
       {/* Navigation List */}
-      <List sx={{ flexGrow: 1, py: 1 }}>
+      <Box sx={{ 
+        flexGrow: 1, 
+        overflowY: 'auto',
+        overflowX: 'hidden',
+        '&::-webkit-scrollbar': {
+          width: '6px'
+        },
+        '&::-webkit-scrollbar-track': {
+          background: 'rgba(255,255,255,0.1)'
+        },
+        '&::-webkit-scrollbar-thumb': {
+          background: 'rgba(255,255,255,0.3)',
+          borderRadius: '3px',
+          '&:hover': {
+            background: 'rgba(255,255,255,0.5)'
+          }
+        }
+      }}>
+        <List sx={{ py: 1 }}>
         {/* Main Navigation */}
         <ListItem 
           button 
@@ -459,7 +477,7 @@ export default function Layout({ children }: LayoutProps) {
               opacity: 0.7,
               letterSpacing: 1
             }}>
-              ADMINISTRATION
+              OWNER
             </Typography>
 
             <ListItem 
@@ -514,8 +532,9 @@ export default function Layout({ children }: LayoutProps) {
               />
             </ListItem>
           </>
-        )}
-      </List>
+                 )}
+        </List>
+      </Box>
 
       {/* Bottom section */}
       <Box sx={{ mt: 'auto' }}>
@@ -634,66 +653,25 @@ export default function Layout({ children }: LayoutProps) {
                 <MenuIcon sx={{ color: '#667eea' }} />
               </IconButton>
               
-              <Box sx={{ flexGrow: 1, display: 'flex', alignItems: 'center' }}>
-                <Typography 
-                  variant="h5" 
-                  component="div" 
-                  sx={{ 
-                    fontWeight: 700,
-                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                    backgroundClip: 'text',
-                    WebkitBackgroundClip: 'text',
-                    WebkitTextFillColor: 'transparent',
-                    fontSize: { xs: '1.25rem', sm: '1.5rem' },
-                    letterSpacing: '-0.025em',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap'
-                  }}
-                >
-                  Inventory Management
-                </Typography>
-              </Box>
-
-              {/* User Info in Header */}
-              {user && (
-                <Box sx={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  gap: 2,
-                  bgcolor: 'rgba(103,126,234,0.05)',
-                  borderRadius: 3,
-                  px: 2,
-                  py: 1,
-                  border: '1px solid rgba(103,126,234,0.1)'
-                }}>
-                  <Box sx={{ textAlign: 'right', display: { xs: 'none', md: 'block' } }}>
-                    <Typography variant="body2" sx={{ 
-                      fontWeight: 600,
-                      fontSize: '0.875rem',
-                      color: '#2d3748'
-                    }}>
-                      {user.fullName || user.username}
-                    </Typography>
-                    <Typography variant="caption" sx={{ 
-                      color: '#718096',
-                      fontSize: '0.75rem'
-                    }}>
-                      {user.department || 'No Department'}
-                    </Typography>
-                  </Box>
-                  <Avatar sx={{ 
-                    width: 36, 
-                    height: 36,
-                    bgcolor: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                    fontSize: '0.875rem',
-                    fontWeight: 600,
-                    boxShadow: '0 4px 12px rgba(103,126,234,0.3)'
-                  }}>
-                    {user.fullName?.charAt(0) || user.username?.charAt(0) || 'U'}
-                  </Avatar>
-                </Box>
-              )}
+              <Typography 
+                variant="h5" 
+                component="div" 
+                sx={{ 
+                  flexGrow: 1,
+                  fontWeight: 700,
+                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  backgroundClip: 'text',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  fontSize: { xs: '1.25rem', sm: '1.5rem' },
+                  letterSpacing: '-0.025em',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                Inventory Management
+              </Typography>
             </Toolbar>
           </AppBar>
           

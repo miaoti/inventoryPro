@@ -31,7 +31,13 @@ public class AlertService {
     @Value("${app.alerts.notification-email:miaotingshuo@gmail.com}")
     private String fallbackNotificationEmail;
 
+    // Method without user context - uses global settings
     public void checkAndCreateSafetyStockAlert(Item item) {
+        checkAndCreateSafetyStockAlert(item, null);
+    }
+
+    // Method with user context for user-specific thresholds
+    public void checkAndCreateSafetyStockAlert(Item item, User user) {
         // Use current inventory only (not effective inventory)
         int currentInventory = item.getCurrentInventory();
         int safetyThreshold = item.getSafetyStockThreshold();
@@ -41,9 +47,21 @@ public class AlertService {
         System.out.println("Current Inventory: " + currentInventory);
         System.out.println("Safety Threshold: " + safetyThreshold);
         
-        // Get configurable thresholds from admin settings
-        double warningThresholdPercent = adminSettingsService.getWarningThreshold() / 100.0;
-        double criticalThresholdPercent = adminSettingsService.getCriticalThreshold() / 100.0;
+        // Get user-specific thresholds or fall back to global admin settings
+        double warningThresholdPercent;
+        double criticalThresholdPercent;
+        
+        if (user != null) {
+            // Use user-specific thresholds
+            warningThresholdPercent = user.getWarningThreshold() / 100.0;
+            criticalThresholdPercent = user.getCriticalThreshold() / 100.0;
+            System.out.println("Using user-specific thresholds for: " + user.getUsername());
+        } else {
+            // Fall back to global admin settings
+            warningThresholdPercent = adminSettingsService.getWarningThreshold() / 100.0;
+            criticalThresholdPercent = adminSettingsService.getCriticalThreshold() / 100.0;
+            System.out.println("Using global admin thresholds (no user context)");
+        }
         
         System.out.println("Warning Threshold %: " + (warningThresholdPercent * 100));
         System.out.println("Critical Threshold %: " + (criticalThresholdPercent * 100));

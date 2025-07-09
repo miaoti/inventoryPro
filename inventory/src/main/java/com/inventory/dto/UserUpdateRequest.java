@@ -9,5 +9,7 @@ public class UserUpdateRequest {
     private String email;
     private User.UserRole role;
     private String department;
+    private Integer warningThreshold;
+    private Integer criticalThreshold;
     private String password; // Optional - only if changing password
 } 
