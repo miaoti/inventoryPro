@@ -336,9 +336,9 @@ public class ItemController {
                             continue; // Skip items not belonging to admin's department
                         }
                         
-                        // If item has no department or is public, assign admin's department
+                        // If item has no department or is empty, keep it as public (don't auto-assign admin's department)
                         if (item.getDepartment() == null || item.getDepartment().trim().isEmpty()) {
-                            item.setDepartment(currentUser.getDepartment());
+                            item.setDepartment(null); // Explicitly set as public (no department)
                         }
                     }
                     
@@ -453,7 +453,7 @@ public class ItemController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<ItemResponse> updateItem(
+    public ResponseEntity<?> updateItem(
             @PathVariable Long id, 
             @RequestBody ItemCreateRequest request,
             Authentication authentication) {
@@ -474,7 +474,10 @@ public class ItemController {
                                       (item.getDepartment() != null && item.getDepartment().equals(currentUser.getDepartment()));
                     
                     if (!canModify) {
-                        throw new RuntimeException("You cannot edit this item since it does not belong to your department (" + currentUser.getDepartment() + ")");
+                        Map<String, String> errorResponse = new HashMap<>();
+                        errorResponse.put("message", "You cannot edit this item since it does not belong to your department (" + currentUser.getDepartment() + ")");
+                        errorResponse.put("error", "DEPARTMENT_ACCESS_DENIED");
+                        return ResponseEntity.status(403).body(errorResponse);
                     }
                 }
                 // OWNER can modify any item (no restrictions)

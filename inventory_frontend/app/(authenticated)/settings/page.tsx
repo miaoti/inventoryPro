@@ -389,7 +389,7 @@ export default function SettingsPage() {
           <Chip 
             icon={isAdmin ? <AdminIcon /> : <SecurityIcon />}
             label={user.role}
-            color={isAdmin ? 'error' : 'default'}
+            color={isAdmin ? 'warning' : 'default'}
             variant={isAdmin ? 'filled' : 'outlined'}
           />
         </Box>

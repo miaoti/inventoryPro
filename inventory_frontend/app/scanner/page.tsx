@@ -1293,6 +1293,7 @@ export default function BarcodeScanner() {
         location: scannedItem.location || '',
         equipment: scannedItem.equipment || '',
         category: scannedItem.category || 'C',
+        department: scannedItem.department || '', // Include department field
         weeklyData: '',
       });
 
@@ -1307,9 +1308,24 @@ export default function BarcodeScanner() {
       });
       
       closeEditDialog();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating item:', error);
-      setError('Failed to update item. Please try again.');
+      
+      let errorMessage = 'Failed to update item. Please try again.';
+      if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.response?.data && typeof error.response.data === 'string') {
+        errorMessage = error.response.data;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      setError(errorMessage);
+      
+      // Auto-clear error after 6 seconds
+      setTimeout(() => {
+        setError('');
+      }, 6000);
     }
   };
 

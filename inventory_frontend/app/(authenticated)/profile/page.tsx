@@ -246,11 +246,11 @@ export default function ProfilePage() {
                     )}
                   </Typography>
                 </Box>
-                <Box>
+                {/* <Box>
                   <Typography variant="body2" color="text.secondary">
                     {user.email}
                   </Typography>
-                </Box>
+                </Box> */}
               </Box>
             </CardContent>
           </Card>
