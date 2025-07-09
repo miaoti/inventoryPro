@@ -21,6 +21,7 @@ import {
 } from '@mui/icons-material';
 import { useSelector } from 'react-redux';
 import { RootState } from '@/store';
+import { userAPI } from '@/services/api';
 
 interface QuickActionsManagerProps {
   open: boolean;
@@ -170,15 +171,9 @@ export default function QuickActionsManager({ open, onClose, onUpdate }: QuickAc
     setLoading(true);
     setError(null);
     try {
-          const response = await fetch('/api/user/quick-actions');
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch quick actions');
-      }
-      
-      const data = await response.json();
-      setUserActions(data.actions || []);
-      setAvailableActions(data.availableActions || []);
+      const response = await userAPI.getQuickActions();
+      setUserActions(response.data.actions || []);
+      setAvailableActions(response.data.availableActions || []);
     } catch (error) {
       console.error('Error fetching quick actions:', error);
       setError('Failed to load quick actions');
@@ -199,19 +194,7 @@ export default function QuickActionsManager({ open, onClose, onUpdate }: QuickAc
     setSaving(true);
     setError(null);
     try {
-      const response = await fetch('/api/user/quick-actions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ actions: userActions }),
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to save quick actions');
-      }
-      
+      await userAPI.updateQuickActions(userActions);
       onUpdate();
       onClose();
     } catch (error) {

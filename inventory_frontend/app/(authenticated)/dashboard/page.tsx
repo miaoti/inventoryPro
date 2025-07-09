@@ -22,6 +22,7 @@ import { useSelector } from 'react-redux';
 import { RootState } from '@/store';
 import QuickActionsManager from '@/components/QuickActionsManager';
 import QuickActionCard from '@/components/QuickActionCard';
+import { userAPI } from '@/services/api';
 
 interface QuickActionConfig {
   id: string;
@@ -148,14 +149,8 @@ export default function DashboardPage() {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch('/api/user/quick-actions');
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch quick actions');
-      }
-      
-      const data = await response.json();
-      setQuickActions(data.actions || []);
+      const response = await userAPI.getQuickActions();
+      setQuickActions(response.data.actions || []);
     } catch (error) {
       console.error('Error fetching quick actions:', error);
       setError('Failed to load quick actions');

@@ -467,6 +467,18 @@ export const userAPI = {
     }
     return api.put('/user/settings', settings);
   },
+  getQuickActions: () => {
+    if (!ensureAuthenticated()) {
+      return Promise.reject(new Error('Authentication required'));
+    }
+    return api.get('/user/quick-actions');
+  },
+  updateQuickActions: (actions: string[]) => {
+    if (!ensureAuthenticated()) {
+      return Promise.reject(new Error('Authentication required'));
+    }
+    return api.post('/user/quick-actions', { actions });
+  },
 };
 
 export const barcodeAPI = {
