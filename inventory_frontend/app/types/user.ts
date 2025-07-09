@@ -3,6 +3,7 @@ export interface User {
   username: string;
   name: string;
   email: string;
+  alertEmail?: string;
   role: 'OWNER' | 'ADMIN' | 'USER';
   department?: string;
   warningThreshold?: number;
