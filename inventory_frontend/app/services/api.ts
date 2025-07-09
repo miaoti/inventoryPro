@@ -339,6 +339,12 @@ export const itemsAPI = {
     }
     return api.get('/items/departments');
   },
+  createDepartment: (name: string) => {
+    if (!ensureAuthenticated()) {
+      return Promise.reject(new Error('Authentication required'));
+    }
+    return api.post('/items/departments', { name });
+  },
   getById: (id: number) => {
     if (!ensureAuthenticated()) {
       return Promise.reject(new Error('Authentication required'));

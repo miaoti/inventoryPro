@@ -150,6 +150,10 @@ export default function ItemsPage() {
   const [departments, setDepartments] = useState<string[]>([]);
   const [selectedDepartment, setSelectedDepartment] = useState<string>('');
   
+  // Department creation state
+  const [showCreateDepartmentDialog, setShowCreateDepartmentDialog] = useState(false);
+  const [newDepartmentName, setNewDepartmentName] = useState('');
+  
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -345,6 +349,25 @@ export default function ItemsPage() {
     } catch (error) {
       console.error('Error fetching departments:', error);
       setDepartments([]);
+    }
+  };
+
+  const createDepartment = async () => {
+    if (!newDepartmentName.trim()) {
+      alert('Department name is required');
+      return;
+    }
+
+    try {
+      await itemsAPI.createDepartment(newDepartmentName.trim());
+      setNewDepartmentName('');
+      setShowCreateDepartmentDialog(false);
+      fetchDepartments(); // Refresh departments list
+      alert(`Department "${newDepartmentName.trim()}" created successfully!`);
+    } catch (error: any) {
+      console.error('Error creating department:', error);
+      const errorMessage = error.response?.data?.error || error.message || 'Error creating department';
+      alert(errorMessage);
     }
   };
 
@@ -2166,6 +2189,36 @@ export default function ItemsPage() {
                 </Select>
               </FormControl>
             </Grid>
+            <Grid item xs={12} md={8}>
+              <FormControl fullWidth>
+                <InputLabel>Department</InputLabel>
+                <Select
+                  value={formData.department}
+                  label="Department"
+                  onChange={(e) => {
+                    if (e.target.value === '__CREATE_NEW__') {
+                      setShowCreateDepartmentDialog(true);
+                    } else {
+                      setFormData({ ...formData, department: e.target.value });
+                    }
+                  }}
+                >
+                  <MenuItem value="">Public (No Department)</MenuItem>
+                  {departments.map((dept) => (
+                    <MenuItem key={dept} value={dept}>{dept}</MenuItem>
+                  ))}
+                  {/* Show create department option only for OWNER */}
+                  {user?.role === 'OWNER' && (
+                    <MenuItem 
+                      value="__CREATE_NEW__" 
+                      sx={{ color: 'primary.main', fontStyle: 'italic' }}
+                    >
+                      + Create New Department
+                    </MenuItem>
+                  )}
+                </Select>
+              </FormControl>
+            </Grid>
             <Grid item xs={12}>
               <TextField
                 fullWidth
@@ -2428,6 +2481,39 @@ export default function ItemsPage() {
           <Button onClick={() => setShowEditPODialog(false)}>Cancel</Button>
           <Button onClick={updatePurchaseOrder} variant="contained" color="primary">
             Update Purchase Order
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Create Department Dialog */}
+      <Dialog 
+        open={showCreateDepartmentDialog} 
+        onClose={() => setShowCreateDepartmentDialog(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Create New Department</DialogTitle>
+        <DialogContent>
+          <Box sx={{ pt: 2 }}>
+            <TextField
+              fullWidth
+              label="Department Name"
+              value={newDepartmentName}
+              onChange={(e) => setNewDepartmentName(e.target.value)}
+              placeholder="Enter department name (e.g., Engineering, IT, Operations)"
+              autoFocus
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowCreateDepartmentDialog(false)}>Cancel</Button>
+          <Button 
+            onClick={createDepartment} 
+            variant="contained"
+            color="primary"
+            disabled={!newDepartmentName.trim()}
+          >
+            Create Department
           </Button>
         </DialogActions>
       </Dialog>

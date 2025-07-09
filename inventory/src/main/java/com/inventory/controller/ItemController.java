@@ -57,10 +57,7 @@ public class ItemController {
         // Get current user information
         User currentUser = null;
         if (authentication != null) {
-            Optional<User> userOpt = userRepository.findByUsername(authentication.getName());
-            if (userOpt.isPresent()) {
-                currentUser = userOpt.get();
-            }
+            currentUser = userRepository.findByUsername(authentication.getName());
         }
         
         List<Item> items;
@@ -94,10 +91,7 @@ public class ItemController {
         // Get current user information
         User currentUser = null;
         if (authentication != null) {
-            Optional<User> userOpt = userRepository.findByUsername(authentication.getName());
-            if (userOpt.isPresent()) {
-                currentUser = userOpt.get();
-            }
+            currentUser = userRepository.findByUsername(authentication.getName());
         }
         
         List<String> departments = new ArrayList<>();
@@ -117,6 +111,41 @@ public class ItemController {
         return ResponseEntity.ok(departments);
     }
 
+    @PostMapping("/departments")
+    public ResponseEntity<Map<String, String>> createDepartment(
+            @RequestBody Map<String, String> request,
+            Authentication authentication) {
+        
+        // Only OWNER can create new departments
+        if (authentication != null) {
+            User currentUser = userRepository.findByUsername(authentication.getName());
+            if (currentUser == null || currentUser.getRole() != User.UserRole.OWNER) {
+                return ResponseEntity.status(403).body(Map.of("error", "Only owners can create new departments"));
+            }
+        } else {
+            return ResponseEntity.status(401).body(Map.of("error", "Authentication required"));
+        }
+        
+        String departmentName = request.get("name");
+        if (departmentName == null || departmentName.trim().isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Department name is required"));
+        }
+        
+        departmentName = departmentName.trim();
+        
+        // Check if department already exists
+        List<String> existingDepartments = itemRepository.findDistinctDepartments();
+        if (existingDepartments.contains(departmentName)) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Department already exists"));
+        }
+        
+        // Return success message (department will be created when first item is assigned to it)
+        return ResponseEntity.ok(Map.of(
+            "message", "Department '" + departmentName + "' is ready to use",
+            "department", departmentName
+        ));
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<ItemResponse> getItemById(@PathVariable Long id) {
         Optional<Item> item = itemRepository.findById(id);
@@ -125,13 +154,24 @@ public class ItemController {
     }
 
     @PostMapping
-    public ItemResponse createItem(@RequestBody ItemCreateRequest request) {
+    public ItemResponse createItem(@RequestBody ItemCreateRequest request, Authentication authentication) {
         // Validate required fields
         if (request.getName() == null || request.getName().trim().isEmpty()) {
             throw new RuntimeException("Item name is required");
         }
         if (request.getCode() == null || request.getCode().trim().isEmpty()) {
             throw new RuntimeException("Item code is required");
+        }
+
+        // Auto-assign department for ADMIN users
+        if (authentication != null) {
+            User currentUser = userRepository.findByUsername(authentication.getName());
+            if (currentUser != null && currentUser.getRole() == User.UserRole.ADMIN) {
+                // Force assign admin's department if not already set
+                if (request.getDepartment() == null || request.getDepartment().trim().isEmpty()) {
+                    request.setDepartment(currentUser.getDepartment());
+                }
+            }
         }
 
         Item item = new Item();
@@ -212,14 +252,37 @@ public class ItemController {
                 System.out.println("First few errors: " + errors.subList(0, Math.min(5, errors.size())));
             }
 
+            // Get current user for department filtering
+            User currentUser = null;
+            if (authentication != null) {
+                currentUser = userRepository.findByUsername(authentication.getName());
+            }
+
             // Save valid items and count duplicates
             List<Item> savedItems = new ArrayList<>();
+            int departmentFiltered = 0;
+            
             for (Item item : itemsToSave) {
                 try {
                     // Check if item with this code already exists
                     if (itemRepository.findByCode(item.getCode()).isPresent()) {
                         skippedDuplicates++;
                         continue; // Skip duplicate instead of adding to errors
+                    }
+                    
+                    // Department filtering for ADMIN users
+                    if (currentUser != null && currentUser.getRole() == User.UserRole.ADMIN) {
+                        // Admin can only create items for their department or public items
+                        if (item.getDepartment() != null && !item.getDepartment().trim().isEmpty() 
+                            && !item.getDepartment().equals(currentUser.getDepartment())) {
+                            departmentFiltered++;
+                            continue; // Skip items not belonging to admin's department
+                        }
+                        
+                        // If item has no department or is public, assign admin's department
+                        if (item.getDepartment() == null || item.getDepartment().trim().isEmpty()) {
+                            item.setDepartment(currentUser.getDepartment());
+                        }
                     }
                     
                     item.setBarcode(generateBarcodeFromCode(item.getCode()));
@@ -267,19 +330,25 @@ public class ItemController {
             }
 
             System.out.println("=== IMPORT RESULTS ===");
-            System.out.println("Total processed: " + (itemsToSave.size() + skippedDuplicates));
+            System.out.println("Total processed: " + (itemsToSave.size() + skippedDuplicates + departmentFiltered));
             System.out.println("Created: " + savedItems.size());
             System.out.println("Skipped duplicates: " + skippedDuplicates);
+            System.out.println("Department filtered: " + departmentFiltered);
             System.out.println("Errors: " + errors.size());
             System.out.println("=== IMPORT DEBUG END ===");
 
             Map<String, Object> response = new HashMap<>();
             response.put("message", "Import completed successfully");
-            response.put("totalProcessed", itemsToSave.size() + skippedDuplicates);
+            response.put("totalProcessed", itemsToSave.size() + skippedDuplicates + departmentFiltered);
             response.put("created", savedItems.size());
             response.put("skippedDuplicates", skippedDuplicates);
+            response.put("departmentFiltered", departmentFiltered);
             response.put("errors", errors.size());
             response.put("errorDetails", errors);
+            if (departmentFiltered > 0) {
+                response.put("departmentFilterMessage", 
+                    String.format("Skipped %d items that don't belong to your department", departmentFiltered));
+            }
             response.put("items", savedItems.stream().map(this::convertToResponse).collect(Collectors.toList()));
 
             return ResponseEntity.ok(response);
@@ -340,10 +409,8 @@ public class ItemController {
 
         // Check department-based permissions
         if (authentication != null) {
-            Optional<User> userOpt = userRepository.findByUsername(authentication.getName());
-            if (userOpt.isPresent()) {
-                User currentUser = userOpt.get();
-                
+            User currentUser = userRepository.findByUsername(authentication.getName());
+            if (currentUser != null) {
                 // ADMIN users can only modify items from their department or public items
                 if (currentUser.getRole() == User.UserRole.ADMIN) {
                     boolean canModify = item.isPublic() || 

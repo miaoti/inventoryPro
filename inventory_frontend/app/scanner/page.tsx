@@ -68,6 +68,8 @@ interface ScannedItem {
   location?: string;
   equipment?: string;
   category?: 'A' | 'B' | 'C';
+  department?: string;
+  displayDepartment?: string;
   barcode?: string;
   needsRestock?: boolean;
   availableQuantity: number;
@@ -2090,6 +2092,20 @@ export default function BarcodeScanner() {
                             wordBreak: 'break-word'
                           }}>
                             <strong>Location:</strong> {scannedItem.location || 'N/A'}
+                          </Typography>
+                        </Box>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Box sx={{ 
+                            width: 8, 
+                            height: 8, 
+                            borderRadius: '50%', 
+                            bgcolor: scannedItem.displayDepartment === 'Public' ? 'info.main' : 'warning.main'
+                          }} />
+                          <Typography variant="body1" color="text.secondary" sx={{ 
+                            fontSize: { xs: '0.9rem', sm: '1rem' },
+                            wordBreak: 'break-word'
+                          }}>
+                            <strong>Department:</strong> {scannedItem.displayDepartment || 'Public'}
                           </Typography>
                         </Box>
                       </Box>
