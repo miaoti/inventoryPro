@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 
 export async function GET(request: NextRequest) {
   try {
-    const token = request.headers.get('authorization')?.replace('Bearer ', '');
+    const cookieStore = cookies();
+    const token = cookieStore.get('token')?.value;
     
     if (!token) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
@@ -36,7 +38,8 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const token = request.headers.get('authorization')?.replace('Bearer ', '');
+    const cookieStore = cookies();
+    const token = cookieStore.get('token')?.value;
     
     if (!token) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
