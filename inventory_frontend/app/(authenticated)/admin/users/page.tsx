@@ -357,19 +357,19 @@ export default function UserManagementPage() {
           >
             Department Control
           </Button>
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={() => setCreateDialogOpen(true)}
-            sx={{
-              background: 'linear-gradient(45deg, #667eea, #764ba2)',
-              '&:hover': {
-                background: 'linear-gradient(45deg, #5a6fd8, #6a4190)',
-              }
-            }}
-          >
-            Create User
-          </Button>
+        <Button
+          variant="contained"
+          startIcon={<AddIcon />}
+          onClick={() => setCreateDialogOpen(true)}
+          sx={{
+            background: 'linear-gradient(45deg, #667eea, #764ba2)',
+            '&:hover': {
+              background: 'linear-gradient(45deg, #5a6fd8, #6a4190)',
+            }
+          }}
+        >
+          Create User
+        </Button>
         </Box>
       </Box>
 

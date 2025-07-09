@@ -94,8 +94,8 @@ export default function AdminSettingsPage() {
       setWarningThresholdInput(thresholds.warningThreshold.toString());
       setCriticalThresholdInput(thresholds.criticalThreshold.toString());
     } catch (err) {
-      console.error('Failed to load user alert thresholds:', err);
-      setError('Failed to load alert thresholds. Please try again.');
+      console.error('Failed to load your alert thresholds:', err);
+      setError('Failed to load your alert thresholds. Please try again.');
     } finally {
       setThresholdsLoading(false);
     }

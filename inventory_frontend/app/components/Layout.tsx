@@ -532,7 +532,7 @@ export default function Layout({ children }: LayoutProps) {
               />
             </ListItem>
           </>
-                 )}
+        )}
         </List>
       </Box>
 

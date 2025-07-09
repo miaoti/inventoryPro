@@ -182,13 +182,17 @@ export default function SettingsPage() {
   const loadAlertThresholds = async () => {
     try {
       setThresholdsLoading(true);
-      const response = await adminAPI.getAlertThresholds();
-      const thresholds = response.data;
+      const response = await userAPI.getSettings();
+      const responseData = (response as any)?.data || response || {};
+      const thresholds = {
+        warningThreshold: responseData.warningThreshold || 100,
+        criticalThreshold: responseData.criticalThreshold || 50,
+      };
       setAlertThresholds(thresholds);
       setWarningThresholdInput(thresholds.warningThreshold.toString());
       setCriticalThresholdInput(thresholds.criticalThreshold.toString());
     } catch (error) {
-      console.error('Failed to load alert thresholds:', error);
+      console.error('Failed to load your alert thresholds:', error);
     } finally {
       setThresholdsLoading(false);
     }
@@ -320,12 +324,15 @@ export default function SettingsPage() {
         return;
       }
 
-      await adminAPI.updateAlertThresholds(alertThresholds);
-      setAdminSuccess('Alert thresholds saved successfully!');
+      await userAPI.updateSettings({
+        warningThreshold: alertThresholds.warningThreshold,
+        criticalThreshold: alertThresholds.criticalThreshold
+      });
+      setAdminSuccess('Your alert thresholds saved successfully!');
       setTimeout(() => setAdminSuccess(''), 3000);
     } catch (error) {
-      console.error('Error saving alert thresholds:', error);
-      setAdminError('Failed to save alert thresholds');
+      console.error('Error saving your alert thresholds:', error);
+      setAdminError('Failed to save your alert thresholds');
       setTimeout(() => setAdminError(''), 5000);
     } finally {
       setThresholdsLoading(false);
