@@ -94,6 +94,8 @@ logging:
   level:
     root: INFO
     com.inventory: INFO
+    com.inventory.security.JwtAuthenticationFilter: DEBUG
+    com.inventory.controller.UserController: DEBUG
     org.springframework.security: WARN
     org.springframework.mail: WARN
     org.hibernate.SQL: WARN

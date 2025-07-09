@@ -66,5 +66,7 @@ logging:
   level:
     org.springframework.security: DEBUG
     com.inventory: DEBUG
+    com.inventory.security.JwtAuthenticationFilter: DEBUG
+    com.inventory.controller.UserController: DEBUG
     org.springframework.mail: INFO
     org.springframework.scheduling: INFO 

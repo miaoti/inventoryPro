@@ -166,8 +166,20 @@ public class UserController {
 
     @GetMapping("/quick-actions")
     public ResponseEntity<Map<String, Object>> getQuickActions(HttpServletRequest request) {
+        logger.info("=== Quick Actions GET Request ===");
+        logger.info("Request URL: {}", request.getRequestURL());
+        logger.info("Request Method: {}", request.getMethod());
+        logger.info("Headers:");
+        java.util.Enumeration<String> headerNames = request.getHeaderNames();
+        while (headerNames.hasMoreElements()) {
+            String headerName = headerNames.nextElement();
+            logger.info("  {}: {}", headerName, request.getHeader(headerName));
+        }
+        
         String username = getCurrentUsername(request);
+        logger.info("Extracted username: {}", username);
         if (username == null) {
+            logger.warn("Authentication failed - returning 401");
             return ResponseEntity.status(401).body(Map.of("error", "Authentication required"));
         }
 
@@ -268,15 +280,26 @@ public class UserController {
     
     private String getCurrentUsername(HttpServletRequest request) {
         String authHeader = request.getHeader("Authorization");
+        logger.debug("Authorization header: {}", authHeader != null ? authHeader.substring(0, Math.min(authHeader.length(), 20)) + "..." : "null");
+        
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
             String token = authHeader.substring(7);
+            logger.debug("Extracted token: {}...", token.substring(0, Math.min(token.length(), 20)));
             try {
-                if (!jwtUtil.isTokenExpired(token)) {
-                    return jwtUtil.getUsernameFromToken(token);
+                boolean isExpired = jwtUtil.isTokenExpired(token);
+                logger.debug("Token expired: {}", isExpired);
+                if (!isExpired) {
+                    String username = jwtUtil.getUsernameFromToken(token);
+                    logger.debug("Username from token: {}", username);
+                    return username;
+                } else {
+                    logger.warn("Token is expired");
                 }
             } catch (Exception e) {
                 logger.warn("Invalid JWT token: {}", e.getMessage());
             }
+        } else {
+            logger.warn("No Authorization header or invalid format");
         }
         return null;
     }

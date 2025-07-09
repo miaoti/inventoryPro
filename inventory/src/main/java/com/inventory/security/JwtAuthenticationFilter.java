@@ -10,6 +10,8 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -22,6 +24,8 @@ import java.util.List;
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
+    private static final Logger logger = LoggerFactory.getLogger(JwtAuthenticationFilter.class);
+
     @Autowired
     private JwtUtil jwtUtil;
 
@@ -31,38 +35,66 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
+        
+        String requestURI = request.getRequestURI();
+        logger.debug("=== JWT Filter processing request: {} ===", requestURI);
+        
         String header = request.getHeader("Authorization");
         String token = null;
         String username = null;
 
+        logger.debug("Authorization header: {}", header != null ? header.substring(0, Math.min(header.length(), 30)) + "..." : "null");
+
         if (header != null && header.startsWith("Bearer ")) {
             token = header.substring(7);
+            logger.debug("Extracted token: {}...", token.substring(0, Math.min(token.length(), 20)));
+            
             try {
                 username = jwtUtil.getUsernameFromToken(token);
+                logger.debug("Username from token: {}", username);
+                
                 // Validate token is not expired
-                if (!jwtUtil.isTokenExpired(token)) {
+                boolean isExpired = jwtUtil.isTokenExpired(token);
+                logger.debug("Token expired: {}", isExpired);
+                
+                if (!isExpired) {
                     if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
                         // Load user from database to get role information
                         User user = userRepository.findByUsername(username);
+                        logger.debug("User found: {}, enabled: {}", user != null ? user.getUsername() : "null", user != null ? user.getEnabled() : "N/A");
+                        
                         if (user != null && user.getEnabled()) {
                             // Create authorities based on user role
                             List<SimpleGrantedAuthority> authorities = Collections.singletonList(
                                 new SimpleGrantedAuthority("ROLE_" + user.getRole().name())
                             );
                             
+                            logger.debug("Creating authentication with role: {}", user.getRole().name());
+                            
                             UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(
                                     username, null, authorities);
                             auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                             SecurityContextHolder.getContext().setAuthentication(auth);
+                            
+                            logger.info("Authentication successful for user: {} with role: {}", username, user.getRole().name());
+                        } else {
+                            logger.warn("User not found or disabled: {}", username);
                         }
+                    } else {
+                        logger.debug("Username null or authentication already exists");
                     }
+                } else {
+                    logger.warn("Token is expired for user: {}", username);
                 }
             } catch (Exception e) {
                 // Invalid token - log and continue without authentication
-                System.out.println("Invalid JWT token: " + e.getMessage());
+                logger.error("Invalid JWT token: {}", e.getMessage(), e);
             }
+        } else {
+            logger.debug("No Authorization header or invalid format for URI: {}", requestURI);
         }
 
+        logger.debug("Current authentication: {}", SecurityContextHolder.getContext().getAuthentication());
         filterChain.doFilter(request, response);
     }
 } 
