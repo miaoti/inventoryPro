@@ -221,7 +221,7 @@ export default function UsageReportsPage() {
         targetDepartment = selectedDepartment;
       } else {
         // ADMIN/USER automatically use their own department
-        targetDepartment = user?.department;
+        targetDepartment = user?.department || '';
       }
       
       if (targetDepartment && targetDepartment.trim()) {
