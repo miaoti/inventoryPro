@@ -221,9 +221,16 @@ export const usePhantomAccess = (): PhantomAccessHook => {
     // Remove visual indicator
     document.body.classList.remove('phantom-mode-active');
     
-    // Note: Don't dispatch logout here as we want to return to previous state
-    console.log('👻 Phantom mode deactivated.');
-  }, []);
+    // Clear Redux state for phantom session
+    dispatch({ type: 'auth/logout' });
+    
+    // Redirect to login page since phantom user doesn't have a real session to return to
+    if (typeof window !== 'undefined') {
+      window.location.href = '/login';
+    }
+    
+    console.log('👻 Phantom mode deactivated. Redirecting to login.');
+  }, [dispatch]);
 
   // Format time remaining for display
   const formatTimeRemaining = useCallback(() => {

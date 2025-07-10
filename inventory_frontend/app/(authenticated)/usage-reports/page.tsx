@@ -469,6 +469,24 @@ export default function UsageReportsPage() {
       minHeight: '100vh',
       background: `linear-gradient(135deg, ${alpha(theme.palette.primary.light, 0.1)} 0%, ${alpha(theme.palette.secondary.light, 0.05)} 100%)`,
       p: { xs: 2, sm: 3, md: 4 },
+      // Add global DataGrid header style override for this page
+      '& .MuiDataGrid-columnHeaders': {
+        background: `linear-gradient(90deg, ${theme.palette.background.paper} 60%, ${alpha(theme.palette.primary.main, 0.12)} 100%)`,
+        color: theme.palette.mode === 'dark' ? '#fff' : theme.palette.primary.dark,
+        fontWeight: 700,
+        fontSize: '1rem',
+        letterSpacing: '1px',
+        borderBottom: `2px solid ${alpha(theme.palette.primary.main, 0.25)}`,
+        boxShadow: `0 2px 8px ${alpha(theme.palette.primary.main, 0.08)}`,
+      },
+      '& .MuiDataGrid-columnHeaderTitle': {
+        color: theme.palette.mode === 'dark' ? '#fff' : theme.palette.primary.dark,
+        fontWeight: 700,
+        textShadow: '0 1px 6px rgba(0,0,0,0.12)',
+      },
+      '& .MuiDataGrid-cell': {
+        fontWeight: 500,
+      },
     }}>
       {/*  Header Section */}
       <Fade in timeout={800}>
@@ -851,6 +869,72 @@ export default function UsageReportsPage() {
                               <DepartmentIcon sx={{ fontSize: 18, ml: 1 }} />
                             </InputAdornment>
                           }
+                          sx={{
+                            '& .MuiSelect-select': {
+                              color: 'text.primary',
+                              fontWeight: 500,
+                            },
+                            '& .MuiOutlinedInput-notchedOutline': {
+                              borderColor: alpha(theme.palette.primary.main, 0.3),
+                            },
+                            '&:hover .MuiOutlinedInput-notchedOutline': {
+                              borderColor: theme.palette.primary.main,
+                            },
+                            '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                              borderColor: theme.palette.primary.main,
+                              borderWidth: 2,
+                            },
+                            '& .MuiSelect-icon': {
+                              color: theme.palette.primary.main,
+                            },
+                            // Enhanced styling for phantom mode
+                            '& .MuiMenu-paper': {
+                              backgroundColor: alpha(theme.palette.background.paper, 0.95),
+                              backdropFilter: 'blur(10px)',
+                              border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
+                              boxShadow: `0 8px 32px ${alpha(theme.palette.common.black, 0.1)}`,
+                            },
+                            '& .MuiMenuItem-root': {
+                              color: 'text.primary',
+                              fontWeight: 500,
+                              '&:hover': {
+                                backgroundColor: alpha(theme.palette.primary.main, 0.1),
+                              },
+                              '&.Mui-selected': {
+                                backgroundColor: alpha(theme.palette.primary.main, 0.2),
+                                color: theme.palette.primary.main,
+                                fontWeight: 600,
+                                '&:hover': {
+                                  backgroundColor: alpha(theme.palette.primary.main, 0.25),
+                                },
+                              },
+                            },
+                          }}
+                          MenuProps={{
+                            PaperProps: {
+                              sx: {
+                                backgroundColor: alpha(theme.palette.background.paper, 0.95),
+                                backdropFilter: 'blur(10px)',
+                                border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
+                                boxShadow: `0 8px 32px ${alpha(theme.palette.common.black, 0.1)}`,
+                                '& .MuiMenuItem-root': {
+                                  color: 'text.primary',
+                                  fontWeight: 500,
+                                  '&:hover': {
+                                    backgroundColor: alpha(theme.palette.primary.main, 0.1),
+                                  },
+                                  '&.Mui-selected': {
+                                    backgroundColor: alpha(theme.palette.primary.main, 0.2),
+                                    color: theme.palette.primary.main,
+                                    fontWeight: 600,
+                                    '&:hover': {
+                                      backgroundColor: alpha(theme.palette.primary.main, 0.25),
+                                    },
+                                  },
+                                },
+                              },
+                            },
+                          }}
                           >
                             <MenuItem value="">All Departments</MenuItem>
                             {departmentLoading ? (
