@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useSelector } from 'react-redux';
+import type { RootState } from '../../store';
 import {
   Box,
   Paper,
@@ -81,6 +83,9 @@ interface UserSummary {
 }
 
 export default function UsageReportsPage() {
+  // Authentication check
+  const { user } = useSelector((state: RootState) => state.auth);
+  
   const [tabValue, setTabValue] = useState(0);
   const [usageRecords, setUsageRecords] = useState<UsageRecord[]>([]);
   const [itemSummary, setItemSummary] = useState<UsageSummary[]>([]);
@@ -95,12 +100,37 @@ export default function UsageReportsPage() {
   const [isFiltered, setIsFiltered] = useState(false);
   const [filtersExpanded, setFiltersExpanded] = useState(false);
   const [quickFilterMode, setQuickFilterMode] = useState('');
+  
+  // Department states for OWNER users
+  const [availableDepartments, setAvailableDepartments] = useState<string[]>([]);
+  const [departmentLoading, setDepartmentLoading] = useState(false);
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api';
 
   useEffect(() => {
     fetchAllData();
-  }, []);
+    
+    // Initialize department data for OWNER users
+    if (user?.role === 'OWNER') {
+      fetchAvailableDepartments();
+    }
+  }, [user]);
+  
+  // Fetch available departments for OWNER users
+  const fetchAvailableDepartments = async () => {
+    if (user?.role !== 'OWNER') return;
+    
+    try {
+      setDepartmentLoading(true);
+      const response = await api.get('/stats/departments');
+      const departments = (response as any)?.data || response || [];
+      setAvailableDepartments(departments);
+    } catch (err: any) {
+      console.error('Error fetching departments:', err);
+    } finally {
+      setDepartmentLoading(false);
+    }
+  };
 
   const fetchAllData = async () => {
     setLoading(true);
@@ -169,6 +199,11 @@ export default function UsageReportsPage() {
     setQuickFilterMode('');
     fetchUsageRecords();
   };
+  
+  // Handle department change for OWNER users
+  const handleDepartmentChange = (department: string) => {
+    setSelectedDepartment(department);
+  };
 
   const applyAdvancedFilter = async () => {
     try {
@@ -178,7 +213,21 @@ export default function UsageReportsPage() {
       if (startDate) params.append('startDate', startDate);
       if (endDate) params.append('endDate', endDate);
       if (selectedUser.trim()) params.append('userName', selectedUser.trim());
-      if (selectedDepartment.trim()) params.append('department', selectedDepartment.trim());
+      
+      // Determine which department to use based on user role
+      let targetDepartment = selectedDepartment;
+      if (user?.role === 'OWNER') {
+        // OWNER can select any department or view all
+        targetDepartment = selectedDepartment;
+      } else {
+        // ADMIN/USER automatically use their own department
+        targetDepartment = user?.department;
+      }
+      
+      if (targetDepartment && targetDepartment.trim()) {
+        params.append('department', targetDepartment.trim());
+      }
+      
       if (selectedBarcodeOrItem.trim()) params.append('barcodeOrItemCode', selectedBarcodeOrItem.trim());
 
       const response = await api.get(`/usage/filtered?${params.toString()}`);
@@ -257,7 +306,7 @@ export default function UsageReportsPage() {
     if (startDate) count++;
     if (endDate) count++;
     if (selectedUser.trim()) count++;
-    if (selectedDepartment.trim()) count++;
+    if (user?.role === 'OWNER' && selectedDepartment.trim()) count++;
     if (selectedBarcodeOrItem.trim()) count++;
     return count;
   };
@@ -648,26 +697,54 @@ export default function UsageReportsPage() {
                   />
                 </Grid>
                 <Grid item xs={12} sm={6} md={4}>
-                  <TextField
-                    fullWidth
-                    label="Department"
-                    value={selectedDepartment}
-                    onChange={(e) => setSelectedDepartment(e.target.value)}
-                    size="small"
-                    placeholder="e.g., D001, D123..."
-                    InputProps={{
-                      startAdornment: (
-                        <InputAdornment position="start">
-                          <DepartmentIcon fontSize="small" color="action" />
-                        </InputAdornment>
-                      ),
-                    }}
-                    sx={{ 
-                      '& .MuiOutlinedInput-root': {
-                        backgroundColor: selectedDepartment ? 'action.selected' : 'transparent'
-                      }
-                    }}
-                  />
+                  {user?.role === 'OWNER' ? (
+                    <FormControl fullWidth size="small">
+                      <InputLabel id="department-select-label">Department</InputLabel>
+                      <Select
+                        labelId="department-select-label"
+                        value={selectedDepartment || ''}
+                        label="Department"
+                        onChange={(e) => handleDepartmentChange(e.target.value as string)}
+                        disabled={departmentLoading}
+                        sx={{ 
+                          '& .MuiOutlinedInput-root': {
+                            backgroundColor: selectedDepartment ? 'action.selected' : 'transparent'
+                          }
+                        }}
+                      >
+                        <MenuItem value="">All Departments</MenuItem>
+                        {departmentLoading ? (
+                          <MenuItem value="" disabled>Loading departments...</MenuItem>
+                        ) : availableDepartments.length === 0 ? (
+                          <MenuItem value="" disabled>No departments found</MenuItem>
+                        ) : (
+                          availableDepartments.map((dep) => (
+                            <MenuItem key={dep} value={dep}>{dep}</MenuItem>
+                          ))
+                        )}
+                      </Select>
+                    </FormControl>
+                  ) : (
+                    <TextField
+                      fullWidth
+                      label="Department"
+                      value={user?.department || ''}
+                      size="small"
+                      disabled
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <DepartmentIcon fontSize="small" color="action" />
+                          </InputAdornment>
+                        ),
+                      }}
+                      sx={{ 
+                        '& .MuiOutlinedInput-root': {
+                          backgroundColor: 'action.disabledBackground'
+                        }
+                      }}
+                    />
+                  )}
                 </Grid>
                 <Grid item xs={12} sm={12} md={4}>
                   <TextField
@@ -693,6 +770,24 @@ export default function UsageReportsPage() {
                 </Grid>
               </Grid>
             </Box>
+
+            {/* Department Information for ADMIN/USER */}
+            {user?.role !== 'OWNER' && user?.department && (
+              <Box sx={{ mb: 3 }}>
+                <Typography variant="subtitle2" color="text.secondary" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <DepartmentIcon fontSize="small" />
+                  Department Data
+                </Typography>
+                <Alert severity="info" sx={{ display: 'flex', alignItems: 'center' }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <DepartmentIcon fontSize="small" />
+                    <Typography variant="body2">
+                      Showing data for: <strong>{user.department}</strong>
+                    </Typography>
+                  </Box>
+                </Alert>
+              </Box>
+            )}
 
             {/* Action Buttons */}
             <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center', pt: 2, borderTop: 1, borderColor: 'divider' }}>

@@ -81,13 +81,14 @@ public class UsageService {
         System.out.println("==================");
 
         // Create usage record with proper null handling
+        // Note: We store the user's department for audit purposes, but filter by item's department
         Usage usage = new Usage(
             savedItem,  // Use saved item to ensure we have the latest state
             request.getUserName().trim(),
             request.getQuantityUsed(),
             request.getNotes() != null ? request.getNotes().trim() : null,
             request.getBarcode().trim(),
-            request.getDepartment().trim(),
+            request.getDepartment().trim(), // Store user's department for audit trail
             request.getDNumber() != null ? request.getDNumber().trim() : null
         );
 

@@ -42,8 +42,9 @@ public interface UsageRepository extends JpaRepository<Usage, Long> {
            "ORDER BY SUM(u.quantityUsed) DESC")
     List<Object[]> getUsageSummaryByUser();
 
-    // Find usage records by department
-    List<Usage> findByDepartmentOrderByUsedAtDesc(String department);
+    // Find usage records by department (filtering by item's department, not user's department)
+    @Query("SELECT u FROM Usage u WHERE (:department IS NULL OR :department = '' OR u.item.department = :department) ORDER BY u.usedAt DESC")
+    List<Usage> findByDepartmentOrderByUsedAtDesc(@Param("department") String department);
 
     // Find usage records by barcode or item code
     @Query("SELECT u FROM Usage u WHERE u.barcode = :searchTerm OR UPPER(u.item.code) = :searchTerm ORDER BY u.usedAt DESC")
@@ -54,7 +55,7 @@ public interface UsageRepository extends JpaRepository<Usage, Long> {
            "(:startDate IS NULL OR u.usedAt >= :startDate) AND " +
            "(:endDate IS NULL OR u.usedAt <= :endDate) AND " +
            "(:userName IS NULL OR :userName = '' OR LOWER(u.userName) LIKE LOWER(CONCAT('%', :userName, '%'))) AND " +
-           "(:department IS NULL OR :department = '' OR LOWER(u.department) LIKE LOWER(CONCAT('%', :department, '%'))) AND " +
+           "(:department IS NULL OR :department = '' OR u.item.department = :department) AND " +
            "(:barcodeOrItemCode IS NULL OR :barcodeOrItemCode = '' OR " +
            " u.barcode = :barcodeOrItemCode OR UPPER(u.item.code) = UPPER(:barcodeOrItemCode) OR " +
            " LOWER(u.item.name) LIKE LOWER(CONCAT('%', :barcodeOrItemCode, '%'))) " +
@@ -103,11 +104,11 @@ public interface UsageRepository extends JpaRepository<Usage, Long> {
                                            @Param("startDate") LocalDateTime startDate,
                                            @Param("endDate") LocalDateTime endDate);
     
-    // Get usage by department for analytics
-    @Query("SELECT u.department, SUM(u.quantityUsed) as totalUsage " +
+    // Get usage by department for analytics (grouped by item's department)
+    @Query("SELECT u.item.department, SUM(u.quantityUsed) as totalUsage " +
            "FROM Usage u " +
-           "WHERE u.department IS NOT NULL " +
-           "GROUP BY u.department " +
+           "WHERE u.item.department IS NOT NULL " +
+           "GROUP BY u.item.department " +
            "ORDER BY totalUsage DESC")
     List<Object[]> getUsageByDepartment();
     
@@ -121,11 +122,12 @@ public interface UsageRepository extends JpaRepository<Usage, Long> {
     // Department-specific queries for filtering
     
     // Get daily usage aggregated by date filtered by department
-    @Query(value = "SELECT DATE(used_at) as usage_date, SUM(quantity_used) as total_usage " +
-                   "FROM item_usage " +
-                   "WHERE used_at >= :startDate AND " +
-                   "(:department IS NULL OR :department = '' OR department = :department) " +
-                   "GROUP BY DATE(used_at) " +
+    @Query(value = "SELECT DATE(u.used_at) as usage_date, SUM(u.quantity_used) as total_usage " +
+                   "FROM item_usage u " +
+                   "JOIN items i ON u.item_id = i.id " +
+                   "WHERE u.used_at >= :startDate AND " +
+                   "(:department IS NULL OR :department = '' OR i.department = :department) " +
+                   "GROUP BY DATE(u.used_at) " +
                    "ORDER BY usage_date", 
            nativeQuery = true)
     List<Object[]> getDailyUsageByDepartment(@Param("startDate") LocalDateTime startDate,
@@ -134,7 +136,7 @@ public interface UsageRepository extends JpaRepository<Usage, Long> {
     // Get top N most used items by total quantity used filtered by department
     @Query("SELECT u.item.id, u.item.name, u.item.code, SUM(u.quantityUsed) as totalUsage " +
            "FROM Usage u " +
-           "WHERE (:department IS NULL OR :department = '' OR u.department = :department) " +
+           "WHERE (:department IS NULL OR :department = '' OR u.item.department = :department) " +
            "GROUP BY u.item.id, u.item.name, u.item.code " +
            "ORDER BY totalUsage DESC")
     List<Object[]> getTopUsageItemsByDepartment(Pageable pageable, @Param("department") String department);
