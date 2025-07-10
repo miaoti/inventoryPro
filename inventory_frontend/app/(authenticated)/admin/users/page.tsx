@@ -33,6 +33,16 @@ import {
   Card,
   CardContent,
   Fab,
+  useTheme,
+  alpha,
+  Fade,
+  Zoom,
+  Slide,
+  LinearProgress,
+  CardHeader,
+  Avatar,
+  Tooltip,
+  Divider,
 } from '@mui/material';
 import {
   Edit as EditIcon,
@@ -42,10 +52,15 @@ import {
   SupervisorAccount as OwnerIcon,
   Add as AddIcon,
   AccountBox as UsernameIcon,
+  People as PeopleIcon,
+  ManageAccounts as ManageIcon,
+  Security as SecurityIcon,
+  Business as DepartmentIcon,
 } from '@mui/icons-material';
 
 export default function UserManagementPage() {
   const { user } = useSelector((state: RootState) => state.auth);
+  const theme = useTheme();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -78,14 +93,25 @@ export default function UserManagementPage() {
   if (user?.role !== 'OWNER') {
     return (
       <Box sx={{ 
-        p: { xs: 1, sm: 2, md: 3 }, 
-        width: '100%',
-        maxWidth: '100vw',
-        overflow: 'hidden'
+        p: { xs: 2, sm: 3, md: 4 },
+        minHeight: '100vh',
+        background: theme => `linear-gradient(135deg, ${alpha(theme.palette.error.light, 0.1)} 0%, ${alpha(theme.palette.error.main, 0.05)} 100%)`,
       }}>
-        <Alert severity="error">
-          Access denied. Only owners can manage users.
-        </Alert>
+        <Fade in timeout={800}>
+          <Alert 
+            severity="error" 
+            sx={{
+              borderRadius: 3,
+              boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+              '& .MuiAlert-message': {
+                fontSize: '1.1rem',
+                fontWeight: 500,
+              }
+            }}
+          >
+            Access denied. Only owners can manage users.
+          </Alert>
+        </Fade>
       </Box>
     );
   }
@@ -289,9 +315,9 @@ export default function UserManagementPage() {
     if (!Array.isArray(users)) {
       console.error('Users is not an array in getUserStats:', users);
       return [
-        { label: 'Owners', count: 0, color: 'error' },
-        { label: 'Admins', count: 0, color: 'warning' },
-        { label: 'Users', count: 0, color: 'primary' },
+        { label: 'Owners', count: 0, color: 'error', icon: <OwnerIcon /> },
+        { label: 'Admins', count: 0, color: 'warning', icon: <AdminIcon /> },
+        { label: 'Users', count: 0, color: 'primary', icon: <PersonIcon /> },
       ];
     }
 
@@ -301,217 +327,456 @@ export default function UserManagementPage() {
     }, {} as Record<string, number>);
 
     return [
-      { label: 'Owners', count: stats.OWNER || 0, color: 'error' },
-      { label: 'Admins', count: stats.ADMIN || 0, color: 'warning' },
-      { label: 'Users', count: stats.USER || 0, color: 'primary' },
+      { label: 'Owners', count: stats.OWNER || 0, color: 'error', icon: <OwnerIcon /> },
+      { label: 'Admins', count: stats.ADMIN || 0, color: 'warning', icon: <AdminIcon /> },
+      { label: 'Users', count: stats.USER || 0, color: 'primary', icon: <PersonIcon /> },
     ];
   };
 
   if (loading) {
     return (
       <Box sx={{ 
-        p: { xs: 1, sm: 2, md: 3 }, 
-        width: '100%',
-        maxWidth: '100vw',
-        overflow: 'hidden'
+        p: { xs: 2, sm: 3, md: 4 },
+        minHeight: '100vh',
+        background: theme => `linear-gradient(135deg, ${alpha(theme.palette.primary.light, 0.1)} 0%, ${alpha(theme.palette.secondary.light, 0.05)} 100%)`,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
       }}>
-        <Typography>Loading users...</Typography>
+        <Card sx={{ p: 4, borderRadius: 3, boxShadow: '0 8px 32px rgba(0,0,0,0.12)' }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+            <LinearProgress sx={{ width: 200, height: 6, borderRadius: 3 }} />
+            <Typography variant="h6" color="text.secondary">
+              Loading users...
+            </Typography>
+          </Box>
+        </Card>
       </Box>
     );
   }
 
   return (
     <Box sx={{ 
-      p: { xs: 1, sm: 2, md: 3 }, 
-      width: '100%',
-      maxWidth: '100vw',
-      overflow: 'hidden'
+      p: { xs: 2, sm: 3, md: 4 },
+      minHeight: '100vh',
+      background: theme => `linear-gradient(135deg, ${alpha(theme.palette.primary.light, 0.1)} 0%, ${alpha(theme.palette.secondary.light, 0.05)} 100%)`,
     }}>
-      <Box sx={{ 
-        display: 'flex', 
-        flexDirection: { xs: 'column', sm: 'row' },
-        justifyContent: 'space-between', 
-        alignItems: { xs: 'stretch', sm: 'center' }, 
-        mb: 3,
-        gap: 2
-      }}>
-        <Typography 
-          variant="h4"
+      {/* Enhanced Header Section */}
+      <Fade in timeout={800}>
+        <Paper 
+          elevation={0}
           sx={{ 
-            fontSize: { xs: '1.5rem', md: '2.125rem' }
-          }}
-        >
-        User Management
-      </Typography>
-        <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
-          <Button
-            variant="outlined"
-            onClick={() => setDepartmentDialogOpen(true)}
-            sx={{
-              borderColor: '#667eea',
-              color: '#667eea',
-              '&:hover': {
-                borderColor: '#5a6fd8',
-                backgroundColor: 'rgba(102, 126, 234, 0.1)',
-              }
-            }}
-          >
-            Department Control
-          </Button>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={() => setCreateDialogOpen(true)}
-          sx={{
-            background: 'linear-gradient(45deg, #667eea, #764ba2)',
-            '&:hover': {
-              background: 'linear-gradient(45deg, #5a6fd8, #6a4190)',
+            background: theme => `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
+            color: 'white',
+            p: { xs: 3, md: 4 },
+            mb: 4,
+            borderRadius: 3,
+            position: 'relative',
+            overflow: 'hidden',
+            '&::before': {
+              content: '""',
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: 'url("data:image/svg+xml,<svg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 100 100\'><defs><pattern id=\'grain\' width=\'100\' height=\'100\' patternUnits=\'userSpaceOnUse\'><circle cx=\'50\' cy=\'50\' r=\'1\' fill=\'%23ffffff\' opacity=\'0.1\'/></pattern></defs><rect width=\'100\' height=\'100\' fill=\'url(%23grain)\'/></svg>")',
+              pointerEvents: 'none',
             }
           }}
         >
-          Create User
-        </Button>
-        </Box>
-      </Box>
-
-      {/* User Statistics */}
-      <Grid container spacing={3} sx={{ mb: 3 }}>
-        {getUserStats().map((stat) => (
-          <Grid item xs={12} sm={4} key={stat.label}>
-            <Card>
-              <CardContent>
-                <Typography variant="h6" color={`${stat.color}.main`}>
-                  {stat.count}
+          <Box sx={{ 
+            display: 'flex', 
+            flexDirection: { xs: 'column', sm: 'row' },
+            justifyContent: 'space-between', 
+            alignItems: { xs: 'flex-start', sm: 'center' }, 
+            gap: 3,
+            position: 'relative',
+            zIndex: 1,
+          }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Box sx={{ 
+                background: alpha(theme.palette.common.white, 0.15),
+                borderRadius: 2,
+                p: 1.5,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                <ManageIcon sx={{ fontSize: 32 }} />
+              </Box>
+              <Box>
+                <Typography 
+                  variant="h4"
+                  sx={{ 
+                    fontSize: { xs: '1.5rem', md: '2.125rem' },
+                    fontWeight: 600,
+                    mb: 0.5,
+                  }}
+                >
+                  User Management
                 </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  {stat.label}
+                <Typography 
+                  variant="body1" 
+                  sx={{ 
+                    opacity: 0.9,
+                    fontSize: { xs: '0.9rem', md: '1rem' }
+                  }}
+                >
+                  Manage users, roles, and department access control
                 </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-        ))}
-      </Grid>
+              </Box>
+            </Box>
+            <Box sx={{ 
+              display: 'flex', 
+              gap: 2, 
+              flexDirection: { xs: 'column', sm: 'row' },
+              width: { xs: '100%', sm: 'auto' }
+            }}>
+              <Button
+                variant="outlined"
+                onClick={() => setDepartmentDialogOpen(true)}
+                startIcon={<DepartmentIcon />}
+                sx={{
+                  borderColor: alpha(theme.palette.common.white, 0.3),
+                  color: 'white',
+                  borderWidth: 2,
+                  fontWeight: 600,
+                  '&:hover': {
+                    borderColor: 'white',
+                    backgroundColor: alpha(theme.palette.common.white, 0.1),
+                    borderWidth: 2,
+                  }
+                }}
+              >
+                Department Control
+              </Button>
+              <Button
+                variant="contained"
+                startIcon={<AddIcon />}
+                onClick={() => setCreateDialogOpen(true)}
+                sx={{
+                  background: alpha(theme.palette.common.white, 0.15),
+                  color: 'white',
+                  fontWeight: 600,
+                  '&:hover': {
+                    background: alpha(theme.palette.common.white, 0.25),
+                  }
+                }}
+              >
+                Create User
+              </Button>
+            </Box>
+          </Box>
+        </Paper>
+      </Fade>
 
-      {/* Users Table */}
-      <TableContainer component={Paper}>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell>User</TableCell>
-              <TableCell>Username</TableCell>
-              <TableCell>Account Email</TableCell>
-              <TableCell>Alert Email</TableCell>
-              <TableCell>Role</TableCell>
-              <TableCell>Department</TableCell>
-              <TableCell>Alert Thresholds</TableCell>
-              <TableCell>Created</TableCell>
-              <TableCell>Actions</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {Array.isArray(users) ? (
-              users.map((userItem) => (
-                <TableRow key={userItem.id}>
-                <TableCell>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      {getRoleIcon(userItem.role)}
-                      {userItem.name}
-                  </Box>
-                </TableCell>
-                  <TableCell>{userItem.username}</TableCell>
-                  <TableCell>{userItem.email}</TableCell>
-                  <TableCell>{userItem.alertEmail || userItem.email}</TableCell>
-                <TableCell>
-                  <Chip
-                      label={userItem.role}
-                      color={getRoleColor(userItem.role) as any}
-                    size="small"
-                  />
-                </TableCell>
-                <TableCell>
-                  {userItem.department ? (
-                    <Chip
-                      label={userItem.department}
-                      color="info"
-                      size="small"
-                      variant="outlined"
-                    />
-                  ) : userItem.role === 'OWNER' ? (
-                    <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
-                      Owner (No department required)
-                    </Typography>
-                  ) : (
-                    <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
-                      No department assigned
-                    </Typography>
-                  )}
-                </TableCell>
-                <TableCell>
-                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                    <Typography variant="caption" color="text.secondary">
-                      Warning: {userItem.warningThreshold || 100}%
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      Critical: {userItem.criticalThreshold || 50}%
-                    </Typography>
-                  </Box>
-                </TableCell>
-                <TableCell>
-                    {new Date(userItem.createdAt).toLocaleDateString()}
-                </TableCell>
-                <TableCell>
-                  <IconButton
-                      onClick={() => handleEditUser(userItem)}
-                    size="small"
-                    color="primary"
-                      title="Edit User"
-                  >
-                    <EditIcon />
-                  </IconButton>
-                  <IconButton
-                      onClick={() => handleEditUsername(userItem)}
-                      size="small"
-                      color="info"
-                      title="Change Username"
-                    >
-                      <UsernameIcon />
-                    </IconButton>
-                    <IconButton
-                      onClick={() => handleDeleteUser(userItem)}
-                    size="small"
-                    color="error"
-                      disabled={userItem.id === user?.id}
-                      title="Delete User"
-                  >
-                    <DeleteIcon />
-                  </IconButton>
-                </TableCell>
-              </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell colSpan={9} align="center">
-                  <Typography color="text.secondary">
-                    {loading ? 'Loading users...' : 'No users available or error occurred'}
-                  </Typography>
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </TableContainer>
+      {/* Enhanced User Statistics */}
+      <Slide in direction="up" timeout={600} style={{ transitionDelay: '200ms' }}>
+        <Grid container spacing={3} sx={{ mb: 4 }}>
+          {getUserStats().map((stat, index) => (
+            <Grid item xs={12} sm={4} key={stat.label}>
+              <Zoom in timeout={600} style={{ transitionDelay: `${400 + index * 200}ms` }}>
+                <Card sx={{
+                  borderRadius: 3,
+                  background: theme => `linear-gradient(135deg, ${alpha(theme.palette[stat.color].main, 0.08)} 0%, ${alpha(theme.palette[stat.color].light, 0.05)} 100%)`,
+                  border: theme => `1px solid ${alpha(theme.palette[stat.color].main, 0.2)}`,
+                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                  '&:hover': {
+                    transform: 'translateY(-8px)',
+                    boxShadow: theme => `0 12px 40px ${alpha(theme.palette[stat.color].main, 0.15)}`,
+                  }
+                }}>
+                  <CardContent sx={{ p: 3 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                      <Avatar sx={{
+                        background: theme => `linear-gradient(135deg, ${theme.palette[stat.color].main} 0%, ${theme.palette[stat.color].dark} 100%)`,
+                        width: 48,
+                        height: 48,
+                      }}>
+                        {stat.icon}
+                      </Avatar>
+                      <Box sx={{ flex: 1 }}>
+                        <Typography 
+                          variant="h4" 
+                          sx={{ 
+                            color: theme => theme.palette[stat.color].main,
+                            fontWeight: 700,
+                            mb: 0.5,
+                          }}
+                        >
+                          {stat.count}
+                        </Typography>
+                        <Typography 
+                          variant="h6" 
+                          sx={{ 
+                            color: 'text.primary',
+                            fontWeight: 600,
+                          }}
+                        >
+                          {stat.label}
+                        </Typography>
+                      </Box>
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Zoom>
+            </Grid>
+          ))}
+        </Grid>
+      </Slide>
 
-      {/* Create User Dialog */}
-      <Dialog open={createDialogOpen} onClose={() => setCreateDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Create New User</DialogTitle>
-        <DialogContent>
-          <Box sx={{ pt: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
+      {/* Enhanced Users Table */}
+      <Slide in direction="up" timeout={600} style={{ transitionDelay: '600ms' }}>
+        <TableContainer 
+          component={Paper} 
+          sx={{ 
+            borderRadius: 3,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.08)',
+            overflow: 'hidden',
+          }}
+        >
+          <Table>
+            <TableHead>
+              <TableRow 
+                sx={{ 
+                  background: theme => `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
+                }}
+              >
+                <TableCell sx={{ color: 'white', fontWeight: 600, fontSize: '0.95rem' }}>User</TableCell>
+                <TableCell sx={{ color: 'white', fontWeight: 600, fontSize: '0.95rem' }}>Username</TableCell>
+                <TableCell sx={{ color: 'white', fontWeight: 600, fontSize: '0.95rem' }}>Account Email</TableCell>
+                <TableCell sx={{ color: 'white', fontWeight: 600, fontSize: '0.95rem' }}>Alert Email</TableCell>
+                <TableCell sx={{ color: 'white', fontWeight: 600, fontSize: '0.95rem' }}>Role</TableCell>
+                <TableCell sx={{ color: 'white', fontWeight: 600, fontSize: '0.95rem' }}>Department</TableCell>
+                <TableCell sx={{ color: 'white', fontWeight: 600, fontSize: '0.95rem' }}>Alert Thresholds</TableCell>
+                <TableCell sx={{ color: 'white', fontWeight: 600, fontSize: '0.95rem' }}>Created</TableCell>
+                <TableCell sx={{ color: 'white', fontWeight: 600, fontSize: '0.95rem' }}>Actions</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {Array.isArray(users) ? (
+                users.map((userItem, index) => (
+                  <TableRow 
+                    key={userItem.id}
+                    sx={{ 
+                      '&:hover': { 
+                        backgroundColor: alpha(theme.palette.primary.light, 0.05),
+                        transform: 'scale(1.001)',
+                      },
+                      transition: 'all 0.2s ease',
+                      animation: `fadeInUp 0.5s ease ${index * 0.1}s both`,
+                      '@keyframes fadeInUp': {
+                        from: {
+                          opacity: 0,
+                          transform: 'translateY(20px)',
+                        },
+                        to: {
+                          opacity: 1,
+                          transform: 'translateY(0)',
+                        },
+                      },
+                    }}
+                  >
+                    <TableCell>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                        <Avatar sx={{
+                          background: theme => `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
+                          width: 32,
+                          height: 32,
+                        }}>
+                          {getRoleIcon(userItem.role)}
+                        </Avatar>
+                        <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                          {userItem.name}
+                        </Typography>
+                      </Box>
+                    </TableCell>
+                    <TableCell>
+                      <Chip 
+                        label={userItem.username} 
+                        size="small" 
+                        variant="outlined"
+                        color="info"
+                        sx={{ fontWeight: 500 }}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2" color="text.secondary">
+                        {userItem.email}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2" color="text.secondary">
+                        {userItem.alertEmail || userItem.email}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Chip
+                        label={userItem.role}
+                        color={getRoleColor(userItem.role) as any}
+                        size="small"
+                        sx={{ fontWeight: 600 }}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      {userItem.department ? (
+                        <Chip
+                          label={userItem.department}
+                          color="info"
+                          size="small"
+                          variant="outlined"
+                          sx={{ fontWeight: 500 }}
+                        />
+                      ) : userItem.role === 'OWNER' ? (
+                        <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                          Owner (No department required)
+                        </Typography>
+                      ) : (
+                        <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                          No department assigned
+                        </Typography>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                        <Chip
+                          label={`Warning: ${userItem.warningThreshold || 100}%`}
+                          size="small"
+                          color="warning"
+                          variant="outlined"
+                          sx={{ fontSize: '0.7rem', fontWeight: 500 }}
+                        />
+                        <Chip
+                          label={`Critical: ${userItem.criticalThreshold || 50}%`}
+                          size="small"
+                          color="error"
+                          variant="outlined"
+                          sx={{ fontSize: '0.7rem', fontWeight: 500 }}
+                        />
+                      </Box>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2" color="text.secondary">
+                        {new Date(userItem.createdAt).toLocaleDateString()}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Box sx={{ display: 'flex', gap: 0.5 }}>
+                        <Tooltip title="Edit User">
+                          <IconButton
+                            onClick={() => handleEditUser(userItem)}
+                            size="small"
+                            sx={{
+                              color: theme.palette.primary.main,
+                              '&:hover': {
+                                backgroundColor: alpha(theme.palette.primary.main, 0.1),
+                                transform: 'scale(1.1)',
+                              },
+                              transition: 'all 0.2s ease',
+                            }}
+                          >
+                            <EditIcon />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Change Username">
+                          <IconButton
+                            onClick={() => handleEditUsername(userItem)}
+                            size="small"
+                            sx={{
+                              color: theme.palette.info.main,
+                              '&:hover': {
+                                backgroundColor: alpha(theme.palette.info.main, 0.1),
+                                transform: 'scale(1.1)',
+                              },
+                              transition: 'all 0.2s ease',
+                            }}
+                          >
+                            <UsernameIcon />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Delete User">
+                          <IconButton
+                            onClick={() => handleDeleteUser(userItem)}
+                            size="small"
+                            disabled={userItem.id === user?.id}
+                            sx={{
+                              color: theme.palette.error.main,
+                              '&:hover': {
+                                backgroundColor: alpha(theme.palette.error.main, 0.1),
+                                transform: 'scale(1.1)',
+                              },
+                              '&:disabled': {
+                                color: theme.palette.action.disabled,
+                              },
+                              transition: 'all 0.2s ease',
+                            }}
+                          >
+                            <DeleteIcon />
+                          </IconButton>
+                        </Tooltip>
+                      </Box>
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={9} align="center">
+                    <Typography color="text.secondary" sx={{ py: 4 }}>
+                      {loading ? 'Loading users...' : 'No users available or error occurred'}
+                    </Typography>
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </Slide>
+
+      {/* Enhanced Create User Dialog */}
+      <Dialog 
+        open={createDialogOpen} 
+        onClose={() => setCreateDialogOpen(false)} 
+        maxWidth="sm" 
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            boxShadow: '0 20px 60px rgba(0,0,0,0.15)',
+          }
+        }}
+      >
+        <DialogTitle>
+          <Box sx={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: 2,
+            background: theme => `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
+            color: 'white',
+            margin: theme => theme.spacing(-3, -3, 0, -3),
+            padding: theme => theme.spacing(2, 3),
+          }}>
+            <Avatar sx={{
+              background: alpha(theme.palette.common.white, 0.15),
+              width: 32,
+              height: 32,
+            }}>
+              <AddIcon />
+            </Avatar>
+            <Typography variant="h6" sx={{ fontWeight: 600 }}>
+              Create New User
+            </Typography>
+          </Box>
+        </DialogTitle>
+        <DialogContent sx={{ p: 3, pt: 4 }}>
+          <Box sx={{ pt: 1, display: 'flex', flexDirection: 'column', gap: 3 }}>
             <TextField
               label="Username"
               value={createForm.username}
               onChange={(e) => setCreateForm({ ...createForm, username: e.target.value })}
               fullWidth
               required
+              sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
             />
             <TextField
               label="Password"
@@ -520,6 +785,7 @@ export default function UserManagementPage() {
               onChange={(e) => setCreateForm({ ...createForm, password: e.target.value })}
               fullWidth
               required
+              sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
             />
             <TextField
               label="Email"
@@ -528,6 +794,7 @@ export default function UserManagementPage() {
               onChange={(e) => setCreateForm({ ...createForm, email: e.target.value })}
               fullWidth
               required
+              sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
             />
             <TextField
               label="Full Name"
@@ -535,6 +802,7 @@ export default function UserManagementPage() {
               onChange={(e) => setCreateForm({ ...createForm, fullName: e.target.value })}
               fullWidth
               required
+              sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
             />
             <FormControl fullWidth>
               <InputLabel>Role</InputLabel>
@@ -542,6 +810,7 @@ export default function UserManagementPage() {
                 value={createForm.role}
                 onChange={(e) => setCreateForm({ ...createForm, role: e.target.value as 'ADMIN' | 'USER' })}
                 label="Role"
+                sx={{ borderRadius: 2 }}
               >
                 <MenuItem value="ADMIN">Admin</MenuItem>
                 <MenuItem value="USER">User</MenuItem>
@@ -559,6 +828,7 @@ export default function UserManagementPage() {
                   }
                 }}
                 label="Department"
+                sx={{ borderRadius: 2 }}
               >
                 <MenuItem value="">No Department (Public Access)</MenuItem>
                 {departments.map((dept) => (
@@ -581,6 +851,7 @@ export default function UserManagementPage() {
                 fullWidth
                 inputProps={{ min: 0, max: 100 }}
                 helperText="Default: 100%"
+                sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
               />
               <TextField
                 label="Critical Threshold (%)"
@@ -590,34 +861,82 @@ export default function UserManagementPage() {
                 fullWidth
                 inputProps={{ min: 0, max: 100 }}
                 helperText="Default: 50%"
+                sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
               />
             </Box>
           </Box>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setCreateDialogOpen(false)}>Cancel</Button>
-          <Button onClick={handleCreateUser} variant="contained">Create</Button>
+        <DialogActions sx={{ p: 3, pt: 2 }}>
+          <Button 
+            onClick={() => setCreateDialogOpen(false)}
+            sx={{ borderRadius: 2 }}
+          >
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleCreateUser} 
+            variant="contained"
+            sx={{ 
+              borderRadius: 2,
+              background: theme => `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
+            }}
+          >
+            Create
+          </Button>
         </DialogActions>
       </Dialog>
 
       {/* Edit User Dialog */}
-      <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Edit User</DialogTitle>
-        <DialogContent>
-          <Box sx={{ pt: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <Dialog 
+        open={editDialogOpen} 
+        onClose={() => setEditDialogOpen(false)} 
+        maxWidth="sm" 
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            boxShadow: '0 20px 60px rgba(0,0,0,0.15)',
+          }
+        }}
+      >
+        <DialogTitle>
+          <Box sx={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: 2,
+            background: theme => `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
+            color: 'white',
+            margin: theme => theme.spacing(-3, -3, 0, -3),
+            padding: theme => theme.spacing(2, 3),
+          }}>
+            <Avatar sx={{
+              background: alpha(theme.palette.common.white, 0.15),
+              width: 32,
+              height: 32,
+            }}>
+              <EditIcon />
+            </Avatar>
+            <Typography variant="h6" sx={{ fontWeight: 600 }}>
+              Edit User
+            </Typography>
+          </Box>
+        </DialogTitle>
+        <DialogContent sx={{ p: 3, pt: 4 }}>
+          <Box sx={{ pt: 1, display: 'flex', flexDirection: 'column', gap: 3 }}>
             <TextField
               label="Name"
               value={editForm.name || ''}
               onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
               fullWidth
+              sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
             />
             <TextField
-              label="Account Email"
+              label="Email"
               type="email"
               value={editForm.email || ''}
               onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
               fullWidth
-              helperText="Primary email for user account access"
+              sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
             />
             <TextField
               label="Alert Email"
@@ -625,16 +944,17 @@ export default function UserManagementPage() {
               value={editForm.alertEmail || ''}
               onChange={(e) => setEditForm({ ...editForm, alertEmail: e.target.value })}
               fullWidth
-              helperText="Email for notifications (leave empty to use account email)"
+              helperText="Leave empty to use account email"
+              sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
             />
             <FormControl fullWidth>
               <InputLabel>Role</InputLabel>
               <Select
-                value={editForm.role || ''}
-                onChange={(e) => setEditForm({ ...editForm, role: e.target.value as any })}
+                value={editForm.role || 'USER'}
+                onChange={(e) => setEditForm({ ...editForm, role: e.target.value as 'ADMIN' | 'USER' })}
                 label="Role"
+                sx={{ borderRadius: 2 }}
               >
-                <MenuItem value="OWNER">Owner</MenuItem>
                 <MenuItem value="ADMIN">Admin</MenuItem>
                 <MenuItem value="USER">User</MenuItem>
               </Select>
@@ -651,6 +971,7 @@ export default function UserManagementPage() {
                   }
                 }}
                 label="Department"
+                sx={{ borderRadius: 2 }}
               >
                 <MenuItem value="">No Department (Public Access)</MenuItem>
                 {departments.map((dept) => (
@@ -664,14 +985,6 @@ export default function UserManagementPage() {
                 </MenuItem>
               </Select>
             </FormControl>
-            <TextField
-              label="New Password (optional)"
-              type="password"
-              value={editForm.password || ''}
-              onChange={(e) => setEditForm({ ...editForm, password: e.target.value })}
-              fullWidth
-              helperText="Leave empty to keep current password"
-            />
             <Box sx={{ display: 'flex', gap: 2 }}>
               <TextField
                 label="Warning Threshold (%)"
@@ -681,6 +994,7 @@ export default function UserManagementPage() {
                 fullWidth
                 inputProps={{ min: 0, max: 100 }}
                 helperText="Default: 100%"
+                sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
               />
               <TextField
                 label="Critical Threshold (%)"
@@ -690,149 +1004,347 @@ export default function UserManagementPage() {
                 fullWidth
                 inputProps={{ min: 0, max: 100 }}
                 helperText="Default: 50%"
+                sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
               />
             </Box>
           </Box>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setEditDialogOpen(false)}>Cancel</Button>
-          <Button onClick={handleSaveUser} variant="contained">Save</Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* Edit Username Dialog */}
-      <Dialog open={usernameDialogOpen} onClose={() => setUsernameDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Change Username</DialogTitle>
-        <DialogContent>
-          <Box sx={{ pt: 1 }}>
-            <TextField
-              label="New Username"
-              value={usernameForm.username}
-              onChange={(e) => setUsernameForm({ username: e.target.value })}
-              fullWidth
-              required
-              helperText="This will change the user's login username"
-            />
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setUsernameDialogOpen(false)}>Cancel</Button>
-          <Button onClick={handleSaveUsername} variant="contained">Update</Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* Delete Confirmation Dialog */}
-      <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
-        <DialogTitle>Confirm Delete</DialogTitle>
-        <DialogContent>
-          <Typography>
-            Are you sure you want to delete user "{selectedUser?.name}"?
-            This action cannot be undone.
-          </Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
-          <Button onClick={handleConfirmDelete} color="error" variant="contained">
-            Delete
+        <DialogActions sx={{ p: 3, pt: 2 }}>
+          <Button 
+            onClick={() => setEditDialogOpen(false)}
+            sx={{ borderRadius: 2 }}
+          >
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleSaveUser} 
+            variant="contained"
+            sx={{ 
+              borderRadius: 2,
+              background: theme => `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
+            }}
+          >
+            Save Changes
           </Button>
         </DialogActions>
       </Dialog>
 
-      {/* Department Control Dialog */}
-      <Dialog open={departmentDialogOpen} onClose={() => setDepartmentDialogOpen(false)} maxWidth="md" fullWidth>
-        <DialogTitle>Department Control</DialogTitle>
-        <DialogContent>
-          <Box sx={{ pt: 2 }}>
-            <Alert severity="info" sx={{ mb: 3 }}>
-              <Typography variant="body2">
-                <strong>Note:</strong> "Public" means items/users have no specific department assignment. 
-                They can be accessed by anyone with appropriate permissions.
-              </Typography>
-            </Alert>
-            
-            {/* Create New Department Section */}
-            <Typography variant="h6" gutterBottom>Create New Department</Typography>
-            <Box sx={{ display: 'flex', gap: 2, mb: 4 }}>
+      {/* Username Dialog */}
+      <Dialog 
+        open={usernameDialogOpen} 
+        onClose={() => setUsernameDialogOpen(false)} 
+        maxWidth="sm" 
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            boxShadow: '0 20px 60px rgba(0,0,0,0.15)',
+          }
+        }}
+      >
+        <DialogTitle>
+          <Box sx={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: 2,
+            background: theme => `linear-gradient(135deg, ${theme.palette.info.main} 0%, ${theme.palette.info.dark} 100%)`,
+            color: 'white',
+            margin: theme => theme.spacing(-3, -3, 0, -3),
+            padding: theme => theme.spacing(2, 3),
+          }}>
+            <Avatar sx={{
+              background: alpha(theme.palette.common.white, 0.15),
+              width: 32,
+              height: 32,
+            }}>
+              <UsernameIcon />
+            </Avatar>
+            <Typography variant="h6" sx={{ fontWeight: 600 }}>
+              Change Username
+            </Typography>
+          </Box>
+        </DialogTitle>
+        <DialogContent sx={{ p: 3, pt: 4 }}>
+          <TextField
+            label="New Username"
+            value={usernameForm.username}
+            onChange={(e) => setUsernameForm({ username: e.target.value })}
+            fullWidth
+            autoFocus
+            sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+          />
+        </DialogContent>
+        <DialogActions sx={{ p: 3, pt: 2 }}>
+          <Button 
+            onClick={() => setUsernameDialogOpen(false)}
+            sx={{ borderRadius: 2 }}
+          >
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleSaveUsername} 
+            variant="contained"
+            color="info"
+            sx={{ 
+              borderRadius: 2,
+              background: theme => `linear-gradient(135deg, ${theme.palette.info.main} 0%, ${theme.palette.info.dark} 100%)`,
+            }}
+          >
+            Update Username
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog 
+        open={deleteDialogOpen} 
+        onClose={() => setDeleteDialogOpen(false)}
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            boxShadow: '0 20px 60px rgba(0,0,0,0.15)',
+          }
+        }}
+      >
+        <DialogTitle>
+          <Box sx={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: 2,
+            background: theme => `linear-gradient(135deg, ${theme.palette.error.main} 0%, ${theme.palette.error.dark} 100%)`,
+            color: 'white',
+            margin: theme => theme.spacing(-3, -3, 0, -3),
+            padding: theme => theme.spacing(2, 3),
+          }}>
+            <Avatar sx={{
+              background: alpha(theme.palette.common.white, 0.15),
+              width: 32,
+              height: 32,
+            }}>
+              <DeleteIcon />
+            </Avatar>
+            <Typography variant="h6" sx={{ fontWeight: 600 }}>
+              Confirm Delete
+            </Typography>
+          </Box>
+        </DialogTitle>
+        <DialogContent sx={{ p: 3, pt: 4 }}>
+          <Typography>
+            Are you sure you want to delete user <strong>{selectedUser?.name}</strong>? This action cannot be undone.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ p: 3, pt: 2 }}>
+          <Button 
+            onClick={() => setDeleteDialogOpen(false)}
+            sx={{ borderRadius: 2 }}
+          >
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleConfirmDelete} 
+            variant="contained" 
+            color="error"
+            sx={{ 
+              borderRadius: 2,
+              background: theme => `linear-gradient(135deg, ${theme.palette.error.main} 0%, ${theme.palette.error.dark} 100%)`,
+            }}
+          >
+            Delete User
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Department Management Dialog */}
+      <Dialog 
+        open={departmentDialogOpen} 
+        onClose={() => setDepartmentDialogOpen(false)} 
+        maxWidth="md" 
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            boxShadow: '0 20px 60px rgba(0,0,0,0.15)',
+          }
+        }}
+      >
+        <DialogTitle>
+          <Box sx={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: 2,
+            background: theme => `linear-gradient(135deg, ${theme.palette.secondary.main} 0%, ${theme.palette.secondary.dark} 100%)`,
+            color: 'white',
+            margin: theme => theme.spacing(-3, -3, 0, -3),
+            padding: theme => theme.spacing(2, 3),
+          }}>
+            <Avatar sx={{
+              background: alpha(theme.palette.common.white, 0.15),
+              width: 32,
+              height: 32,
+            }}>
+              <DepartmentIcon />
+            </Avatar>
+            <Typography variant="h6" sx={{ fontWeight: 600 }}>
+              Department Management
+            </Typography>
+          </Box>
+        </DialogTitle>
+        <DialogContent sx={{ p: 3, pt: 4 }}>
+          <Box sx={{ mb: 3 }}>
+            <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
+              Create New Department
+            </Typography>
+            <Box sx={{ display: 'flex', gap: 2 }}>
               <TextField
                 label="Department Name"
                 value={newDepartmentName}
                 onChange={(e) => setNewDepartmentName(e.target.value)}
-                placeholder="Enter department name (e.g., Engineering, IT, Operations)"
                 fullWidth
+                sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
               />
               <Button 
+                variant="contained" 
                 onClick={handleCreateDepartment}
-                variant="contained"
-                disabled={!newDepartmentName.trim()}
-                sx={{ minWidth: 'auto', px: 3 }}
+                sx={{ 
+                  borderRadius: 2,
+                  background: theme => `linear-gradient(135deg, ${theme.palette.secondary.main} 0%, ${theme.palette.secondary.dark} 100%)`,
+                  minWidth: 120,
+                }}
               >
                 Create
               </Button>
             </Box>
-
-            {/* Existing Departments Section */}
-            <Typography variant="h6" gutterBottom>Existing Departments</Typography>
-            {departments.length === 0 ? (
-              <Typography color="text.secondary" sx={{ fontStyle: 'italic', py: 2 }}>
-                No departments created yet.
-              </Typography>
-            ) : (
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                {departments.map((dept) => (
-                  <Paper key={dept} sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Typography variant="body1">{dept}</Typography>
-                    <Button
-                      variant="outlined"
-                      color="error"
-                      size="small"
-                      onClick={() => {
-                        setDepartmentToDelete(dept);
-                        setDeleteDepartmentDialogOpen(true);
-                      }}
-                    >
-                      Delete
-                    </Button>
-                  </Paper>
-                ))}
-              </Box>
-            )}
+          </Box>
+          
+          <Divider sx={{ my: 3 }} />
+          
+          <Box>
+            <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
+              Existing Departments
+            </Typography>
+            <Grid container spacing={2}>
+              {departments.map((dept) => (
+                <Grid item xs={12} sm={6} md={4} key={dept}>
+                  <Card sx={{ 
+                    borderRadius: 2,
+                    border: theme => `1px solid ${alpha(theme.palette.secondary.main, 0.2)}`,
+                    '&:hover': {
+                      boxShadow: theme => `0 4px 12px ${alpha(theme.palette.secondary.main, 0.15)}`,
+                    },
+                    transition: 'all 0.2s ease',
+                  }}>
+                    <CardContent sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', p: 2 }}>
+                      <Typography variant="body1" sx={{ fontWeight: 500 }}>
+                        {dept}
+                      </Typography>
+                      <IconButton 
+                        size="small" 
+                        color="error"
+                        onClick={() => {
+                          setDepartmentToDelete(dept);
+                          setDeleteDepartmentDialogOpen(true);
+                        }}
+                        sx={{
+                          '&:hover': {
+                            backgroundColor: alpha(theme.palette.error.main, 0.1),
+                          }
+                        }}
+                      >
+                        <DeleteIcon />
+                      </IconButton>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              ))}
+            </Grid>
           </Box>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDepartmentDialogOpen(false)}>Close</Button>
+        <DialogActions sx={{ p: 3, pt: 2 }}>
+          <Button 
+            onClick={() => setDepartmentDialogOpen(false)}
+            sx={{ borderRadius: 2 }}
+          >
+            Close
+          </Button>
         </DialogActions>
       </Dialog>
 
-      {/* Delete Department Confirmation Dialog */}
-      <Dialog open={deleteDepartmentDialogOpen} onClose={() => setDeleteDepartmentDialogOpen(false)}>
-        <DialogTitle>Confirm Department Deletion</DialogTitle>
-        <DialogContent>
-          <Typography gutterBottom>
-            Are you sure you want to delete the department "{departmentToDelete}"?
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-            <strong>This action will:</strong>
-            <br />• Remove the department assignment from all users
-            <br />• Make all items in this department "Public"
-            <br />• Users without departments will see "No department - Contact owner"
-            <br />• This action cannot be undone
+      {/* Delete Department Dialog */}
+      <Dialog 
+        open={deleteDepartmentDialogOpen} 
+        onClose={() => setDeleteDepartmentDialogOpen(false)}
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            boxShadow: '0 20px 60px rgba(0,0,0,0.15)',
+          }
+        }}
+      >
+        <DialogTitle>
+          <Box sx={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: 2,
+            background: theme => `linear-gradient(135deg, ${theme.palette.error.main} 0%, ${theme.palette.error.dark} 100%)`,
+            color: 'white',
+            margin: theme => theme.spacing(-3, -3, 0, -3),
+            padding: theme => theme.spacing(2, 3),
+          }}>
+            <Avatar sx={{
+              background: alpha(theme.palette.common.white, 0.15),
+              width: 32,
+              height: 32,
+            }}>
+              <DeleteIcon />
+            </Avatar>
+            <Typography variant="h6" sx={{ fontWeight: 600 }}>
+              Delete Department
+            </Typography>
+          </Box>
+        </DialogTitle>
+        <DialogContent sx={{ p: 3, pt: 4 }}>
+          <Typography>
+            Are you sure you want to delete the department <strong>{departmentToDelete}</strong>? 
+            This will affect all users and items assigned to this department.
           </Typography>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDeleteDepartmentDialogOpen(false)}>Cancel</Button>
-          <Button onClick={handleDeleteDepartment} color="error" variant="contained">
+        <DialogActions sx={{ p: 3, pt: 2 }}>
+          <Button 
+            onClick={() => setDeleteDepartmentDialogOpen(false)}
+            sx={{ borderRadius: 2 }}
+          >
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleDeleteDepartment} 
+            variant="contained" 
+            color="error"
+            sx={{ 
+              borderRadius: 2,
+              background: theme => `linear-gradient(135deg, ${theme.palette.error.main} 0%, ${theme.palette.error.dark} 100%)`,
+            }}
+          >
             Delete Department
           </Button>
         </DialogActions>
       </Dialog>
 
-      {/* Snackbar */}
-      <Snackbar
-        open={snackbar.open}
-        autoHideDuration={6000}
+      {/* Snackbar for notifications */}
+      <Snackbar 
+        open={snackbar.open} 
+        autoHideDuration={6000} 
         onClose={() => setSnackbar({ ...snackbar, open: false })}
       >
-        <Alert severity={snackbar.severity} onClose={() => setSnackbar({ ...snackbar, open: false })}>
+        <Alert 
+          onClose={() => setSnackbar({ ...snackbar, open: false })} 
+          severity={snackbar.severity}
+          sx={{ 
+            borderRadius: 2,
+            '& .MuiAlert-message': {
+              fontWeight: 500,
+            }
+          }}
+        >
           {snackbar.message}
         </Alert>
       </Snackbar>

@@ -1582,18 +1582,18 @@ export default function BarcodeScanner() {
           <Card sx={{
           mb: 4,
           borderRadius: 3,
-          background: `linear-gradient(135deg, ${alpha(theme.palette.secondary.main, 0.08)} 0%, ${alpha(theme.palette.secondary.light, 0.05)} 100%)`,
-          border: `1px solid ${alpha(theme.palette.secondary.main, 0.2)}`,
+          background: theme => `linear-gradient(135deg, ${alpha(theme.palette.info.main, 0.08)} 0%, ${alpha(theme.palette.info.light, 0.05)} 100%)`,
+          border: theme => `1px solid ${alpha(theme.palette.info.main, 0.2)}`,
           transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
           '&:hover': {
             transform: 'translateY(-2px)',
-            boxShadow: `0 8px 25px ${alpha(theme.palette.secondary.main, 0.15)}`,
+            boxShadow: theme => `0 8px 25px ${alpha(theme.palette.info.main, 0.15)}`,
           }
         }}>
           <CardHeader
             avatar={
               <Avatar sx={{
-                background: `linear-gradient(135deg, ${theme.palette.secondary.main} 0%, ${theme.palette.secondary.dark} 100%)`,
+                background: theme => `linear-gradient(135deg, ${theme.palette.info.main} 0%, ${theme.palette.info.dark} 100%)`,
                 color: 'white',
               }}>
                 <SearchIcon />
@@ -1622,7 +1622,7 @@ export default function BarcodeScanner() {
                 startAdornment: (
                   <InputAdornment position="start">
                     <SearchIcon sx={{ 
-                      color: searchQuery ? theme.palette.secondary.main : theme.palette.action.disabled,
+                      color: searchQuery ? theme.palette.info.main : theme.palette.action.disabled,
                       fontSize: 20
                     }} />
                   </InputAdornment>
@@ -1634,9 +1634,9 @@ export default function BarcodeScanner() {
                       size="small" 
                       edge="end"
                       sx={{
-                        color: theme.palette.secondary.main,
+                        color: theme.palette.info.main,
                         '&:hover': {
-                          backgroundColor: alpha(theme.palette.secondary.main, 0.1),
+                          backgroundColor: alpha(theme.palette.info.main, 0.1),
                         }
                       }}
                     >
@@ -1649,11 +1649,11 @@ export default function BarcodeScanner() {
                 mb: 2,
                 '& .MuiOutlinedInput-root': {
                   borderRadius: 2,
-                  backgroundColor: searchQuery ? alpha(theme.palette.secondary.light, 0.1) : 'transparent',
-                  borderColor: searchQuery ? alpha(theme.palette.secondary.main, 0.3) : alpha(theme.palette.divider, 0.23),
+                  backgroundColor: searchQuery ? alpha(theme.palette.info.light, 0.1) : 'transparent',
+                  borderColor: searchQuery ? alpha(theme.palette.info.main, 0.3) : alpha(theme.palette.divider, 0.23),
                   transition: 'all 0.3s ease',
                   '&:hover': {
-                    borderColor: searchQuery ? theme.palette.secondary.main : theme.palette.primary.main,
+                    borderColor: searchQuery ? theme.palette.info.main : theme.palette.primary.main,
                   },
                   '&.Mui-focused': {
                     borderColor: theme.palette.primary.main,
@@ -1674,8 +1674,8 @@ export default function BarcodeScanner() {
                 mb: 2,
                 p: 2,
                 borderRadius: 2,
-                background: alpha(theme.palette.secondary.light, 0.1),
-                border: `1px solid ${alpha(theme.palette.secondary.main, 0.2)}`,
+                background: alpha(theme.palette.info.light, 0.1),
+                border: `1px solid ${alpha(theme.palette.info.main, 0.2)}`,
               }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   {searchLoading ? (
@@ -1687,14 +1687,14 @@ export default function BarcodeScanner() {
                     </>
                   ) : (
                     <>
-                      <Typography variant="body2" sx={{ fontWeight: 600, color: theme.palette.secondary.main }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600, color: theme.palette.info.main }}>
                         Found {searchResults.length} result{searchResults.length !== 1 ? 's' : ''}
                       </Typography>
                       {searchResults.length > 0 && (
                         <Chip 
                           label={`${searchResults.length} items`}
                           size="small"
-                          color="secondary"
+                          color="info"
                           sx={{ fontWeight: 500 }}
                         />
                       )}
@@ -1705,9 +1705,9 @@ export default function BarcodeScanner() {
                   onClick={() => setShowSearchResults(!showSearchResults)}
                   disabled={searchResults.length === 0}
                   sx={{
-                    color: theme.palette.secondary.main,
+                    color: theme.palette.info.main,
                     '&:hover': {
-                      backgroundColor: alpha(theme.palette.secondary.main, 0.1),
+                      backgroundColor: alpha(theme.palette.info.main, 0.1),
                     }
                   }}
                 >
@@ -1723,7 +1723,7 @@ export default function BarcodeScanner() {
                   maxHeight: 350, 
                   overflow: 'auto',
                   borderRadius: 2,
-                  border: `1px solid ${alpha(theme.palette.secondary.main, 0.2)}`,
+                  border: `1px solid ${alpha(theme.palette.info.main, 0.2)}`,
                   mb: 2,
                 }}
               >
@@ -1736,7 +1736,7 @@ export default function BarcodeScanner() {
                           py: 1.5,
                           transition: 'all 0.2s ease',
                           '&:hover': {
-                            backgroundColor: alpha(theme.palette.secondary.main, 0.1),
+                            backgroundColor: alpha(theme.palette.info.main, 0.1),
                             transform: 'translateX(4px)',
                           }
                         }}
@@ -1752,7 +1752,7 @@ export default function BarcodeScanner() {
                                   label={item.code} 
                                   size="small" 
                                   variant="outlined"
-                                  color="secondary"
+                                  color="info"
                                   sx={{ fontSize: '0.7rem', fontWeight: 500 }}
                                 />
                               )}

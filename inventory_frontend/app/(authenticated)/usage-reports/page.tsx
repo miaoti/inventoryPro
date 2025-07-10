@@ -689,414 +689,168 @@ export default function UsageReportsPage() {
         </Grid>
       </Grid>
 
-      {/* Enhanced Filter Section */}
+      {/* Compact Filter Section */}
       <Slide in direction="up" timeout={800} style={{ transitionDelay: '400ms' }}>
         <Card sx={{ 
-          mb: 4,
-          borderRadius: 3,
-          background: `linear-gradient(135deg, ${alpha(theme.palette.background.paper, 0.8)} 0%, ${alpha(theme.palette.background.default, 0.4)} 100%)`,
-          backdropFilter: 'blur(20px)',
+          mb: 3,
+          borderRadius: 2,
           border: `1px solid ${alpha(theme.palette.divider, 0.12)}`,
-          boxShadow: `0 8px 32px ${alpha(theme.palette.common.black, 0.08)}`,
+          boxShadow: `0 4px 12px ${alpha(theme.palette.common.black, 0.05)}`,
           overflow: 'visible',
           transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
           '&:hover': {
-            boxShadow: `0 12px 48px ${alpha(theme.palette.common.black, 0.12)}`,
-            transform: 'translateY(-2px)',
+            boxShadow: `0 6px 20px ${alpha(theme.palette.common.black, 0.08)}`,
           }
         }}>
-          <CardContent sx={{ p: { xs: 3, md: 4 } }}>
-            {/* Enhanced Filter Header */}
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                  <Box sx={{
-                    background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
-                    borderRadius: 2,
-                    p: 1.5,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: 'white',
-                    boxShadow: `0 4px 12px ${alpha(theme.palette.primary.main, 0.3)}`,
-                  }}>
-                    <Badge badgeContent={getActiveFiltersCount()} color="error" sx={{
-                      '& .MuiBadge-badge': {
-                        fontSize: '0.75rem',
-                        fontWeight: 600,
-                      }
-                    }}>
-                      <FilterIcon sx={{ fontSize: 24 }} />
-                    </Badge>
-                  </Box>
-                  <Box>
-                    <Typography variant="h5" sx={{ fontWeight: 600, color: theme.palette.text.primary, mb: 0.5 }}>
-                      Filters & Search
-                    </Typography>
-                    <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>
-                      {getActiveFiltersCount() > 0 ? `${getActiveFiltersCount()} active filters` : 'No filters applied'}
-                    </Typography>
-                  </Box>
-                </Box>
-                {isFiltered && (
-                  <Zoom in>
-                    <Chip 
-                      label={`${filteredData.length} results found`} 
-                      color="success" 
-                      variant="filled"
-                      icon={<TaskIcon />}
-                      sx={{
-                        fontWeight: 600,
-                        fontSize: '0.875rem',
-                        px: 1.5,
-                        py: 2,
-                        borderRadius: 2,
-                        boxShadow: `0 2px 8px ${alpha(theme.palette.success.main, 0.3)}`,
-                      }}
-                    />
-                  </Zoom>
-                )}
-              </Box>
-              <Box sx={{ display: 'flex', gap: 1.5 }}>
-                <Tooltip title={filtersExpanded ? "Collapse Filters" : "Expand Filters"} arrow>
-                  <IconButton 
-                    onClick={() => setFiltersExpanded(!filtersExpanded)}
-                    sx={{
-                      bgcolor: alpha(theme.palette.primary.main, 0.1),
-                      border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
-                      color: theme.palette.primary.main,
-                      '&:hover': {
-                        bgcolor: alpha(theme.palette.primary.main, 0.2),
-                        transform: 'scale(1.05)',
-                      },
-                      transition: 'all 0.2s ease-in-out',
-                    }}
-                  >
-                    {filtersExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-                  </IconButton>
-                </Tooltip>
-                {getActiveFiltersCount() > 0 && (
-                  <Tooltip title="Clear All Filters" arrow>
-                    <IconButton 
-                      onClick={resetFilters} 
-                      sx={{
-                        bgcolor: alpha(theme.palette.error.main, 0.1),
-                        border: `1px solid ${alpha(theme.palette.error.main, 0.2)}`,
-                        color: theme.palette.error.main,
-                        '&:hover': {
-                          bgcolor: alpha(theme.palette.error.main, 0.2),
-                          transform: 'scale(1.05)',
-                        },
-                        transition: 'all 0.2s ease-in-out',
-                      }}
-                    >
-                      <ClearIcon />
-                    </IconButton>
-                  </Tooltip>
-                )}
-              </Box>
-            </Box>
-
-            {/* Enhanced Quick Filter Buttons */}
-            <Box sx={{ mb: 4 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
-                <Box sx={{
-                  background: `linear-gradient(135deg, ${alpha(theme.palette.secondary.main, 0.1)} 0%, ${alpha(theme.palette.secondary.light, 0.05)} 100%)`,
-                  borderRadius: 1.5,
-                  p: 1,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}>
-                  <TimelineIcon sx={{ fontSize: 20, color: theme.palette.secondary.main }} />
-                </Box>
+          <CardContent sx={{ p: 2 }}>
+            {/* Compact Filter Header */}
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <Badge badgeContent={getActiveFiltersCount()} color="error" 
+                  sx={{ '& .MuiBadge-badge': { fontSize: '0.7rem', fontWeight: 600 } }}>
+                  <FilterIcon sx={{ fontSize: 20, color: theme.palette.primary.main }} />
+                </Badge>
                 <Typography variant="h6" sx={{ fontWeight: 600, color: theme.palette.text.primary }}>
-                  Quick Filters
+                  Filters & Search
                 </Typography>
+                {isFiltered && (
+                  <Chip 
+                    label={`${filteredData.length} results`} 
+                    color="success" 
+                    size="small"
+                    variant="outlined"
+                  />
+                )}
               </Box>
-              <Stack 
-                direction="row" 
-                spacing={2} 
-                flexWrap="wrap" 
-                useFlexGap
-                sx={{ 
-                  '& .MuiButton-root': {
-                    borderRadius: 2,
-                    px: 3,
-                    py: 1.5,
-                    fontWeight: 500,
-                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                  }
-                }}
-              >
-                <Button
-                  variant={quickFilterMode === 'today' ? 'contained' : 'outlined'}
-                  onClick={() => applyQuickFilter('today')}
-                  startIcon={<CalendarIcon />}
-                  sx={{
-                    ...(quickFilterMode === 'today' ? {
-                      background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
-                      boxShadow: `0 4px 12px ${alpha(theme.palette.primary.main, 0.3)}`,
-                      '&:hover': {
-                        background: `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.primary.main} 100%)`,
-                        transform: 'translateY(-2px)',
-                        boxShadow: `0 6px 16px ${alpha(theme.palette.primary.main, 0.4)}`,
-                      }
-                    } : {
-                      borderColor: alpha(theme.palette.primary.main, 0.3),
-                      color: theme.palette.primary.main,
-                      '&:hover': {
-                        borderColor: theme.palette.primary.main,
-                        bgcolor: alpha(theme.palette.primary.main, 0.05),
-                        transform: 'translateY(-1px)',
-                      }
-                    })
-                  }}
+              <Box sx={{ display: 'flex', gap: 1 }}>
+                <IconButton 
+                  size="small"
+                  onClick={() => setFiltersExpanded(!filtersExpanded)}
+                  sx={{ color: theme.palette.primary.main }}
                 >
-                  Today
-                </Button>
-                <Button
-                  variant={quickFilterMode === 'week' ? 'contained' : 'outlined'}
-                  onClick={() => applyQuickFilter('week')}
-                  startIcon={<DateRangeIcon />}
-                  sx={{
-                    ...(quickFilterMode === 'week' ? {
-                      background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
-                      boxShadow: `0 4px 12px ${alpha(theme.palette.primary.main, 0.3)}`,
-                      '&:hover': {
-                        background: `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.primary.main} 100%)`,
-                        transform: 'translateY(-2px)',
-                        boxShadow: `0 6px 16px ${alpha(theme.palette.primary.main, 0.4)}`,
-                      }
-                    } : {
-                      borderColor: alpha(theme.palette.primary.main, 0.3),
-                      color: theme.palette.primary.main,
-                      '&:hover': {
-                        borderColor: theme.palette.primary.main,
-                        bgcolor: alpha(theme.palette.primary.main, 0.05),
-                        transform: 'translateY(-1px)',
-                      }
-                    })
-                  }}
-                >
-                  Last 7 Days
-                </Button>
-                <Button
-                  variant={quickFilterMode === 'month' ? 'contained' : 'outlined'}
-                  onClick={() => applyQuickFilter('month')}
-                  startIcon={<DateRangeIcon />}
-                  sx={{
-                    ...(quickFilterMode === 'month' ? {
-                      background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
-                      boxShadow: `0 4px 12px ${alpha(theme.palette.primary.main, 0.3)}`,
-                      '&:hover': {
-                        background: `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.primary.main} 100%)`,
-                        transform: 'translateY(-2px)',
-                        boxShadow: `0 6px 16px ${alpha(theme.palette.primary.main, 0.4)}`,
-                      }
-                    } : {
-                      borderColor: alpha(theme.palette.primary.main, 0.3),
-                      color: theme.palette.primary.main,
-                      '&:hover': {
-                        borderColor: theme.palette.primary.main,
-                        bgcolor: alpha(theme.palette.primary.main, 0.05),
-                        transform: 'translateY(-1px)',
-                      }
-                    })
-                  }}
-                >
-                  Last 30 Days
-                </Button>
-                <Button
-                  variant="outlined"
-                  onClick={() => setFiltersExpanded(true)}
-                  startIcon={<SearchIcon />}
-                  sx={{
-                    borderColor: alpha(theme.palette.secondary.main, 0.3),
-                    color: theme.palette.secondary.main,
-                    '&:hover': {
-                      borderColor: theme.palette.secondary.main,
-                      bgcolor: alpha(theme.palette.secondary.main, 0.05),
-                      transform: 'translateY(-1px)',
-                    }
-                  }}
-                >
-                  Custom Search
-                </Button>
-              </Stack>
+                  {filtersExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                </IconButton>
+                {getActiveFiltersCount() > 0 && (
+                  <IconButton 
+                    size="small"
+                    onClick={resetFilters} 
+                    sx={{ color: theme.palette.error.main }}
+                  >
+                    <ClearIcon />
+                  </IconButton>
+                )}
+              </Box>
             </Box>
 
-            {/* Enhanced Advanced Filters (Collapsible) */}
+            {/* Compact Quick Filter Buttons */}
+            <Stack 
+              direction="row" 
+              spacing={1} 
+              flexWrap="wrap" 
+              useFlexGap
+              sx={{ mb: 2 }}
+            >
+              <Button
+                size="small"
+                variant={quickFilterMode === 'today' ? 'contained' : 'outlined'}
+                onClick={() => applyQuickFilter('today')}
+                startIcon={<CalendarIcon />}
+              >
+                Today
+              </Button>
+              <Button
+                size="small"
+                variant={quickFilterMode === 'week' ? 'contained' : 'outlined'}
+                onClick={() => applyQuickFilter('week')}
+                startIcon={<DateRangeIcon />}
+              >
+                Last 7 Days
+              </Button>
+              <Button
+                size="small"
+                variant={quickFilterMode === 'month' ? 'contained' : 'outlined'}
+                onClick={() => applyQuickFilter('month')}
+                startIcon={<DateRangeIcon />}
+              >
+                Last 30 Days
+              </Button>
+              <Button
+                size="small"
+                variant="outlined"
+                onClick={() => setFiltersExpanded(true)}
+                startIcon={<SearchIcon />}
+                color="secondary"
+              >
+                Advanced
+              </Button>
+            </Stack>
+
+            {/* Compact Advanced Filters (Collapsible) */}
             <Collapse in={filtersExpanded} timeout={500}>
               <Box sx={{ 
-                pt: 3,
-                borderTop: `2px solid ${alpha(theme.palette.divider, 0.1)}`,
-                background: `linear-gradient(135deg, ${alpha(theme.palette.grey[50], 0.5)} 0%, ${alpha(theme.palette.grey[100], 0.3)} 100%)`,
-                borderRadius: 2,
-                p: 3,
-                mt: 3,
+                pt: 2,
+                borderTop: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+                mt: 2,
               }}>
-                {/* Date Range Section */}
-                <Box sx={{ mb: 4 }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
-                    <Box sx={{
-                      background: `linear-gradient(135deg, ${alpha(theme.palette.info.main, 0.1)} 0%, ${alpha(theme.palette.info.light, 0.05)} 100%)`,
-                      borderRadius: 1.5,
-                      p: 1,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}>
-                      <CalendarIcon sx={{ fontSize: 20, color: theme.palette.info.main }} />
-                    </Box>
-                    <Typography variant="h6" sx={{ fontWeight: 600, color: theme.palette.text.primary }}>
-                      Date Range
-                    </Typography>
-                  </Box>
-                  <Grid container spacing={3}>
-                    <Grid item xs={12} sm={6} md={4}>
-                      <TextField
-                        fullWidth
-                        label="Start Date"
-                        type="date"
-                        value={startDate}
-                        onChange={(e) => setStartDate(e.target.value)}
-                        InputLabelProps={{ shrink: true }}
-                        sx={{ 
-                          '& .MuiOutlinedInput-root': {
-                            borderRadius: 2,
-                            backgroundColor: startDate ? alpha(theme.palette.success.light, 0.1) : 'transparent',
-                            borderColor: startDate ? alpha(theme.palette.success.main, 0.3) : alpha(theme.palette.divider, 0.23),
-                            transition: 'all 0.3s ease',
-                            '&:hover': {
-                              borderColor: startDate ? theme.palette.success.main : theme.palette.primary.main,
-                            },
-                            '&.Mui-focused': {
-                              borderColor: theme.palette.primary.main,
-                              boxShadow: `0 0 0 2px ${alpha(theme.palette.primary.main, 0.2)}`,
-                            }
-                          }
-                        }}
-                      />
-                    </Grid>
-                    <Grid item xs={12} sm={6} md={4}>
-                      <TextField
-                        fullWidth
-                        label="End Date"
-                        type="date"
-                        value={endDate}
-                        onChange={(e) => setEndDate(e.target.value)}
-                        InputLabelProps={{ shrink: true }}
-                        sx={{ 
-                          '& .MuiOutlinedInput-root': {
-                            borderRadius: 2,
-                            backgroundColor: endDate ? alpha(theme.palette.success.light, 0.1) : 'transparent',
-                            borderColor: endDate ? alpha(theme.palette.success.main, 0.3) : alpha(theme.palette.divider, 0.23),
-                            transition: 'all 0.3s ease',
-                            '&:hover': {
-                              borderColor: endDate ? theme.palette.success.main : theme.palette.primary.main,
-                            },
-                            '&.Mui-focused': {
-                              borderColor: theme.palette.primary.main,
-                              boxShadow: `0 0 0 2px ${alpha(theme.palette.primary.main, 0.2)}`,
-                            }
-                          }
-                        }}
-                      />
-                    </Grid>
+                {/* Compact Date Range and Search */}
+                <Grid container spacing={2} sx={{ mb: 2 }}>
+                  <Grid item xs={12} sm={4}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label="Start Date"
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                      InputLabelProps={{ shrink: true }}
+                    />
                   </Grid>
-                </Box>
-
-                {/* Search Filters Section */}
-                <Box sx={{ mb: 4 }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
-                    <Box sx={{
-                      background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.1)} 0%, ${alpha(theme.palette.primary.light, 0.05)} 100%)`,
-                      borderRadius: 1.5,
-                      p: 1,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}>
-                      <SearchIcon sx={{ fontSize: 20, color: theme.palette.primary.main }} />
-                    </Box>
-                    <Typography variant="h6" sx={{ fontWeight: 600, color: theme.palette.text.primary }}>
-                      Search Criteria
-                    </Typography>
-                  </Box>
-                  <Grid container spacing={3}>
-                    <Grid item xs={12} sm={6} md={4}>
-                      <TextField
-                        fullWidth
-                        label="Username"
-                        value={selectedUser}
-                        onChange={(e) => setSelectedUser(e.target.value)}
-                        placeholder="Search by username..."
-                        InputProps={{
-                          startAdornment: (
+                  <Grid item xs={12} sm={4}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label="End Date"
+                      type="date"
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                      InputLabelProps={{ shrink: true }}
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={4}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label="Username"
+                      value={selectedUser}
+                      onChange={(e) => setSelectedUser(e.target.value)}
+                      placeholder="Search by username..."
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <PersonIcon sx={{ fontSize: 18 }} />
+                          </InputAdornment>
+                        ),
+                      }}
+                    />
+                  </Grid>
+                </Grid>
+                
+                <Grid container spacing={2} sx={{ mb: 2 }}>
+                  <Grid item xs={12} sm={6}>
+                    {user?.role === 'OWNER' ? (
+                      <FormControl fullWidth size="small">
+                        <InputLabel id="department-select-label">Department</InputLabel>
+                        <Select
+                          labelId="department-select-label"
+                          value={selectedDepartment || ''}
+                          label="Department"
+                          onChange={(e) => handleDepartmentChange(e.target.value as string)}
+                          disabled={departmentLoading}
+                          startAdornment={
                             <InputAdornment position="start">
-                              <PersonIcon 
-                                sx={{ 
-                                  color: selectedUser ? theme.palette.primary.main : theme.palette.action.disabled,
-                                  fontSize: 20
-                                }} 
-                              />
+                              <DepartmentIcon sx={{ fontSize: 18, ml: 1 }} />
                             </InputAdornment>
-                          ),
-                        }}
-                        sx={{ 
-                          '& .MuiOutlinedInput-root': {
-                            borderRadius: 2,
-                            backgroundColor: selectedUser ? alpha(theme.palette.primary.light, 0.1) : 'transparent',
-                            borderColor: selectedUser ? alpha(theme.palette.primary.main, 0.3) : alpha(theme.palette.divider, 0.23),
-                            transition: 'all 0.3s ease',
-                            '&:hover': {
-                              borderColor: selectedUser ? theme.palette.primary.main : theme.palette.primary.main,
-                            },
-                            '&.Mui-focused': {
-                              borderColor: theme.palette.primary.main,
-                              boxShadow: `0 0 0 2px ${alpha(theme.palette.primary.main, 0.2)}`,
-                            }
                           }
-                        }}
-                      />
-                    </Grid>
-                    <Grid item xs={12} sm={6} md={4}>
-                      {user?.role === 'OWNER' ? (
-                        <FormControl fullWidth>
-                          <InputLabel id="department-select-label">Department</InputLabel>
-                          <Select
-                            labelId="department-select-label"
-                            value={selectedDepartment || ''}
-                            label="Department"
-                            onChange={(e) => handleDepartmentChange(e.target.value as string)}
-                            disabled={departmentLoading}
-                            startAdornment={
-                              <InputAdornment position="start">
-                                <DepartmentIcon 
-                                  sx={{ 
-                                    color: selectedDepartment ? theme.palette.primary.main : theme.palette.action.disabled,
-                                    fontSize: 20,
-                                    ml: 1
-                                  }} 
-                                />
-                              </InputAdornment>
-                            }
-                            sx={{ 
-                              borderRadius: 2,
-                              '& .MuiOutlinedInput-root': {
-                                backgroundColor: selectedDepartment ? alpha(theme.palette.primary.light, 0.1) : 'transparent',
-                                borderColor: selectedDepartment ? alpha(theme.palette.primary.main, 0.3) : alpha(theme.palette.divider, 0.23),
-                                transition: 'all 0.3s ease',
-                                '&:hover': {
-                                  borderColor: selectedDepartment ? theme.palette.primary.main : theme.palette.primary.main,
-                                },
-                                '&.Mui-focused': {
-                                  borderColor: theme.palette.primary.main,
-                                  boxShadow: `0 0 0 2px ${alpha(theme.palette.primary.main, 0.2)}`,
-                                }
-                              }
-                            }}
                           >
                             <MenuItem value="">All Departments</MenuItem>
                             {departmentLoading ? (
@@ -1113,28 +867,24 @@ export default function UsageReportsPage() {
                       ) : (
                         <TextField
                           fullWidth
+                          size="small"
                           label="Department"
                           value={user?.department || ''}
                           disabled
                           InputProps={{
                             startAdornment: (
                               <InputAdornment position="start">
-                                <DepartmentIcon sx={{ color: theme.palette.action.disabled, fontSize: 20 }} />
+                                <DepartmentIcon sx={{ fontSize: 18 }} />
                               </InputAdornment>
                             ),
-                          }}
-                          sx={{ 
-                            '& .MuiOutlinedInput-root': {
-                              borderRadius: 2,
-                              backgroundColor: alpha(theme.palette.action.disabledBackground, 0.5),
-                            }
                           }}
                         />
                       )}
                     </Grid>
-                    <Grid item xs={12} sm={12} md={4}>
+                    <Grid item xs={12} sm={6}>
                       <TextField
                         fullWidth
+                        size="small"
                         label="Item Search"
                         value={selectedBarcodeOrItem}
                         onChange={(e) => setSelectedBarcodeOrItem(e.target.value)}
@@ -1142,183 +892,66 @@ export default function UsageReportsPage() {
                         InputProps={{
                           startAdornment: (
                             <InputAdornment position="start">
-                              <BarcodeIcon 
-                                sx={{ 
-                                  color: selectedBarcodeOrItem ? theme.palette.primary.main : theme.palette.action.disabled,
-                                  fontSize: 20
-                                }} 
-                              />
+                              <BarcodeIcon sx={{ fontSize: 18 }} />
                             </InputAdornment>
                           ),
-                        }}
-                        sx={{ 
-                          '& .MuiOutlinedInput-root': {
-                            borderRadius: 2,
-                            backgroundColor: selectedBarcodeOrItem ? alpha(theme.palette.primary.light, 0.1) : 'transparent',
-                            borderColor: selectedBarcodeOrItem ? alpha(theme.palette.primary.main, 0.3) : alpha(theme.palette.divider, 0.23),
-                            transition: 'all 0.3s ease',
-                            '&:hover': {
-                              borderColor: selectedBarcodeOrItem ? theme.palette.primary.main : theme.palette.primary.main,
-                            },
-                            '&.Mui-focused': {
-                              borderColor: theme.palette.primary.main,
-                              boxShadow: `0 0 0 2px ${alpha(theme.palette.primary.main, 0.2)}`,
-                            }
-                          }
                         }}
                       />
                     </Grid>
                   </Grid>
-                </Box>
 
-                {/* Department Information for ADMIN/USER */}
-                {user?.role !== 'OWNER' && user?.department && (
-                  <Box sx={{ mb: 4 }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
-                      <Box sx={{
-                        background: `linear-gradient(135deg, ${alpha(theme.palette.info.main, 0.1)} 0%, ${alpha(theme.palette.info.light, 0.05)} 100%)`,
-                        borderRadius: 1.5,
-                        p: 1,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                      }}>
-                        <DepartmentIcon sx={{ fontSize: 20, color: theme.palette.info.main }} />
-                      </Box>
-                      <Typography variant="h6" sx={{ fontWeight: 600, color: theme.palette.text.primary }}>
-                        Department Data
-                      </Typography>
-                    </Box>
-                    <Alert 
-                      severity="info" 
-                      icon={<DepartmentIcon />}
-                      sx={{ 
-                        borderRadius: 2,
-                        border: `1px solid ${alpha(theme.palette.info.main, 0.2)}`,
-                        '& .MuiAlert-message': {
-                          display: 'flex',
-                          alignItems: 'center',
-                          fontWeight: 500,
-                        }
-                      }}
-                    >
-                      Showing data for: <strong style={{ marginLeft: '4px' }}>{user.department}</strong>
+                  {/* Department Information for ADMIN/USER */}
+                  {user?.role !== 'OWNER' && user?.department && (
+                    <Alert severity="info" sx={{ mt: 2, mb: 2 }}>
+                      Showing data for: <strong>{user.department}</strong>
                     </Alert>
-                  </Box>
-                )}
+                  )}
 
-                {/* Enhanced Action Buttons */}
-                <Box sx={{ 
-                  display: 'flex', 
-                  gap: 2, 
-                  flexWrap: 'wrap', 
-                  alignItems: 'center', 
-                  pt: 4,
-                  borderTop: `2px solid ${alpha(theme.palette.divider, 0.1)}`,
-                  background: `linear-gradient(135deg, ${alpha(theme.palette.grey[50], 0.3)} 0%, transparent 100%)`,
-                  borderRadius: 2,
-                  p: 3,
-                  mt: 3,
-                }}>
-                  <Button 
-                    variant="contained" 
-                    size="large"
-                    onClick={applyAdvancedFilter}
-                    disabled={loading}
-                    startIcon={loading ? <LinearProgress sx={{ width: 20, height: 4 }} /> : <SearchIcon />}
-                    sx={{
-                      minWidth: 160,
-                      py: 1.5,
-                      px: 4,
-                      borderRadius: 2,
-                      fontWeight: 600,
-                      fontSize: '1rem',
-                      background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
-                      boxShadow: `0 4px 12px ${alpha(theme.palette.primary.main, 0.3)}`,
-                      '&:hover': {
-                        background: `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.primary.main} 100%)`,
-                        transform: 'translateY(-2px)',
-                        boxShadow: `0 6px 20px ${alpha(theme.palette.primary.main, 0.4)}`,
-                      },
-                      '&:disabled': {
-                        background: theme.palette.action.disabledBackground,
-                        color: theme.palette.action.disabled,
-                      },
-                      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                    }}
-                  >
-                    {loading ? 'Applying...' : 'Apply Filters'}
-                  </Button>
-                  
-                  <Button 
-                    variant="outlined" 
-                    size="large"
-                    startIcon={<ExportIcon />}
-                    onClick={exportFilteredData}
-                    disabled={loading || (!isFiltered && displayData.length === 0)}
-                    sx={{
-                      py: 1.5,
-                      px: 3,
-                      borderRadius: 2,
-                      fontWeight: 500,
-                      borderColor: alpha(theme.palette.secondary.main, 0.5),
-                      color: theme.palette.secondary.main,
-                      '&:hover': {
-                        borderColor: theme.palette.secondary.main,
-                        bgcolor: alpha(theme.palette.secondary.main, 0.05),
-                        transform: 'translateY(-1px)',
-                      },
-                      transition: 'all 0.3s ease',
-                    }}
-                  >
-                    Export {isFiltered ? 'Filtered' : 'All'} Data
-                  </Button>
-
-                  {getActiveFiltersCount() > 0 && (
+                  {/* Compact Action Buttons */}
+                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', pt: 2 }}>
                     <Button 
-                      variant="text" 
-                      size="large"
-                      startIcon={<ClearIcon />}
-                      onClick={resetFilters}
+                      variant="contained" 
+                      size="small"
+                      onClick={applyAdvancedFilter}
                       disabled={loading}
-                      sx={{
-                        py: 1.5,
-                        px: 3,
-                        borderRadius: 2,
-                        color: theme.palette.error.main,
-                        fontWeight: 500,
-                        '&:hover': {
-                          bgcolor: alpha(theme.palette.error.main, 0.05),
-                          transform: 'translateY(-1px)',
-                        },
-                        transition: 'all 0.3s ease',
-                      }}
+                      startIcon={<SearchIcon />}
                     >
-                      Clear Filters ({getActiveFiltersCount()})
+                      {loading ? 'Applying...' : 'Apply Filters'}
                     </Button>
-                  )}
-                  
-                  <Box sx={{ flexGrow: 1 }} />
-                  
-                  {isFiltered && (
-                    <Zoom in>
+                    
+                    <Button 
+                      variant="outlined" 
+                      size="small"
+                      startIcon={<ExportIcon />}
+                      onClick={exportFilteredData}
+                      disabled={loading || (!isFiltered && displayData.length === 0)}
+                      color="secondary"
+                    >
+                      Export Data
+                    </Button>
+
+                    {getActiveFiltersCount() > 0 && (
+                      <Button 
+                        variant="text" 
+                        size="small"
+                        startIcon={<ClearIcon />}
+                        onClick={resetFilters}
+                        disabled={loading}
+                        color="error"
+                      >
+                        Clear ({getActiveFiltersCount()})
+                      </Button>
+                    )}
+                    
+                    {isFiltered && (
                       <Chip 
-                        label={`Showing ${filteredData.length} of ${usageRecords.length} records`}
+                        label={`${filteredData.length} of ${usageRecords.length} records`}
                         color="info"
+                        size="small"
                         variant="outlined"
-                        sx={{
-                          fontWeight: 500,
-                          px: 2,
-                          py: 2.5,
-                          borderRadius: 2,
-                          fontSize: '0.875rem',
-                          border: `1px solid ${alpha(theme.palette.info.main, 0.3)}`,
-                          background: alpha(theme.palette.info.light, 0.1),
-                        }}
                       />
-                    </Zoom>
-                  )}
-                </Box>
+                    )}
+                  </Box>
               </Box>
             </Collapse>
           </CardContent>

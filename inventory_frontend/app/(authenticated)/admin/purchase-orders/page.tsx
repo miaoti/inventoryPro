@@ -38,6 +38,14 @@ import {
   AccordionSummary,
   AccordionDetails,
   Divider,
+  useTheme,
+  alpha,
+  Fade,
+  Zoom,
+  Slide,
+  LinearProgress,
+  CardHeader,
+  Avatar,
 } from '@mui/material';
 import {
   Visibility as ViewIcon,
@@ -48,6 +56,9 @@ import {
   Clear as ClearIcon,
   ExpandMore as ExpandMoreIcon,
   LocalShipping as TrackingIcon,
+  Analytics as AnalyticsIcon,
+  Inventory as InventoryIcon,
+  Assessment as StatsIcon,
 } from '@mui/icons-material';
 
 interface TabPanelProps {
@@ -74,6 +85,7 @@ function TabPanel(props: TabPanelProps) {
 
 export default function PurchaseOrderStatsPage() {
   const { user } = useSelector((state: RootState) => state.auth);
+  const theme = useTheme();
   const [allPOs, setAllPOs] = useState<PurchaseOrder[]>([]);
   const [pendingPOs, setPendingPOs] = useState<PurchaseOrder[]>([]);
   const [arrivedPOs, setArrivedPOs] = useState<PurchaseOrder[]>([]);
@@ -97,10 +109,26 @@ export default function PurchaseOrderStatsPage() {
   // Check if current user is owner
   if (user?.role !== 'OWNER') {
     return (
-      <Box sx={{ p: 3 }}>
-        <Alert severity="error">
-          Access denied. Only owners can view purchase order statistics.
-        </Alert>
+      <Box sx={{ 
+        p: { xs: 2, sm: 3, md: 4 },
+        minHeight: '100vh',
+        background: theme => `linear-gradient(135deg, ${alpha(theme.palette.error.light, 0.1)} 0%, ${alpha(theme.palette.error.main, 0.05)} 100%)`,
+      }}>
+        <Fade in timeout={800}>
+          <Alert 
+            severity="error" 
+            sx={{
+              borderRadius: 3,
+              boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+              '& .MuiAlert-message': {
+                fontSize: '1.1rem',
+                fontWeight: 500,
+              }
+            }}
+          >
+            Access denied. Only owners can view purchase order statistics.
+          </Alert>
+        </Fade>
       </Box>
     );
   }
@@ -243,205 +271,455 @@ export default function PurchaseOrderStatsPage() {
   };
 
   const renderPOTable = (pos: PurchaseOrder[]) => (
-    <TableContainer component={Paper}>
-      <Table>
-        <TableHead>
-          <TableRow>
-            <TableCell>Item</TableCell>
-            <TableCell>Quantity</TableCell>
-            <TableCell>Status</TableCell>
-            <TableCell>Order Date</TableCell>
-            <TableCell>Arrival Date</TableCell>
-            <TableCell>Tracking</TableCell>
-            <TableCell>Created By</TableCell>
-            <TableCell>Arrived By</TableCell>
-            <TableCell>Actions</TableCell>
-          </TableRow>
-        </TableHead>
-        <TableBody>
-          {pos.map((po) => (
-            <TableRow key={po.id}>
-              <TableCell>{po.itemName}</TableCell>
-              <TableCell>{po.quantity}</TableCell>
-              <TableCell>{getStatusChip(po)}</TableCell>
-              <TableCell>{formatDate(po.orderDate)}</TableCell>
-              <TableCell>
-                {po.arrivalDate ? formatDate(po.arrivalDate) : '-'}
-              </TableCell>
-              <TableCell>
-                {po.trackingNumber ? (
-                  <Box>
-                    <Typography variant="body2" sx={{ mb: 1 }}>
-                      {po.trackingNumber}
-                    </Typography>
-                    {/* <TrackingDisplay trackingNumber={po.trackingNumber} compact /> */}
-                  </Box>
-                ) : (
-                  '-'
-                )}
-              </TableCell>
-              <TableCell>{po.createdBy || '-'}</TableCell>
-              <TableCell>{po.arrivedBy || '-'}</TableCell>
-              <TableCell>
-                <Tooltip title="View Details">
-                  <IconButton
-                    onClick={() => handleViewDetails(po)}
-                    size="small"
-                    color="primary"
-                  >
-                    <ViewIcon />
-                  </IconButton>
-                </Tooltip>
-              </TableCell>
+    <Slide in direction="up" timeout={600}>
+      <TableContainer 
+        component={Paper} 
+        sx={{ 
+          borderRadius: 3,
+          boxShadow: '0 8px 32px rgba(0,0,0,0.08)',
+          overflow: 'hidden',
+        }}
+      >
+        <Table>
+          <TableHead>
+            <TableRow 
+              sx={{ 
+                background: theme => `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
+              }}
+            >
+              <TableCell sx={{ color: 'white', fontWeight: 600, fontSize: '0.95rem' }}>Item</TableCell>
+              <TableCell sx={{ color: 'white', fontWeight: 600, fontSize: '0.95rem' }}>Quantity</TableCell>
+              <TableCell sx={{ color: 'white', fontWeight: 600, fontSize: '0.95rem' }}>Status</TableCell>
+              <TableCell sx={{ color: 'white', fontWeight: 600, fontSize: '0.95rem' }}>Order Date</TableCell>
+              <TableCell sx={{ color: 'white', fontWeight: 600, fontSize: '0.95rem' }}>Arrival Date</TableCell>
+              <TableCell sx={{ color: 'white', fontWeight: 600, fontSize: '0.95rem' }}>Tracking</TableCell>
+              <TableCell sx={{ color: 'white', fontWeight: 600, fontSize: '0.95rem' }}>Created By</TableCell>
+              <TableCell sx={{ color: 'white', fontWeight: 600, fontSize: '0.95rem' }}>Arrived By</TableCell>
+              <TableCell sx={{ color: 'white', fontWeight: 600, fontSize: '0.95rem' }}>Actions</TableCell>
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </TableContainer>
+          </TableHead>
+          <TableBody>
+            {pos.map((po, index) => (
+              <TableRow 
+                key={po.id}
+                sx={{ 
+                  '&:hover': { 
+                    backgroundColor: alpha(theme.palette.primary.light, 0.05),
+                    transform: 'scale(1.001)',
+                  },
+                  transition: 'all 0.2s ease',
+                  animation: `fadeInUp 0.5s ease ${index * 0.1}s both`,
+                  '@keyframes fadeInUp': {
+                    from: {
+                      opacity: 0,
+                      transform: 'translateY(20px)',
+                    },
+                    to: {
+                      opacity: 1,
+                      transform: 'translateY(0)',
+                    },
+                  },
+                }}
+              >
+                <TableCell>
+                  <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                    {po.itemName}
+                  </Typography>
+                </TableCell>
+                <TableCell>
+                  <Chip 
+                    label={po.quantity} 
+                    size="small" 
+                    color="info"
+                    sx={{ fontWeight: 600 }}
+                  />
+                </TableCell>
+                <TableCell>{getStatusChip(po)}</TableCell>
+                <TableCell>
+                  <Typography variant="body2" color="text.secondary">
+                    {formatDate(po.orderDate)}
+                  </Typography>
+                </TableCell>
+                <TableCell>
+                  <Typography variant="body2" color="text.secondary">
+                    {po.arrivalDate ? formatDate(po.arrivalDate) : '-'}
+                  </Typography>
+                </TableCell>
+                <TableCell>
+                  {po.trackingNumber ? (
+                    <Box>
+                      <Typography variant="body2" sx={{ mb: 1, fontWeight: 500 }}>
+                        {po.trackingNumber}
+                      </Typography>
+                      {/* <TrackingDisplay trackingNumber={po.trackingNumber} compact /> */}
+                    </Box>
+                  ) : (
+                    <Typography variant="body2" color="text.secondary">-</Typography>
+                  )}
+                </TableCell>
+                <TableCell>
+                  <Typography variant="body2" color="text.secondary">
+                    {po.createdBy || '-'}
+                  </Typography>
+                </TableCell>
+                <TableCell>
+                  <Typography variant="body2" color="text.secondary">
+                    {po.arrivedBy || '-'}
+                  </Typography>
+                </TableCell>
+                <TableCell>
+                  <Tooltip title="View Details">
+                    <IconButton
+                      onClick={() => handleViewDetails(po)}
+                      size="small"
+                      sx={{
+                        color: theme.palette.primary.main,
+                        '&:hover': {
+                          backgroundColor: alpha(theme.palette.primary.main, 0.1),
+                          transform: 'scale(1.1)',
+                        },
+                        transition: 'all 0.2s ease',
+                      }}
+                    >
+                      <ViewIcon />
+                    </IconButton>
+                  </Tooltip>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
+    </Slide>
   );
 
   if (loading) {
     return (
       <Box sx={{ 
-        p: { xs: 1, sm: 2, md: 3 }, 
-        width: '100%',
-        maxWidth: '100vw',
-        overflow: 'hidden'
+        p: { xs: 2, sm: 3, md: 4 },
+        minHeight: '100vh',
+        background: theme => `linear-gradient(135deg, ${alpha(theme.palette.primary.light, 0.1)} 0%, ${alpha(theme.palette.secondary.light, 0.05)} 100%)`,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
       }}>
-        <Typography>Loading purchase order statistics...</Typography>
+        <Card sx={{ p: 4, borderRadius: 3, boxShadow: '0 8px 32px rgba(0,0,0,0.12)' }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+            <LinearProgress sx={{ width: 200, height: 6, borderRadius: 3 }} />
+            <Typography variant="h6" color="text.secondary">
+              Loading purchase order statistics...
+            </Typography>
+          </Box>
+        </Card>
       </Box>
     );
   }
 
   return (
     <Box sx={{ 
-      p: { xs: 1, sm: 2, md: 3 }, 
-      width: '100%',
-      maxWidth: '100vw',
-      overflow: 'hidden'
+      p: { xs: 2, sm: 3, md: 4 },
+      minHeight: '100vh',
+      background: theme => `linear-gradient(135deg, ${alpha(theme.palette.primary.light, 0.1)} 0%, ${alpha(theme.palette.secondary.light, 0.05)} 100%)`,
     }}>
-      <Typography variant="h4" gutterBottom sx={{ fontSize: { xs: '1.5rem', md: '2.125rem' } }}>
-        Purchase Order Statistics
-      </Typography>
-
-      {/* Filters */}
-      <Accordion sx={{ mb: 3 }}>
-        <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <FilterIcon />
-            <Typography variant="h6">Filters</Typography>
-            {(filters.createdBy || filters.startDate || filters.endDate || filters.itemName) && (
-              <Chip label="Active" size="small" color="primary" />
-            )}
-          </Box>
-        </AccordionSummary>
-        <AccordionDetails>
-          <Grid container spacing={2} alignItems="flex-end">
-            <Grid item xs={12} sm={6} md={3}>
-              <FormControl fullWidth size="small">
-                <InputLabel>Created By</InputLabel>
-                <Select
-                  value={filters.createdBy}
-                  onChange={(e) => setFilters({ ...filters, createdBy: e.target.value })}
-                  label="Created By"
-                >
-                  <MenuItem value="">All Users</MenuItem>
-                  {availableUsers.map(user => (
-                    <MenuItem key={user} value={user}>{user}</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Grid>
-            <Grid item xs={12} sm={6} md={2}>
-              <TextField
-                fullWidth
-                size="small"
-                label="Start Date"
-                type="date"
-                value={filters.startDate}
-                onChange={(e) => setFilters({ ...filters, startDate: e.target.value })}
-                InputLabelProps={{ shrink: true }}
-              />
-            </Grid>
-            <Grid item xs={12} sm={6} md={2}>
-              <TextField
-                fullWidth
-                size="small"
-                label="End Date"
-                type="date"
-                value={filters.endDate}
-                onChange={(e) => setFilters({ ...filters, endDate: e.target.value })}
-                InputLabelProps={{ shrink: true }}
-              />
-            </Grid>
-            <Grid item xs={12} sm={6} md={3}>
-              <TextField
-                fullWidth
-                size="small"
-                label="Item Name"
-                value={filters.itemName}
-                onChange={(e) => setFilters({ ...filters, itemName: e.target.value })}
-                placeholder="Search by item name..."
-              />
-            </Grid>
-            <Grid item xs={12} sm={12} md={2}>
-              <Button
-                fullWidth
-                variant="outlined"
-                startIcon={<ClearIcon />}
-                onClick={clearFilters}
-                size="small"
-              >
-                Clear
-              </Button>
-            </Grid>
-          </Grid>
-        </AccordionDetails>
-      </Accordion>
-
-      {/* PO Statistics Cards */}
-      <Grid container spacing={3} sx={{ mb: 3 }}>
-        {getPOStats().map((stat) => (
-          <Grid item xs={12} sm={4} key={stat.label}>
-            <Card>
-              <CardContent>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                  <Box sx={{ color: `${stat.color}.main` }}>
-                    {stat.icon}
-                  </Box>
-                  <Box>
-                    <Typography variant="h6" color={`${stat.color}.main`}>
-                      {stat.count}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      {stat.label}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      Total Qty: {stat.value}
-                    </Typography>
-                  </Box>
-                </Box>
-              </CardContent>
-            </Card>
-          </Grid>
-        ))}
-      </Grid>
-
-      {/* Tabs for different views */}
-      <Paper sx={{ mb: 3 }}>
-        <Tabs
-          value={tabValue}
-          onChange={(_, newValue) => setTabValue(newValue)}
-          indicatorColor="primary"
-          textColor="primary"
-          variant="scrollable"
-          scrollButtons="auto"
+      {/* Enhanced Header Section */}
+      <Fade in timeout={800}>
+        <Paper 
+          elevation={0}
+          sx={{ 
+            background: theme => `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
+            color: 'white',
+            p: { xs: 3, md: 4 },
+            mb: 4,
+            borderRadius: 3,
+            position: 'relative',
+            overflow: 'hidden',
+            '&::before': {
+              content: '""',
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: 'url("data:image/svg+xml,<svg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 100 100\'><defs><pattern id=\'grain\' width=\'100\' height=\'100\' patternUnits=\'userSpaceOnUse\'><circle cx=\'50\' cy=\'50\' r=\'1\' fill=\'%23ffffff\' opacity=\'0.1\'/></pattern></defs><rect width=\'100\' height=\'100\' fill=\'url(%23grain)\'/></svg>")',
+              pointerEvents: 'none',
+            }
+          }}
         >
-          <Tab label={`All POs (${filteredAllPOs.length})`} />
-          <Tab label={`Pending (${filteredPendingPOs.length})`} />
-          <Tab label={`Arrived (${filteredArrivedPOs.length})`} />
-        </Tabs>
-      </Paper>
+          <Box sx={{ 
+            display: 'flex', 
+            flexDirection: { xs: 'column', sm: 'row' },
+            justifyContent: 'space-between', 
+            alignItems: { xs: 'flex-start', sm: 'center' }, 
+            gap: 3,
+            position: 'relative',
+            zIndex: 1,
+          }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Box sx={{ 
+                background: alpha(theme.palette.common.white, 0.15),
+                borderRadius: 2,
+                p: 1.5,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                <AnalyticsIcon sx={{ fontSize: 32 }} />
+              </Box>
+              <Box>
+                <Typography 
+                  variant="h4"
+                  sx={{ 
+                    fontSize: { xs: '1.5rem', md: '2.125rem' },
+                    fontWeight: 600,
+                    mb: 0.5,
+                  }}
+                >
+                  Purchase Order Analytics
+                </Typography>
+                <Typography 
+                  variant="body1" 
+                  sx={{ 
+                    opacity: 0.9,
+                    fontSize: { xs: '0.9rem', md: '1rem' }
+                  }}
+                >
+                  Comprehensive tracking and analysis of purchase orders
+                </Typography>
+              </Box>
+            </Box>
+          </Box>
+        </Paper>
+      </Fade>
+
+      {/* Enhanced Filters */}
+      <Slide in direction="up" timeout={600} style={{ transitionDelay: '200ms' }}>
+        <Accordion 
+          sx={{ 
+            mb: 4,
+            borderRadius: 3,
+            boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
+            '&:before': { display: 'none' },
+            overflow: 'hidden',
+          }}
+        >
+          <AccordionSummary 
+            expandIcon={<ExpandMoreIcon />}
+            sx={{
+              background: theme => `linear-gradient(135deg, ${alpha(theme.palette.info.main, 0.08)} 0%, ${alpha(theme.palette.info.light, 0.05)} 100%)`,
+              '&:hover': {
+                background: theme => `linear-gradient(135deg, ${alpha(theme.palette.info.main, 0.12)} 0%, ${alpha(theme.palette.info.light, 0.08)} 100%)`,
+              },
+              transition: 'all 0.3s ease',
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Avatar sx={{
+                background: theme => `linear-gradient(135deg, ${theme.palette.info.main} 0%, ${theme.palette.info.dark} 100%)`,
+                width: 32,
+                height: 32,
+              }}>
+                <FilterIcon sx={{ fontSize: 18 }} />
+              </Avatar>
+              <Typography variant="h6" sx={{ fontWeight: 600 }}>Advanced Filters</Typography>
+              {(filters.createdBy || filters.startDate || filters.endDate || filters.itemName) && (
+                <Chip 
+                  label="Active" 
+                  size="small" 
+                  color="info"
+                  sx={{ 
+                    fontWeight: 600,
+                    boxShadow: theme => `0 2px 8px ${alpha(theme.palette.info.main, 0.3)}`,
+                  }}
+                />
+              )}
+            </Box>
+          </AccordionSummary>
+          <AccordionDetails sx={{ p: { xs: 2, sm: 3 } }}>
+            <Grid container spacing={3} alignItems="flex-end">
+              <Grid item xs={12} sm={6} md={3}>
+                <FormControl fullWidth size="small">
+                  <InputLabel>Created By</InputLabel>
+                  <Select
+                    value={filters.createdBy}
+                    onChange={(e) => setFilters({ ...filters, createdBy: e.target.value })}
+                    label="Created By"
+                    sx={{ borderRadius: 2 }}
+                  >
+                    <MenuItem value="">All Users</MenuItem>
+                    {availableUsers.map(user => (
+                      <MenuItem key={user} value={user}>{user}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} sm={6} md={2}>
+                <TextField
+                  fullWidth
+                  size="small"
+                  label="Start Date"
+                  type="date"
+                  value={filters.startDate}
+                  onChange={(e) => setFilters({ ...filters, startDate: e.target.value })}
+                  InputLabelProps={{ shrink: true }}
+                  sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                />
+              </Grid>
+              <Grid item xs={12} sm={6} md={2}>
+                <TextField
+                  fullWidth
+                  size="small"
+                  label="End Date"
+                  type="date"
+                  value={filters.endDate}
+                  onChange={(e) => setFilters({ ...filters, endDate: e.target.value })}
+                  InputLabelProps={{ shrink: true }}
+                  sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                />
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <TextField
+                  fullWidth
+                  size="small"
+                  label="Item Name"
+                  value={filters.itemName}
+                  onChange={(e) => setFilters({ ...filters, itemName: e.target.value })}
+                  placeholder="Search by item name..."
+                  sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                />
+              </Grid>
+              <Grid item xs={12} sm={12} md={2}>
+                <Button
+                  fullWidth
+                  variant="outlined"
+                  startIcon={<ClearIcon />}
+                  onClick={clearFilters}
+                  size="small"
+                  sx={{
+                    borderRadius: 2,
+                    borderWidth: 2,
+                    '&:hover': { borderWidth: 2 },
+                  }}
+                >
+                  Clear
+                </Button>
+              </Grid>
+            </Grid>
+          </AccordionDetails>
+        </Accordion>
+      </Slide>
+
+      {/* Enhanced Statistics Cards */}
+      <Slide in direction="up" timeout={600} style={{ transitionDelay: '400ms' }}>
+        <Grid container spacing={3} sx={{ mb: 4 }}>
+          {getPOStats().map((stat, index) => (
+            <Grid item xs={12} sm={4} key={stat.label}>
+              <Zoom in timeout={600} style={{ transitionDelay: `${600 + index * 200}ms` }}>
+                <Card sx={{
+                  borderRadius: 3,
+                  background: theme => `linear-gradient(135deg, ${alpha(theme.palette[stat.color].main, 0.08)} 0%, ${alpha(theme.palette[stat.color].light, 0.05)} 100%)`,
+                  border: theme => `1px solid ${alpha(theme.palette[stat.color].main, 0.2)}`,
+                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                  '&:hover': {
+                    transform: 'translateY(-8px)',
+                    boxShadow: theme => `0 12px 40px ${alpha(theme.palette[stat.color].main, 0.15)}`,
+                  }
+                }}>
+                  <CardContent sx={{ p: 3 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                      <Avatar sx={{
+                        background: theme => `linear-gradient(135deg, ${theme.palette[stat.color].main} 0%, ${theme.palette[stat.color].dark} 100%)`,
+                        width: 48,
+                        height: 48,
+                      }}>
+                        {stat.icon}
+                      </Avatar>
+                      <Box sx={{ flex: 1 }}>
+                        <Typography 
+                          variant="h4" 
+                          sx={{ 
+                            color: theme => theme.palette[stat.color].main,
+                            fontWeight: 700,
+                            mb: 0.5,
+                          }}
+                        >
+                          {stat.count}
+                        </Typography>
+                        <Typography 
+                          variant="h6" 
+                          sx={{ 
+                            color: 'text.primary',
+                            fontWeight: 600,
+                            mb: 0.5,
+                          }}
+                        >
+                          {stat.label}
+                        </Typography>
+                        <Typography 
+                          variant="body2" 
+                          sx={{ 
+                            color: 'text.secondary',
+                            fontWeight: 500,
+                          }}
+                        >
+                          Total Qty: {stat.value.toLocaleString()}
+                        </Typography>
+                      </Box>
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Zoom>
+            </Grid>
+          ))}
+        </Grid>
+      </Slide>
+
+      {/* Enhanced Tabs */}
+      <Slide in direction="up" timeout={600} style={{ transitionDelay: '600ms' }}>
+        <Paper sx={{ 
+          mb: 4, 
+          borderRadius: 3,
+          boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
+          overflow: 'hidden',
+        }}>
+          <Tabs
+            value={tabValue}
+            onChange={(_, newValue) => setTabValue(newValue)}
+            indicatorColor="primary"
+            textColor="primary"
+            variant="scrollable"
+            scrollButtons="auto"
+            sx={{
+              '& .MuiTabs-indicator': {
+                height: 3,
+                borderRadius: '3px 3px 0 0',
+              },
+              '& .MuiTab-root': {
+                fontWeight: 600,
+                fontSize: '1rem',
+                '&.Mui-selected': {
+                  color: theme.palette.primary.main,
+                }
+              }
+            }}
+          >
+            <Tab 
+              label={`All POs (${filteredAllPOs.length})`}
+              icon={<StatsIcon />}
+              iconPosition="start"
+            />
+            <Tab 
+              label={`Pending (${filteredPendingPOs.length})`} 
+              icon={<PendingIcon />}
+              iconPosition="start"
+            />
+            <Tab 
+              label={`Arrived (${filteredArrivedPOs.length})`}
+              icon={<ArrivedIcon />}
+              iconPosition="start"
+            />
+          </Tabs>
+        </Paper>
+      </Slide>
 
       {/* Tab Panels */}
       <TabPanel value={tabValue} index={0}>
@@ -454,49 +732,76 @@ export default function PurchaseOrderStatsPage() {
         {renderPOTable(filteredArrivedPOs)}
       </TabPanel>
 
-      {/* PO Detail Dialog */}
+      {/* Enhanced PO Detail Dialog */}
       <Dialog
         open={detailDialogOpen}
         onClose={() => setDetailDialogOpen(false)}
         maxWidth="md"
         fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            boxShadow: '0 20px 60px rgba(0,0,0,0.15)',
+          }
+        }}
       >
         <DialogTitle>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <OrderIcon />
-            Purchase Order Details
+          <Box sx={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: 2,
+            background: theme => `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
+            color: 'white',
+            margin: theme => theme.spacing(-3, -3, 0, -3),
+            padding: theme => theme.spacing(2, 3),
+          }}>
+            <Avatar sx={{
+              background: alpha(theme.palette.common.white, 0.15),
+              width: 32,
+              height: 32,
+            }}>
+              <OrderIcon />
+            </Avatar>
+            <Typography variant="h6" sx={{ fontWeight: 600 }}>
+              Purchase Order Details
+            </Typography>
           </Box>
         </DialogTitle>
-        <DialogContent>
+        <DialogContent sx={{ p: 3, pt: 4 }}>
           {selectedPO && (
             <Box sx={{ pt: 1 }}>
-              <Grid container spacing={2}>
+              <Grid container spacing={3}>
                 <Grid item xs={12} sm={6}>
-                  <Typography variant="subtitle2" color="text.secondary">
+                  <Typography variant="subtitle2" color="text.secondary" sx={{ fontWeight: 600, mb: 1 }}>
                     PO ID
                   </Typography>
-                  <Typography variant="body1" gutterBottom>
-                    #{selectedPO.id}
-                  </Typography>
+                  <Chip 
+                    label={`#${selectedPO.id}`} 
+                    color="primary" 
+                    variant="outlined"
+                    sx={{ fontWeight: 600, mb: 2 }}
+                  />
                 </Grid>
                 <Grid item xs={12} sm={6}>
-                  <Typography variant="subtitle2" color="text.secondary">
+                  <Typography variant="subtitle2" color="text.secondary" sx={{ fontWeight: 600, mb: 1 }}>
                     Item
                   </Typography>
-                  <Typography variant="body1" gutterBottom>
+                  <Typography variant="body1" gutterBottom sx={{ fontWeight: 500 }}>
                     {selectedPO.itemName}
                   </Typography>
                 </Grid>
                 <Grid item xs={12} sm={6}>
-                  <Typography variant="subtitle2" color="text.secondary">
+                  <Typography variant="subtitle2" color="text.secondary" sx={{ fontWeight: 600, mb: 1 }}>
                     Quantity
                   </Typography>
-                  <Typography variant="body1" gutterBottom>
-                    {selectedPO.quantity}
-                  </Typography>
+                  <Chip 
+                    label={selectedPO.quantity} 
+                    color="info" 
+                    sx={{ fontWeight: 600, mb: 2 }}
+                  />
                 </Grid>
                 <Grid item xs={12} sm={6}>
-                  <Typography variant="subtitle2" color="text.secondary">
+                  <Typography variant="subtitle2" color="text.secondary" sx={{ fontWeight: 600, mb: 1 }}>
                     Status
                   </Typography>
                   <Box sx={{ mb: 2 }}>
@@ -504,70 +809,85 @@ export default function PurchaseOrderStatsPage() {
                   </Box>
                 </Grid>
                 <Grid item xs={12} sm={6}>
-                  <Typography variant="subtitle2" color="text.secondary">
+                  <Typography variant="subtitle2" color="text.secondary" sx={{ fontWeight: 600, mb: 1 }}>
                     Order Date
                   </Typography>
-                  <Typography variant="body1" gutterBottom>
+                  <Typography variant="body1" gutterBottom sx={{ fontWeight: 500 }}>
                     {formatDate(selectedPO.orderDate)}
                   </Typography>
                 </Grid>
                 <Grid item xs={12} sm={6}>
-                  <Typography variant="subtitle2" color="text.secondary">
+                  <Typography variant="subtitle2" color="text.secondary" sx={{ fontWeight: 600, mb: 1 }}>
                     Arrival Date
                   </Typography>
-                  <Typography variant="body1" gutterBottom>
+                  <Typography variant="body1" gutterBottom sx={{ fontWeight: 500 }}>
                     {selectedPO.arrivalDate ? formatDate(selectedPO.arrivalDate) : 'Not arrived yet'}
                   </Typography>
                 </Grid>
                 <Grid item xs={12} sm={6}>
-                  <Typography variant="subtitle2" color="text.secondary">
+                  <Typography variant="subtitle2" color="text.secondary" sx={{ fontWeight: 600, mb: 1 }}>
                     Tracking Number
                   </Typography>
-                  <Typography variant="body1" gutterBottom>
+                  <Typography variant="body1" gutterBottom sx={{ fontWeight: 500 }}>
                     {selectedPO.trackingNumber || 'Not provided'}
                   </Typography>
                 </Grid>
                 <Grid item xs={12} sm={6}>
-                  <Typography variant="subtitle2" color="text.secondary">
+                  <Typography variant="subtitle2" color="text.secondary" sx={{ fontWeight: 600, mb: 1 }}>
                     Created By
                   </Typography>
-                  <Typography variant="body1" gutterBottom>
+                  <Typography variant="body1" gutterBottom sx={{ fontWeight: 500 }}>
                     {selectedPO.createdBy || 'Unknown'}
                   </Typography>
                 </Grid>
                 <Grid item xs={12} sm={6}>
-                  <Typography variant="subtitle2" color="text.secondary">
+                  <Typography variant="subtitle2" color="text.secondary" sx={{ fontWeight: 600, mb: 1 }}>
                     Arrived By
                   </Typography>
-                  <Typography variant="body1" gutterBottom>
+                  <Typography variant="body1" gutterBottom sx={{ fontWeight: 500 }}>
                     {selectedPO.arrivedBy || 'Not arrived yet'}
                   </Typography>
                 </Grid>
                 <Grid item xs={12} sm={6}>
-                  <Typography variant="subtitle2" color="text.secondary">
+                  <Typography variant="subtitle2" color="text.secondary" sx={{ fontWeight: 600, mb: 1 }}>
                     Created At
                   </Typography>
-                  <Typography variant="body1" gutterBottom>
+                  <Typography variant="body1" gutterBottom sx={{ fontWeight: 500 }}>
                     {formatDate(selectedPO.createdAt)}
                   </Typography>
                 </Grid>
                 <Grid item xs={12} sm={6}>
-                  <Typography variant="subtitle2" color="text.secondary">
+                  <Typography variant="subtitle2" color="text.secondary" sx={{ fontWeight: 600, mb: 1 }}>
                     Last Updated
                   </Typography>
-                  <Typography variant="body1" gutterBottom>
+                  <Typography variant="body1" gutterBottom sx={{ fontWeight: 500 }}>
                     {formatDate(selectedPO.updatedAt)}
                   </Typography>
                 </Grid>
               </Grid>
               
-              {/* Tracking Information */}
+              {/* Enhanced Tracking Information */}
               {selectedPO.trackingNumber && (
-                <Box sx={{ mt: 3 }}>
-                  <Divider sx={{ mb: 2 }} />
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-                    <TrackingIcon color="primary" />
-                    <Typography variant="h6">Package Tracking</Typography>
+                <Box sx={{ mt: 4 }}>
+                  <Divider sx={{ mb: 3 }} />
+                  <Box sx={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: 2, 
+                    mb: 3,
+                    p: 2,
+                    borderRadius: 2,
+                    background: theme => `linear-gradient(135deg, ${alpha(theme.palette.info.main, 0.08)} 0%, ${alpha(theme.palette.info.light, 0.05)} 100%)`,
+                    border: theme => `1px solid ${alpha(theme.palette.info.main, 0.2)}`,
+                  }}>
+                    <Avatar sx={{
+                      background: theme => `linear-gradient(135deg, ${theme.palette.info.main} 0%, ${theme.palette.info.dark} 100%)`,
+                      width: 32,
+                      height: 32,
+                    }}>
+                      <TrackingIcon sx={{ fontSize: 18 }} />
+                    </Avatar>
+                    <Typography variant="h6" sx={{ fontWeight: 600 }}>Package Tracking</Typography>
                   </Box>
                   {/* <TrackingDisplay trackingNumber={selectedPO.trackingNumber} /> */}
                 </Box>
