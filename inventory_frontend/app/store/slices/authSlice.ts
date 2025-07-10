@@ -9,6 +9,7 @@ interface User {
   fullName: string;
   role: 'OWNER' | 'ADMIN' | 'USER';
   department?: string;
+  isPhantomUser?: boolean;
 }
 
 interface AuthState {
@@ -108,7 +109,7 @@ const authSlice = createSlice({
   name: 'auth',
   initialState,
   reducers: {
-    setCredentials: (state, action: PayloadAction<{ user: User; token: string }>) => {
+    setCredentials: (state, action: PayloadAction<{ user: User; token: string; isPhantomSession?: boolean }>) => {
       state.user = action.payload.user;
       state.token = action.payload.token;
       state.isAuthenticated = true;

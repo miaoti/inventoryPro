@@ -10,6 +10,7 @@ export interface User {
   criticalThreshold?: number;
   createdAt: string;
   updatedAt: string;
+  isPhantomUser?: boolean;
 }
 
 export interface UserUpdateRequest {
