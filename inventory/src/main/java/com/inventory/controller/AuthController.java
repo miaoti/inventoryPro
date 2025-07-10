@@ -69,11 +69,12 @@ public class AuthController {
         
         if (user == null) {
                 logger.warn("LOGIN FAILED: User not found: {}", loginRequest.getUsername());
-                systemLogService.logAsync(
+                systemLogService.createLog(
                     SystemLog.LogLevel.WARN,
-                    SystemLog.LogModule.AUTH,
-                    "Login failed - user not found",
+                    "LOGIN_FAILED",
                     loginRequest.getUsername(),
+                    "Login failed - user not found",
+                    SystemLog.LogModule.AUTH,
                     request.getRemoteAddr()
                 );
                 return ResponseEntity.badRequest()
@@ -96,11 +97,12 @@ public class AuthController {
             // Check if user is enabled
             if (!user.getEnabled()) {
                 logger.warn("LOGIN FAILED: User account is disabled: {}", user.getUsername());
-                systemLogService.logAsync(
+                systemLogService.createLog(
                     SystemLog.LogLevel.WARN,
-                    SystemLog.LogModule.AUTH,
-                    "Login failed - account disabled",
+                    "LOGIN_FAILED",
                     user.getUsername(),
+                    "Login failed - account disabled",
+                    SystemLog.LogModule.AUTH,
                     request.getRemoteAddr()
                 );
             return ResponseEntity.badRequest()
@@ -133,12 +135,10 @@ public class AuthController {
                 logger.info("LOGIN SUCCESS for user: {}", user.getUsername());
                 
                 // Log successful login
-                systemLogService.logAsync(
-                    SystemLog.LogLevel.INFO,
-                    SystemLog.LogModule.AUTH,
-                    "User login successful",
+                systemLogService.logUserLogin(
                     user.getUsername(),
-                    request.getRemoteAddr()
+                    request.getRemoteAddr(),
+                    request.getHeader("User-Agent")
                 );
                 
                 // Generate JWT token
@@ -148,11 +148,12 @@ public class AuthController {
                     logger.info("JWT token generated successfully, length: {}", token.length());
                 } catch (Exception e) {
                     logger.error("JWT TOKEN GENERATION ERROR for user {}: {}", user.getUsername(), e.getMessage(), e);
-                    systemLogService.logAsync(
+                    systemLogService.createLog(
                         SystemLog.LogLevel.ERROR,
-                        SystemLog.LogModule.AUTH,
-                        "JWT token generation failed: " + e.getMessage(),
+                        "JWT_TOKEN_GENERATION_ERROR",
                         user.getUsername(),
+                        "JWT token generation failed: " + e.getMessage(),
+                        SystemLog.LogModule.AUTH,
                         request.getRemoteAddr()
                     );
                     return ResponseEntity.status(500)
@@ -184,11 +185,12 @@ public class AuthController {
                 logger.warn("  3. Password encoder configuration issue");
                 
                 // Log failed login attempt
-                systemLogService.logAsync(
+                systemLogService.createLog(
                     SystemLog.LogLevel.WARN,
-                    SystemLog.LogModule.AUTH,
-                    "Login failed - invalid credentials",
+                    "LOGIN_FAILED",
                     loginRequest.getUsername(),
+                    "Login failed - invalid credentials",
+                    SystemLog.LogModule.AUTH,
                     request.getRemoteAddr()
                 );
                 
@@ -215,11 +217,12 @@ public class AuthController {
         
         // Check if username already exists
         if (userService.findByUsername(registerRequest.getUsername()) != null) {
-            systemLogService.logAsync(
+            systemLogService.createLog(
                 SystemLog.LogLevel.WARN,
-                SystemLog.LogModule.AUTH,
-                "Registration failed - username already exists",
+                "REGISTRATION_FAILED",
                 registerRequest.getUsername(),
+                "Registration failed - username already exists",
+                SystemLog.LogModule.AUTH,
                 request.getRemoteAddr()
             );
             return ResponseEntity.badRequest()
@@ -247,11 +250,12 @@ public class AuthController {
             User savedUser = userService.save(newUser);
             
             // Log successful registration
-            systemLogService.logAsync(
+            systemLogService.createLog(
                 SystemLog.LogLevel.INFO,
-                SystemLog.LogModule.AUTH,
-                "User registration successful",
+                "USER_REGISTERED",
                 savedUser.getUsername(),
+                "User registration successful",
+                SystemLog.LogModule.AUTH,
                 request.getRemoteAddr()
             );
             
