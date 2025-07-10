@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -435,37 +436,32 @@ public class StatsService {
         
         try {
             LocalDateTime startDate = LocalDateTime.now().minusDays(days).withHour(0).withMinute(0).withSecond(0);
-            logger.info("=== DEBUG getDailyUsageByDepartment ===");
-            logger.info("Department: {}", department);
-            logger.info("Start Date: {}", startDate);
-            
             List<Object[]> results = usageRepository.getDailyUsageByDepartment(startDate, department);
-            
-            logger.info("Raw results count: {}", results != null ? results.size() : 0);
-            if (results != null) {
-                for (int i = 0; i < results.size(); i++) {
-                    Object[] result = results.get(i);
-                    logger.info("Result {}: date={}, usage={}", i, result[0], result[1]);
-                }
-            }
             
             if (results == null) {
                 return new ArrayList<>();
             }
             
-            List<DailyUsageDto> dailyUsageList = results.stream()
+            return results.stream()
                 .filter(result -> result != null && result.length >= 2)
                 .map(result -> {
                     LocalDate date = ((java.sql.Date) result[0]).toLocalDate();
-                    Long quantity = (Long) result[1];
+                    // Handle different possible number types from database
+                    Long quantity;
+                    if (result[1] instanceof BigDecimal) {
+                        quantity = ((BigDecimal) result[1]).longValue();
+                    } else if (result[1] instanceof Long) {
+                        quantity = (Long) result[1];
+                    } else if (result[1] instanceof Integer) {
+                        quantity = ((Integer) result[1]).longValue();
+                    } else if (result[1] != null) {
+                        quantity = Long.valueOf(result[1].toString());
+                    } else {
+                        quantity = 0L;
+                    }
                     return new DailyUsageDto(date, quantity);
                 })
                 .collect(Collectors.toList());
-                
-            logger.info("Final daily usage list size: {}", dailyUsageList.size());
-            logger.info("=== END DEBUG getDailyUsageByDepartment ===");
-            
-            return dailyUsageList;
         } catch (Exception e) {
             logger.error("Error getting daily usage by department: {}", department, e);
             return new ArrayList<>();
@@ -481,14 +477,8 @@ public class StatsService {
         }
         
         try {
-            logger.info("=== DEBUG getTopUsageItemsByDepartment ===");
-            logger.info("Requested department: '{}'", department);
-            
             Pageable pageable = PageRequest.of(0, limit);
             List<Object[]> results = usageRepository.getTopUsageItemsByDepartment(pageable, department);
-            
-            logger.info("Top usage items query returned {} results for department '{}'", 
-                    results != null ? results.size() : 0, department);
             
             if (results == null || results.isEmpty()) {
                 return new ArrayList<>();
