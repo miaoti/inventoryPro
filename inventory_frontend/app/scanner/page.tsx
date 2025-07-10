@@ -1339,7 +1339,7 @@ export default function BarcodeScanner() {
   const scannerContent = (
     <Box sx={{ 
       minHeight: '100vh',
-      background: `linear-gradient(135deg, ${alpha(theme.palette.primary.light, 0.1)} 0%, ${alpha(theme.palette.secondary.light, 0.05)} 100%)`,
+      background: theme => `linear-gradient(135deg, ${alpha(theme.palette.primary.light, 0.1)} 0%, ${alpha(theme.palette.secondary.light, 0.05)} 100%)`,
       p: { xs: 2, sm: 3, md: 4 },
     }}>
       {/* Enhanced Header Section */}
@@ -1828,18 +1828,18 @@ export default function BarcodeScanner() {
           <Card sx={{
             mb: 4,
             borderRadius: 3,
-            background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.08)} 0%, ${alpha(theme.palette.primary.light, 0.05)} 100%)`,
-            border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
+            background: theme => `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.08)} 0%, ${alpha(theme.palette.primary.light, 0.05)} 100%)`,
+            border: theme => `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
             transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
             '&:hover': {
               transform: 'translateY(-2px)',
-              boxShadow: `0 8px 25px ${alpha(theme.palette.primary.main, 0.15)}`,
+              boxShadow: theme => `0 8px 25px ${alpha(theme.palette.primary.main, 0.15)}`,
             }
           }}>
             <CardHeader
               avatar={
                 <Avatar sx={{
-                  background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
+                  background: theme => `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
                   color: 'white',
                 }}>
                   <ScannerIcon />
@@ -1870,12 +1870,12 @@ export default function BarcodeScanner() {
                     borderRadius: 2,
                     fontWeight: 600,
                     fontSize: '1rem',
-                    background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
-                    boxShadow: `0 4px 12px ${alpha(theme.palette.primary.main, 0.3)}`,
+                    background: theme => `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
+                    boxShadow: theme => `0 4px 12px ${alpha(theme.palette.primary.main, 0.3)}`,
                     '&:hover': {
-                      background: `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.primary.main} 100%)`,
+                      background: theme => `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.primary.main} 100%)`,
                       transform: 'translateY(-2px)',
-                      boxShadow: `0 6px 20px ${alpha(theme.palette.primary.main, 0.4)}`,
+                      boxShadow: theme => `0 6px 20px ${alpha(theme.palette.primary.main, 0.4)}`,
                     },
                     '&:disabled': {
                       background: theme.palette.action.disabledBackground,
@@ -1892,11 +1892,11 @@ export default function BarcodeScanner() {
                     <IconButton 
                       onClick={toggleTorch} 
                       sx={{
-                        bgcolor: torchEnabled ? alpha(theme.palette.warning.main, 0.1) : alpha(theme.palette.grey[500], 0.1),
-                        border: `2px solid ${torchEnabled ? theme.palette.warning.main : theme.palette.grey[400]}`,
-                        color: torchEnabled ? theme.palette.warning.main : theme.palette.grey[600],
+                        bgcolor: theme => torchEnabled ? alpha(theme.palette.warning.main, 0.1) : alpha(theme.palette.grey[500], 0.1),
+                        border: theme => `2px solid ${torchEnabled ? theme.palette.warning.main : theme.palette.grey[400]}`,
+                        color: theme => torchEnabled ? theme.palette.warning.main : theme.palette.grey[600],
                         '&:hover': {
-                          bgcolor: torchEnabled ? alpha(theme.palette.warning.main, 0.2) : alpha(theme.palette.grey[500], 0.2),
+                          bgcolor: theme => torchEnabled ? alpha(theme.palette.warning.main, 0.2) : alpha(theme.palette.grey[500], 0.2),
                           transform: 'scale(1.1)',
                         },
                         transition: 'all 0.3s ease',
@@ -1926,7 +1926,8 @@ export default function BarcodeScanner() {
                 </Typography>
               </Box>
             )}
-          </Box>
+            </CardContent>
+          </Card>
 
           {/* Manual Entry
           <Box>
@@ -1955,7 +1956,7 @@ export default function BarcodeScanner() {
             </Box>
           </Box> */}
         </Box>
-      </Paper>
+      </Slide>
 
       {/* Success Messages - Only show if dialog is NOT open */}
       {!showUsageDialog && success && (

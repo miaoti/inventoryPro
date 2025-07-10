@@ -1225,7 +1225,7 @@ export default function UsageReportsPage() {
                     size="large"
                     onClick={applyAdvancedFilter}
                     disabled={loading}
-                    startIcon={loading ? <LinearProgress size={20} /> : <SearchIcon />}
+                    startIcon={loading ? <LinearProgress sx={{ width: 20, height: 4 }} /> : <SearchIcon />}
                     sx={{
                       minWidth: 160,
                       py: 1.5,
