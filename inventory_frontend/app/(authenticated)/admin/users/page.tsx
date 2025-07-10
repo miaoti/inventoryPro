@@ -1071,7 +1071,15 @@ export default function UserManagementPage() {
             onChange={(e) => setUsernameForm({ username: e.target.value })}
             fullWidth
             autoFocus
-            sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+            required
+            helperText="Enter the new username for this user"
+            sx={{ 
+              '& .MuiOutlinedInput-root': { borderRadius: 2 },
+              '& .MuiInputLabel-root': { 
+                fontWeight: 500,
+                color: 'text.primary' 
+              }
+            }}
           />
         </DialogContent>
         <DialogActions sx={{ p: 3, pt: 2 }}>
