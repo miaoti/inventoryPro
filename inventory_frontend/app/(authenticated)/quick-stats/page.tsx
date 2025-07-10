@@ -36,6 +36,12 @@ import {
   Badge,
   TextField,
   Button,
+  useTheme,
+  alpha,
+  Fade,
+  Slide,
+  CardHeader,
+  Avatar,
 } from '@mui/material';
 import {
   TrendingUp as TrendingUpIcon,
@@ -51,6 +57,12 @@ import {
   CalendarToday as CalendarIcon,
   DateRange as DateRangeIcon,
   Business as DepartmentIcon,
+  Dashboard as DashboardIcon,
+  Assessment as AssessmentIcon,
+  Timeline as TimelineIcon,
+  BarChart as BarChartIcon,
+  PieChart as PieChartIcon,
+  NotificationsActive as NotificationsActiveIcon,
 } from '@mui/icons-material';
 import {
   BarChart,
@@ -112,6 +124,7 @@ const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
 
 export default function QuickStats() {
   const router = useRouter();
+  const theme = useTheme();
   
   // Authentication check
   const { isAuthenticated, token, user } = useSelector((state: RootState) => state.auth);
@@ -390,39 +403,107 @@ export default function QuickStats() {
       maxWidth: '100vw',
       overflow: 'hidden'
     }}>
-      <Typography 
-        variant="h4" 
-        gutterBottom 
+      {/* Enhanced Header Section */}
+      <Paper 
+        elevation={0}
         sx={{ 
-          display: 'flex', 
-          alignItems: 'center', 
-          flexWrap: 'wrap',
-          fontSize: { xs: '1.5rem', md: '2.125rem' }
+          background: 'linear-gradient(135deg, rgba(25, 118, 210, 0.08) 0%, rgba(156, 39, 176, 0.08) 100%)',
+          borderRadius: 3,
+          p: { xs: 2, md: 3 },
+          mb: 3,
+          border: '1px solid',
+          borderColor: 'divider'
         }}
       >
-        <AnalyticsIcon sx={{ mr: 1 }} />
-        Quick Stats Dashboard
-        {statsData.department && (
-          <Chip 
-            label={`Department: ${statsData.department}`}
-            color="primary"
-            variant="outlined"
-            size="small"
-            sx={{ ml: 2, fontSize: '0.7rem' }}
-            icon={<DepartmentIcon />}
-          />
-        )}
-        {user?.role === 'OWNER' && !selectedDepartment && (
-          <Chip 
-            label="All Departments"
-            color="secondary"
-            variant="outlined"
-            size="small"
-            sx={{ ml: 2, fontSize: '0.7rem' }}
-            icon={<DepartmentIcon />}
-          />
-        )}
-      </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+          <Box
+            sx={{
+              p: 1.5,
+              borderRadius: 2,
+              background: 'linear-gradient(135deg, #1976d2 0%, #9c27b0 100%)',
+              color: 'white',
+              mr: 2,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+          >
+            <AssessmentIcon sx={{ fontSize: 28 }} />
+          </Box>
+          <Box>
+            <Typography 
+              variant="h4" 
+              sx={{ 
+                fontWeight: 700,
+                background: 'linear-gradient(135deg, #1976d2 0%, #9c27b0 100%)',
+                backgroundClip: 'text',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                fontSize: { xs: '1.5rem', md: '2.125rem' },
+                mb: 0.5
+              }}
+            >
+              Quick Stats Dashboard
+            </Typography>
+            <Typography 
+              variant="body1" 
+              color="text.secondary"
+              sx={{ fontWeight: 500 }}
+            >
+              Real-time analytics and inventory insights
+            </Typography>
+          </Box>
+        </Box>
+        
+        {/* Status Chips */}
+        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+          {statsData.department && (
+            <Chip 
+              label={`Department: ${statsData.department}`}
+              color="primary"
+              variant="filled"
+              size="small"
+              sx={{ 
+                fontSize: '0.75rem',
+                fontWeight: 600,
+                background: 'linear-gradient(135deg, #1976d2 0%, #1565c0 100%)',
+                color: 'white'
+              }}
+              icon={<DepartmentIcon sx={{ color: 'white' }} />}
+            />
+          )}
+          {user?.role === 'OWNER' && !selectedDepartment && (
+            <Chip 
+              label="All Departments"
+              color="secondary"
+              variant="filled"
+              size="small"
+              sx={{ 
+                fontSize: '0.75rem',
+                fontWeight: 600,
+                background: 'linear-gradient(135deg, #9c27b0 0%, #7b1fa2 100%)',
+                color: 'white'
+              }}
+              icon={<DepartmentIcon sx={{ color: 'white' }} />}
+            />
+          )}
+          {isFiltered && (
+            <Chip 
+              label="Filtered View Active"
+              color="success"
+              variant="filled"
+              size="small"
+              sx={{ 
+                fontSize: '0.75rem',
+                fontWeight: 600,
+                background: 'linear-gradient(135deg, #2e7d32 0%, #1b5e20 100%)',
+                color: 'white'
+              }}
+              icon={<FilterIcon sx={{ color: 'white' }} />}
+            />
+          )}
+        </Box>
+      </Paper>
 
       {error && (
         <Alert severity="error" sx={{ mb: 3 }}>
@@ -430,69 +511,168 @@ export default function QuickStats() {
         </Alert>
       )}
 
-      {/* Department Selection - Prominent Position */}
+      {/* Enhanced Department Selection */}
       {user?.role === 'OWNER' && (
-        <Card sx={{ mb: 3 }}>
-          <CardContent>
-            <Typography variant="h6" color="primary" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <DepartmentIcon />
-              Department Filter
-            </Typography>
-            <FormControl fullWidth size="small">
-              <InputLabel id="department-select-label">Select Department</InputLabel>
-              <Select
-                labelId="department-select-label"
-                value={selectedDepartment || ''}
-                label="Select Department"
-                onChange={(e) => handleDepartmentChange(e.target.value as string)}
-                disabled={departmentLoading}
-                sx={{ 
-                  '& .MuiOutlinedInput-root': {
-                    backgroundColor: selectedDepartment ? 'action.selected' : 'transparent'
-                  }
-                }}
-              >
-                <MenuItem value="">All Departments</MenuItem>
-                {departmentLoading ? (
-                  <MenuItem value="" disabled>Loading departments...</MenuItem>
-                ) : availableDepartments.length === 0 ? (
-                  <MenuItem value="" disabled>No departments found</MenuItem>
-                ) : (
-                  availableDepartments.map((dep) => (
-                    <MenuItem key={dep} value={dep}>{dep}</MenuItem>
-                  ))
-                )}
-              </Select>
-            </FormControl>
-            {selectedDepartment && (
-              <Alert severity="info" sx={{ mt: 2 }}>
-                <Typography variant="body2">
-                  <strong>Filtering by department:</strong> {selectedDepartment}
-                </Typography>
-              </Alert>
-            )}
-          </CardContent>
-        </Card>
+        <Fade in timeout={800}>
+          <Card 
+            sx={{ 
+              mb: 3,
+              background: `linear-gradient(135deg, ${alpha('#2196f3', 0.05)} 0%, ${alpha('#21cbf3', 0.05)} 100%)`,
+              border: '1px solid',
+              borderColor: alpha('#2196f3', 0.2),
+              borderRadius: 3,
+              overflow: 'visible'
+            }}
+          >
+            <CardHeader
+              avatar={
+                <Avatar
+                  sx={{
+                    background: 'linear-gradient(135deg, #2196f3 0%, #21cbf3 100%)',
+                    width: 40,
+                    height: 40
+                  }}
+                >
+                  <DepartmentIcon />
+                </Avatar>
+              }
+              title="Department Filter"
+              subheader="Filter analytics by specific department"
+              titleTypographyProps={{
+                variant: 'h6',
+                fontWeight: 600,
+                color: 'primary.main'
+              }}
+              subheaderTypographyProps={{
+                color: 'text.secondary',
+                fontWeight: 500
+              }}
+            />
+            <CardContent sx={{ pt: 0 }}>
+              <FormControl fullWidth size="small">
+                <InputLabel id="department-select-label">Select Department</InputLabel>
+                <Select
+                  labelId="department-select-label"
+                  value={selectedDepartment || ''}
+                  label="Select Department"
+                  onChange={(e) => handleDepartmentChange(e.target.value as string)}
+                  disabled={departmentLoading}
+                  sx={{ 
+                    '& .MuiOutlinedInput-root': {
+                      backgroundColor: selectedDepartment ? alpha('#2196f3', 0.08) : 'transparent',
+                      borderRadius: 2,
+                      '&:hover': {
+                        backgroundColor: alpha('#2196f3', 0.12)
+                      }
+                    }
+                  }}
+                >
+                  <MenuItem value="">
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <DashboardIcon fontSize="small" />
+                      All Departments
+                    </Box>
+                  </MenuItem>
+                  {departmentLoading ? (
+                    <MenuItem value="" disabled>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <CircularProgress size={16} />
+                        Loading departments...
+                      </Box>
+                    </MenuItem>
+                  ) : availableDepartments.length === 0 ? (
+                    <MenuItem value="" disabled>No departments found</MenuItem>
+                  ) : (
+                    availableDepartments.map((dep) => (
+                      <MenuItem key={dep} value={dep}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <DepartmentIcon fontSize="small" />
+                          {dep}
+                        </Box>
+                      </MenuItem>
+                    ))
+                  )}
+                </Select>
+              </FormControl>
+              {selectedDepartment && (
+                <Slide direction="up" in={!!selectedDepartment} timeout={400}>
+                  <Alert 
+                    severity="info" 
+                    sx={{ 
+                      mt: 2,
+                      borderRadius: 2,
+                      background: `linear-gradient(135deg, ${alpha('#0288d1', 0.1)} 0%, ${alpha('#0277bd', 0.1)} 100%)`,
+                      border: '1px solid',
+                      borderColor: alpha('#0288d1', 0.3)
+                    }}
+                  >
+                    <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                      <strong>Active Filter:</strong> {selectedDepartment}
+                    </Typography>
+                  </Alert>
+                </Slide>
+              )}
+            </CardContent>
+          </Card>
+        </Fade>
       )}
 
-      {/* Department Information for ADMIN/USER */}
+      {/* Enhanced Department Information for ADMIN/USER */}
       {user?.role !== 'OWNER' && user?.department && (
-        <Card sx={{ mb: 3 }}>
-          <CardContent>
-            <Typography variant="h6" color="primary" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <DepartmentIcon />
-              Your Department
-            </Typography>
-            <Alert severity="info" sx={{ display: 'flex', alignItems: 'center' }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <DepartmentIcon fontSize="small" />
-                <Typography variant="body2">
-                  Showing data for: <strong>{user.department}</strong>
-                </Typography>
-              </Box>
-            </Alert>
-          </CardContent>
-        </Card>
+        <Fade in timeout={800}>
+          <Card 
+            sx={{ 
+              mb: 3,
+              background: `linear-gradient(135deg, ${alpha('#4caf50', 0.05)} 0%, ${alpha('#66bb6a', 0.05)} 100%)`,
+              border: '1px solid',
+              borderColor: alpha('#4caf50', 0.2),
+              borderRadius: 3
+            }}
+          >
+            <CardHeader
+              avatar={
+                <Avatar
+                  sx={{
+                    background: 'linear-gradient(135deg, #4caf50 0%, #66bb6a 100%)',
+                    width: 40,
+                    height: 40
+                  }}
+                >
+                  <DepartmentIcon />
+                </Avatar>
+              }
+              title="Your Department"
+              subheader="Analytics scope for your department"
+              titleTypographyProps={{
+                variant: 'h6',
+                fontWeight: 600,
+                color: 'success.main'
+              }}
+              subheaderTypographyProps={{
+                color: 'text.secondary',
+                fontWeight: 500
+              }}
+            />
+            <CardContent sx={{ pt: 0 }}>
+              <Alert 
+                severity="info" 
+                sx={{ 
+                  borderRadius: 2,
+                  background: `linear-gradient(135deg, ${alpha('#2196f3', 0.1)} 0%, ${alpha('#21cbf3', 0.1)} 100%)`,
+                  border: '1px solid',
+                  borderColor: alpha('#2196f3', 0.3)
+                }}
+              >
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <DepartmentIcon fontSize="small" />
+                  <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                    Showing analytics for: <strong>{user.department}</strong>
+                  </Typography>
+                </Box>
+              </Alert>
+            </CardContent>
+          </Card>
+        </Fade>
       )}
 
       {/* Modern Filter Section */}
@@ -696,22 +876,59 @@ export default function QuickStats() {
       </Card>
 
       <Grid container spacing={3}>
-        {/* Daily Usage Overview */}
+        {/* Enhanced Daily Usage Overview */}
         <Grid item xs={12} lg={8}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                <TrendingUpIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
-                Daily Usage Overview {isFiltered ? '(Filtered Period)' : '(Last 7 Days)'}
-                {isFiltered && (
-                  <Chip 
-                    label="Filtered" 
-                    size="small" 
-                    color="primary" 
-                    sx={{ ml: 1 }} 
-                  />
-                )}
-              </Typography>
+          <Fade in timeout={1000}>
+            <Card 
+              sx={{ 
+                borderRadius: 3,
+                background: `linear-gradient(135deg, ${alpha('#1976d2', 0.02)} 0%, ${alpha('#1565c0', 0.02)} 100%)`,
+                border: '1px solid',
+                borderColor: alpha('#1976d2', 0.1),
+                overflow: 'hidden'
+              }}
+            >
+              <CardHeader
+                avatar={
+                  <Avatar
+                    sx={{
+                      background: 'linear-gradient(135deg, #1976d2 0%, #1565c0 100%)',
+                      width: 40,
+                      height: 40
+                    }}
+                  >
+                    <TimelineIcon />
+                  </Avatar>
+                }
+                title={
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                    Daily Usage Overview {isFiltered ? '(Filtered Period)' : '(Last 7 Days)'}
+                    {isFiltered && (
+                      <Chip 
+                        label="Filtered" 
+                        size="small" 
+                        color="primary" 
+                        sx={{ 
+                          ml: 1,
+                          background: 'linear-gradient(135deg, #1976d2 0%, #1565c0 100%)',
+                          color: 'white'
+                        }} 
+                      />
+                    )}
+                  </Box>
+                }
+                subheader="Track item usage patterns over time"
+                titleTypographyProps={{
+                  variant: 'h6',
+                  fontWeight: 600,
+                  color: 'primary.main'
+                }}
+                subheaderTypographyProps={{
+                  color: 'text.secondary',
+                  fontWeight: 500
+                }}
+              />
+              <CardContent sx={{ pt: 0 }}>
               <Box sx={{ height: 300, position: 'relative' }}>
                 {statsData.dailyUsage.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
@@ -750,25 +967,64 @@ export default function QuickStats() {
                   </Box>
                 )}
               </Box>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </Fade>
         </Grid>
 
-        {/* Top 5 Usage Items - Pie Chart */}
+        {/* Enhanced Top 5 Usage Items - Pie Chart */}
         <Grid item xs={12} lg={4}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Top 5 Usage Items {isFiltered ? '(Filtered)' : ''}
-                {isFiltered && (
-                  <Chip 
-                    label="Filtered" 
-                    size="small" 
-                    color="primary" 
-                    sx={{ ml: 1 }} 
-                  />
-                )}
-              </Typography>
+          <Fade in timeout={1200}>
+            <Card 
+              sx={{ 
+                borderRadius: 3,
+                background: `linear-gradient(135deg, ${alpha('#9c27b0', 0.02)} 0%, ${alpha('#7b1fa2', 0.02)} 100%)`,
+                border: '1px solid',
+                borderColor: alpha('#9c27b0', 0.1),
+                overflow: 'hidden'
+              }}
+            >
+              <CardHeader
+                avatar={
+                  <Avatar
+                    sx={{
+                      background: 'linear-gradient(135deg, #9c27b0 0%, #7b1fa2 100%)',
+                      width: 40,
+                      height: 40
+                    }}
+                  >
+                    <PieChartIcon />
+                  </Avatar>
+                }
+                title={
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                    Top 5 Usage Items {isFiltered ? '(Filtered)' : ''}
+                    {isFiltered && (
+                      <Chip 
+                        label="Filtered" 
+                        size="small" 
+                        color="secondary" 
+                        sx={{ 
+                          ml: 1,
+                          background: 'linear-gradient(135deg, #9c27b0 0%, #7b1fa2 100%)',
+                          color: 'white'
+                        }} 
+                      />
+                    )}
+                  </Box>
+                }
+                subheader="Most frequently used items"
+                titleTypographyProps={{
+                  variant: 'h6',
+                  fontWeight: 600,
+                  color: 'secondary.main'
+                }}
+                subheaderTypographyProps={{
+                  color: 'text.secondary',
+                  fontWeight: 500
+                }}
+              />
+              <CardContent sx={{ pt: 0 }}>
               <Box sx={{ height: 300, position: 'relative' }}>
                 {statsData.topUsageItems.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
@@ -804,17 +1060,48 @@ export default function QuickStats() {
                   </Box>
                 )}
               </Box>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </Fade>
         </Grid>
 
-        {/* Top 5 Usage Items - List */}
+        {/* Enhanced Top 5 Usage Items - List */}
         <Grid item xs={12} lg={6}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Top 5 Usage Items (Details) {isFiltered ? '- Filtered Period' : ''}
-              </Typography>
+          <Fade in timeout={1400}>
+            <Card 
+              sx={{ 
+                borderRadius: 3,
+                background: `linear-gradient(135deg, ${alpha('#ff9800', 0.02)} 0%, ${alpha('#f57c00', 0.02)} 100%)`,
+                border: '1px solid',
+                borderColor: alpha('#ff9800', 0.1),
+                overflow: 'hidden'
+              }}
+            >
+              <CardHeader
+                avatar={
+                  <Avatar
+                    sx={{
+                      background: 'linear-gradient(135deg, #ff9800 0%, #f57c00 100%)',
+                      width: 40,
+                      height: 40
+                    }}
+                  >
+                    <BarChartIcon />
+                  </Avatar>
+                }
+                title={`Top 5 Usage Items (Details) ${isFiltered ? '- Filtered Period' : ''}`}
+                subheader="Detailed breakdown of most used items"
+                titleTypographyProps={{
+                  variant: 'h6',
+                  fontWeight: 600,
+                  color: 'warning.main'
+                }}
+                subheaderTypographyProps={{
+                  color: 'text.secondary',
+                  fontWeight: 500
+                }}
+              />
+              <CardContent sx={{ pt: 0 }}>
               <TableContainer>
                 <Table size="small">
                   <TableHead>
@@ -855,18 +1142,48 @@ export default function QuickStats() {
                   No usage data available to show top items
                 </Typography>
               )}
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </Fade>
         </Grid>
 
-        {/* Low Stock Overview */}
+        {/* Enhanced Low Stock Overview */}
         <Grid item xs={12} lg={6}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                <InventoryIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
-                Low Stock Overview (Between Safety Stock and 110% of Safety Stock)
-              </Typography>
+          <Fade in timeout={1600}>
+            <Card 
+              sx={{ 
+                borderRadius: 3,
+                background: `linear-gradient(135deg, ${alpha('#f44336', 0.02)} 0%, ${alpha('#d32f2f', 0.02)} 100%)`,
+                border: '1px solid',
+                borderColor: alpha('#f44336', 0.1),
+                overflow: 'hidden'
+              }}
+            >
+              <CardHeader
+                avatar={
+                  <Avatar
+                    sx={{
+                      background: 'linear-gradient(135deg, #f44336 0%, #d32f2f 100%)',
+                      width: 40,
+                      height: 40
+                    }}
+                  >
+                    <InventoryIcon />
+                  </Avatar>
+                }
+                title="Low Stock Overview"
+                subheader="Between Safety Stock and 110% of Safety Stock"
+                titleTypographyProps={{
+                  variant: 'h6',
+                  fontWeight: 600,
+                  color: 'error.main'
+                }}
+                subheaderTypographyProps={{
+                  color: 'text.secondary',
+                  fontWeight: 500
+                }}
+              />
+              <CardContent sx={{ pt: 0 }}>
               <TableContainer>
                 <Table size="small">
                   <TableHead>
@@ -902,17 +1219,48 @@ export default function QuickStats() {
                   No items are currently between safety stock and 110% of safety stock threshold
                 </Typography>
               )}
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </Fade>
         </Grid>
 
-        {/* Stock Alerts */}
+        {/* Enhanced Stock Alerts */}
         <Grid item xs={12}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Stock Alerts
-              </Typography>
+          <Fade in timeout={1800}>
+            <Card 
+              sx={{ 
+                borderRadius: 3,
+                background: `linear-gradient(135deg, ${alpha('#ff5722', 0.02)} 0%, ${alpha('#e64a19', 0.02)} 100%)`,
+                border: '1px solid',
+                borderColor: alpha('#ff5722', 0.1),
+                overflow: 'hidden'
+              }}
+            >
+              <CardHeader
+                avatar={
+                  <Avatar
+                    sx={{
+                      background: 'linear-gradient(135deg, #ff5722 0%, #e64a19 100%)',
+                      width: 40,
+                      height: 40
+                    }}
+                  >
+                    <NotificationsActiveIcon />
+                  </Avatar>
+                }
+                title="Stock Alerts"
+                subheader="Critical and warning alerts for low inventory levels"
+                titleTypographyProps={{
+                  variant: 'h6',
+                  fontWeight: 600,
+                  color: 'error.main'
+                }}
+                subheaderTypographyProps={{
+                  color: 'text.secondary',
+                  fontWeight: 500
+                }}
+              />
+              <CardContent sx={{ pt: 0 }}>
               <Grid container spacing={2}>
                 {statsData.stockAlerts.map((alert) => (
                   <Grid item xs={12} sm={6} md={4} key={alert.id}>
@@ -947,8 +1295,9 @@ export default function QuickStats() {
                   All items are currently within acceptable stock levels
                 </Typography>
               )}
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </Fade>
         </Grid>
       </Grid>
     </Box>

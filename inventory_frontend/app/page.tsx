@@ -77,49 +77,85 @@ export default function LandingPage() {
 
   // Check authentication status and URL parameters
   useEffect(() => {
-    // Check for error parameters in URL
-    const urlParams = new URLSearchParams(window.location.search);
-    const errorParam = urlParams.get('error');
-    
-    if (errorParam) {
-      switch (errorParam) {
-        case 'session_expired':
-          setAuthError('Your session has expired. Please log in again.');
-          break;
-        case 'concurrent_session':
-          setAuthError('You have been logged out because your account was accessed from another location.');
-          break;
-        case 'invalid_token':
-          setAuthError('Your session is invalid. Please log in again.');
-          break;
-        default:
-          setAuthError('Please log in to continue.');
-      }
+    const validateAuthenticationStatus = async () => {
+      // Check for error parameters in URL
+      const urlParams = new URLSearchParams(window.location.search);
+      const errorParam = urlParams.get('error');
       
-      // Clear the error parameter from URL
-      router.replace('/', undefined);
-    }
+      if (errorParam) {
+        switch (errorParam) {
+          case 'session_expired':
+            setAuthError('Your session has expired. Please log in again.');
+            break;
+          case 'concurrent_session':
+            setAuthError('You have been logged out because your account was accessed from another location.');
+            break;
+          case 'invalid_token':
+            setAuthError('Your session is invalid. Please log in again.');
+            break;
+          case 'token_expired':
+            setAuthError('Your login session has expired. Please log in again.');
+            break;
+          default:
+            setAuthError('Please log in to continue.');
+        }
+        
+        // Clear the error parameter from URL
+        router.replace('/', undefined);
+        setIsLoggedIn(false);
+        setCurrentUser(null);
+        return;
+      }
 
-    const token = Cookies.get('token');
-    const userData = Cookies.get('user');
-    
-    if (token && userData) {
-      try {
-        const parsedUser = JSON.parse(userData);
+      const token = Cookies.get('token');
+      const userData = Cookies.get('user');
+      
+      if (token && userData) {
+        try {
+          // Import authAPI dynamically to avoid module loading issues
+          const { authAPI } = await import('./services/api');
+          
+          // Check if token is expired using the API service
+          const isValidAuth = authAPI.checkAuth();
+          
+          if (isValidAuth) {
+            // Token is valid, proceed with login
+            const parsedUser = JSON.parse(userData);
+            setIsLoggedIn(true);
+            setCurrentUser(parsedUser);
+            setAuthError(null);
+          } else {
+            // Token is expired or invalid
+            console.log('Token validation failed - clearing auth state');
+            setAuthError('Your session has expired. Please log in again to continue.');
+            setIsLoggedIn(false);
+            setCurrentUser(null);
+            
+            // Clear the expired token data
+            authAPI.clearAuthData();
+          }
+        } catch (error) {
+          console.error('Error validating authentication:', error);
+          setAuthError('Authentication error. Please log in again.');
+          setIsLoggedIn(false);
+          setCurrentUser(null);
+          
+          // Clear potentially corrupted auth data
+          Cookies.remove('token');
+          Cookies.remove('user');
+        }
+      } else if (isAuthenticated && user) {
+        // Use Redux state if available
         setIsLoggedIn(true);
-        setCurrentUser(parsedUser);
-      } catch (error) {
-        console.error('Error parsing user data:', error);
+        setCurrentUser(user);
+        setAuthError(null);
+      } else {
         setIsLoggedIn(false);
         setCurrentUser(null);
       }
-    } else if (isAuthenticated && user) {
-      setIsLoggedIn(true);
-      setCurrentUser(user);
-    } else {
-      setIsLoggedIn(false);
-      setCurrentUser(null);
-    }
+    };
+
+    validateAuthenticationStatus();
   }, [isAuthenticated, user, router]);
 
   const handleFormChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -301,7 +337,28 @@ export default function LandingPage() {
                     <Button
                       variant="contained"
                       size="large"
-                      onClick={() => router.push('/dashboard')}
+                      onClick={async () => {
+                        try {
+                          // Validate token before navigation
+                          const { authAPI } = await import('./services/api');
+                          const isValidAuth = authAPI.checkAuth();
+                          
+                          if (isValidAuth) {
+                            router.push('/dashboard');
+                          } else {
+                            // Token is expired, clear auth and show error
+                            authAPI.clearAuthData();
+                            setAuthError('Your session has expired. Please log in again to access the dashboard.');
+                            setIsLoggedIn(false);
+                            setCurrentUser(null);
+                          }
+                        } catch (error) {
+                          console.error('Error validating token for dashboard access:', error);
+                          setAuthError('Authentication error. Please log in again.');
+                          setIsLoggedIn(false);
+                          setCurrentUser(null);
+                        }
+                      }}
                       sx={{
                         bgcolor: '#4CAF50',
                         '&:hover': { bgcolor: '#45a049' },
@@ -320,7 +377,28 @@ export default function LandingPage() {
                     <Button
                       variant="contained"
                       size="large"
-                      onClick={() => router.push('/scanner')}
+                      onClick={async () => {
+                        try {
+                          // Validate token before navigation
+                          const { authAPI } = await import('./services/api');
+                          const isValidAuth = authAPI.checkAuth();
+                          
+                          if (isValidAuth) {
+                            router.push('/scanner');
+                          } else {
+                            // Token is expired, clear auth and show error
+                            authAPI.clearAuthData();
+                            setAuthError('Your session has expired. Please log in again to access the scanner.');
+                            setIsLoggedIn(false);
+                            setCurrentUser(null);
+                          }
+                        } catch (error) {
+                          console.error('Error validating token for scanner access:', error);
+                          setAuthError('Authentication error. Please log in again.');
+                          setIsLoggedIn(false);
+                          setCurrentUser(null);
+                        }
+                      }}
                       sx={{
                         bgcolor: '#2196F3',
                         '&:hover': { bgcolor: '#1976D2' },

@@ -1064,7 +1064,7 @@ export default function UserManagementPage() {
             </Typography>
           </Box>
         </DialogTitle>
-        <DialogContent sx={{ p: 3, pt: 4 }}>
+        <DialogContent sx={{ p: 3, pt: 5, minHeight: 120 }}>
           <TextField
             label="New Username"
             value={usernameForm.username}
@@ -1073,11 +1073,21 @@ export default function UserManagementPage() {
             autoFocus
             required
             helperText="Enter the new username for this user"
+            variant="outlined"
             sx={{ 
-              '& .MuiOutlinedInput-root': { borderRadius: 2 },
+              mt: 1,
+              '& .MuiOutlinedInput-root': { 
+                borderRadius: 2,
+                minHeight: 56 
+              },
               '& .MuiInputLabel-root': { 
                 fontWeight: 500,
-                color: 'text.primary' 
+                color: 'text.primary',
+                fontSize: '1rem'
+              },
+              '& .MuiFormHelperText-root': {
+                marginTop: 1,
+                fontSize: '0.875rem'
               }
             }}
           />
