@@ -34,6 +34,13 @@ import {
   Divider,
   useTheme,
   useMediaQuery,
+  Fade,
+  Zoom,
+  Slide,
+  LinearProgress,
+  CardHeader,
+  Avatar,
+  alpha,
 } from '@mui/material';
 import {
   QrCodeScanner as ScannerIcon,
@@ -1330,205 +1337,575 @@ export default function BarcodeScanner() {
   };
 
   const scannerContent = (
-    <Box sx={{ p: 3 }}>
-      <Typography variant="h4" gutterBottom>
-        Barcode Scanner - Item Usage Tracker
-      </Typography>
+    <Box sx={{ 
+      minHeight: '100vh',
+      background: `linear-gradient(135deg, ${alpha(theme.palette.primary.light, 0.1)} 0%, ${alpha(theme.palette.secondary.light, 0.05)} 100%)`,
+      p: { xs: 2, sm: 3, md: 4 },
+    }}>
+      {/* Enhanced Header Section */}
+      <Fade in timeout={800}>
+        <Paper 
+          elevation={0}
+          sx={{ 
+            background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
+            color: 'white',
+            p: { xs: 3, md: 4 },
+            mb: 4,
+            borderRadius: 3,
+            position: 'relative',
+            overflow: 'hidden',
+            '&::before': {
+              content: '""',
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: 'url("data:image/svg+xml,<svg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 100 100\'><defs><pattern id=\'grain\' width=\'100\' height=\'100\' patternUnits=\'userSpaceOnUse\'><circle cx=\'50\' cy=\'50\' r=\'1\' fill=\'%23ffffff\' opacity=\'0.1\'/></pattern></defs><rect width=\'100\' height=\'100\' fill=\'url(%23grain)\'/></svg>")',
+              pointerEvents: 'none',
+            }
+          }}
+        >
+          <Box sx={{ 
+            display: 'flex', 
+            flexDirection: { xs: 'column', sm: 'row' },
+            justifyContent: 'space-between', 
+            alignItems: { xs: 'flex-start', sm: 'center' }, 
+            gap: 3,
+            position: 'relative',
+            zIndex: 1,
+          }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Box sx={{ 
+                background: alpha(theme.palette.common.white, 0.15),
+                borderRadius: 2,
+                p: 1.5,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                <ScannerIcon sx={{ fontSize: 32 }} />
+              </Box>
+              <Box>
+                <Typography 
+                  variant="h4"
+                  sx={{ 
+                    fontSize: { xs: '1.5rem', md: '2.125rem' },
+                    fontWeight: 600,
+                    mb: 0.5,
+                  }}
+                >
+                  Barcode Scanner
+                </Typography>
+                <Typography 
+                  variant="body1" 
+                  sx={{ 
+                    opacity: 0.9,
+                    fontSize: { xs: '0.9rem', md: '1rem' }
+                  }}
+                >
+                  Scan items to track usage and manage inventory
+                </Typography>
+              </Box>
+            </Box>
+            {error && (
+              <Zoom in>
+                <Alert 
+                  severity="error" 
+                  onClose={() => setError('')}
+                  sx={{
+                    bgcolor: 'rgba(255,255,255,0.15)',
+                    backdropFilter: 'blur(10px)',
+                    border: '1px solid rgba(255,255,255,0.2)',
+                    color: 'white',
+                    '& .MuiAlert-icon': { color: 'white' },
+                    borderRadius: 2,
+                  }}
+                >
+                  {error}
+                </Alert>
+              </Zoom>
+            )}
+            {success && (
+              <Zoom in>
+                <Alert 
+                  severity="success" 
+                  onClose={() => setSuccess('')}
+                  sx={{
+                    bgcolor: 'rgba(255,255,255,0.15)',
+                    backdropFilter: 'blur(10px)',
+                    border: '1px solid rgba(255,255,255,0.2)',
+                    color: 'white',
+                    '& .MuiAlert-icon': { color: 'white' },
+                    borderRadius: 2,
+                  }}
+                >
+                  {success}
+                </Alert>
+              </Zoom>
+            )}
+          </Box>
+        </Paper>
+      </Fade>
 
-      {/* User Name Display (Auto-filled from Account) */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <PersonIcon color="primary" />
+      {/* Enhanced User Name Display */}
+      <Slide in direction="up" timeout={600} style={{ transitionDelay: '200ms' }}>
+        <Card sx={{
+          mb: 4,
+          borderRadius: 3,
+          background: `linear-gradient(135deg, ${alpha(theme.palette.info.main, 0.08)} 0%, ${alpha(theme.palette.info.light, 0.05)} 100%)`,
+          border: `1px solid ${alpha(theme.palette.info.main, 0.2)}`,
+          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+          '&:hover': {
+            transform: 'translateY(-2px)',
+            boxShadow: `0 8px 25px ${alpha(theme.palette.info.main, 0.15)}`,
+          }
+        }}>
+          <CardHeader
+            avatar={
+              <Avatar sx={{
+                background: `linear-gradient(135deg, ${theme.palette.info.main} 0%, ${theme.palette.info.dark} 100%)`,
+                color: 'white',
+              }}>
+                <PersonIcon />
+              </Avatar>
+            }
+            title={
+              <Typography variant="h6" sx={{ fontWeight: 600, color: theme.palette.text.primary }}>
+                User Identification
+              </Typography>
+            }
+            subheader={
+              <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>
+                {user ? "Authenticated user session" : "Manual identification required"}
+              </Typography>
+            }
+            action={
+              isAdmin && (
+                <Chip 
+                  label="ADMIN" 
+                  color="error" 
+                  variant="filled"
+                  sx={{ 
+                    fontWeight: 700,
+                    fontSize: '0.75rem',
+                    boxShadow: `0 2px 8px ${alpha(theme.palette.error.main, 0.3)}`,
+                  }}
+                />
+              )
+            }
+          />
+          <CardContent sx={{ pt: 0 }}>
             <TextField
+              fullWidth
               label={user ? "Logged in as" : "Your name"}
               value={userName}
               placeholder={user ? "Loading user name..." : "Enter your name to start scanning"}
-              size="small"
-              sx={{ 
-                flexGrow: 1,
-                '& .MuiInputBase-input': {
-                  color: 'text.primary',
-                  fontWeight: 500
-                }
-              }}
-              InputProps={{
-                readOnly: !!user,
-              }}
               variant={user ? "filled" : "outlined"}
               onChange={(e) => {
                 if (!user) {
                   setUserName(e.target.value);
                 }
               }}
+              InputProps={{
+                readOnly: !!user,
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <PersonIcon sx={{ 
+                      color: userName ? theme.palette.info.main : theme.palette.action.disabled,
+                      fontSize: 20
+                    }} />
+                  </InputAdornment>
+                ),
+              }}
+              sx={{ 
+                mb: 2,
+                '& .MuiOutlinedInput-root': {
+                  borderRadius: 2,
+                  backgroundColor: userName ? alpha(theme.palette.info.light, 0.1) : 'transparent',
+                  borderColor: userName ? alpha(theme.palette.info.main, 0.3) : alpha(theme.palette.divider, 0.23),
+                  transition: 'all 0.3s ease',
+                  '&:hover': {
+                    borderColor: userName ? theme.palette.info.main : theme.palette.primary.main,
+                  },
+                  '&.Mui-focused': {
+                    borderColor: theme.palette.primary.main,
+                    boxShadow: `0 0 0 2px ${alpha(theme.palette.primary.main, 0.2)}`,
+                  }
+                },
+                '& .MuiFilledInput-root': {
+                  borderRadius: 2,
+                  backgroundColor: alpha(theme.palette.info.light, 0.15),
+                  '&:hover': {
+                    backgroundColor: alpha(theme.palette.info.light, 0.2),
+                  },
+                  '&.Mui-focused': {
+                    backgroundColor: alpha(theme.palette.info.light, 0.2),
+                  }
+                },
+                '& .MuiInputBase-input': {
+                  color: 'text.primary',
+                  fontWeight: 500,
+                  fontSize: '1rem',
+                }
+              }}
             />
-            {isAdmin && (
-              <Chip 
-                label="ADMIN" 
-                color="error" 
-                size="small" 
-                sx={{ fontWeight: 'bold' }}
-              />
-            )}
-          </Box>
-          <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-            {user 
-              ? "Your name is automatically set from your account and will be recorded with each item usage for tracking purposes."
-              : "Please enter your name - it will be recorded with each item usage for tracking purposes."
+            <Alert 
+              severity={user ? "success" : "info"}
+              icon={user ? undefined : <PersonIcon />}
+              sx={{
+                borderRadius: 2,
+                border: `1px solid ${alpha(user ? theme.palette.success.main : theme.palette.info.main, 0.3)}`,
+                background: `linear-gradient(135deg, ${alpha(user ? theme.palette.success.light : theme.palette.info.light, 0.1)} 0%, ${alpha(user ? theme.palette.success.light : theme.palette.info.light, 0.05)} 100%)`,
+                '& .MuiAlert-message': {
+                  fontWeight: 500,
+                }
+              }}
+            >
+              {user 
+                ? "Your name is automatically set from your account and will be recorded with each item usage for tracking purposes."
+                : "Please enter your name - it will be recorded with each item usage for tracking purposes."
+              }
+              {isAdmin && (
+                <Box component="span" sx={{ color: theme.palette.error.main, fontWeight: 700, ml: 1 }}>
+                  (Admin privileges active)
+                </Box>
+              )}
+            </Alert>
+          </CardContent>
+        </Card>
+      </Slide>
+
+      {/* Enhanced Smart Search */}
+      <Slide in direction="up" timeout={600} style={{ transitionDelay: '400ms' }}>
+        <Box>
+          <Card sx={{
+          mb: 4,
+          borderRadius: 3,
+          background: `linear-gradient(135deg, ${alpha(theme.palette.secondary.main, 0.08)} 0%, ${alpha(theme.palette.secondary.light, 0.05)} 100%)`,
+          border: `1px solid ${alpha(theme.palette.secondary.main, 0.2)}`,
+          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+          '&:hover': {
+            transform: 'translateY(-2px)',
+            boxShadow: `0 8px 25px ${alpha(theme.palette.secondary.main, 0.15)}`,
+          }
+        }}>
+          <CardHeader
+            avatar={
+              <Avatar sx={{
+                background: `linear-gradient(135deg, ${theme.palette.secondary.main} 0%, ${theme.palette.secondary.dark} 100%)`,
+                color: 'white',
+              }}>
+                <SearchIcon />
+              </Avatar>
             }
-            {isAdmin && (
-              <span style={{ color: '#d32f2f', fontWeight: 'bold' }}> (Admin privileges active)</span>
-            )}
-          </Typography>
-        </CardContent>
-      </Card>
-
-      {/* Smart Search */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
-            <SearchIcon color="primary" />
-            <Typography variant="h6">Search Items</Typography>
-          </Box>
-          
-          <TextField
-            fullWidth
-            variant="outlined"
-            placeholder="Search items by name, code, description... (e.g., 'white belt', 'B001')"
-            value={searchQuery}
-            onChange={handleSearchChange}
-            size="small"
-            disabled={!userName.trim()}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon color="action" />
-                </InputAdornment>
-              ),
-              endAdornment: searchQuery && (
-                <InputAdornment position="end">
-                  <IconButton onClick={clearSearch} size="small" edge="end">
-                    <ClearIcon />
-                  </IconButton>
-                </InputAdornment>
-              ),
-            }}
-            sx={{ mb: 1 }}
-          />
-
-          {searchQuery && (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-              <Typography variant="body2" color="text.secondary">
-                {searchLoading ? 'Searching...' : `Found ${searchResults.length} result${searchResults.length !== 1 ? 's' : ''}`}
+            title={
+              <Typography variant="h6" sx={{ fontWeight: 600, color: theme.palette.text.primary }}>
+                Smart Item Search
               </Typography>
-              <IconButton 
-                size="small" 
-                onClick={() => setShowSearchResults(!showSearchResults)}
-                disabled={searchResults.length === 0}
-              >
-                {showSearchResults ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-              </IconButton>
-            </Box>
-          )}
-
-          <Collapse in={showSearchResults && searchResults.length > 0}>
-            <Paper variant="outlined" sx={{ maxHeight: 300, overflow: 'auto' }}>
-              <List dense>
-                {searchResults.map((item, index) => (
-                  <Box key={item.id}>
-                    <ListItemButton
-                      onClick={() => handleSearchResultClick(item)}
+            }
+            subheader={
+              <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>
+                Find items by name, code, or description without scanning
+              </Typography>
+            }
+          />
+          <CardContent sx={{ pt: 0 }}>
+            <TextField
+              fullWidth
+              variant="outlined"
+              placeholder="Search items by name, code, description... (e.g., 'white belt', 'B001')"
+              value={searchQuery}
+              onChange={handleSearchChange}
+              disabled={!userName.trim()}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon sx={{ 
+                      color: searchQuery ? theme.palette.secondary.main : theme.palette.action.disabled,
+                      fontSize: 20
+                    }} />
+                  </InputAdornment>
+                ),
+                endAdornment: searchQuery && (
+                  <InputAdornment position="end">
+                    <IconButton 
+                      onClick={clearSearch} 
+                      size="small" 
+                      edge="end"
                       sx={{
-                        py: 1,
+                        color: theme.palette.secondary.main,
                         '&:hover': {
-                          backgroundColor: 'primary.light',
-                          color: 'white',
+                          backgroundColor: alpha(theme.palette.secondary.main, 0.1),
                         }
                       }}
                     >
-                      <ListItemText
-                        primary={
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <Typography variant="subtitle2" component="span">
-                              {item.name}
-                            </Typography>
-                            {item.code && (
-                              <Chip 
-                                label={item.code} 
-                                size="small" 
-                                variant="outlined"
-                                sx={{ fontSize: '0.7rem' }}
-                              />
-                            )}
-                            {item.category && (
-                              <Chip 
-                                label={`Cat ${item.category}`}
-                                size="small"
-                                color={item.category === 'A' ? 'error' : item.category === 'B' ? 'warning' : 'success'}
-                                sx={{ fontSize: '0.7rem' }}
-                              />
-                            )}
-                          </Box>
-                        }
-                        secondary={
-                          <Box>
-                            {item.description && (
-                              <Typography variant="body2" color="text.secondary" noWrap>
-                                {item.description}
+                      <ClearIcon />
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
+              sx={{ 
+                mb: 2,
+                '& .MuiOutlinedInput-root': {
+                  borderRadius: 2,
+                  backgroundColor: searchQuery ? alpha(theme.palette.secondary.light, 0.1) : 'transparent',
+                  borderColor: searchQuery ? alpha(theme.palette.secondary.main, 0.3) : alpha(theme.palette.divider, 0.23),
+                  transition: 'all 0.3s ease',
+                  '&:hover': {
+                    borderColor: searchQuery ? theme.palette.secondary.main : theme.palette.primary.main,
+                  },
+                  '&.Mui-focused': {
+                    borderColor: theme.palette.primary.main,
+                    boxShadow: `0 0 0 2px ${alpha(theme.palette.primary.main, 0.2)}`,
+                  },
+                  '&.Mui-disabled': {
+                    backgroundColor: alpha(theme.palette.action.disabledBackground, 0.5),
+                  }
+                }
+              }}
+            />
+
+            {searchQuery && (
+              <Box sx={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'space-between',
+                mb: 2,
+                p: 2,
+                borderRadius: 2,
+                background: alpha(theme.palette.secondary.light, 0.1),
+                border: `1px solid ${alpha(theme.palette.secondary.main, 0.2)}`,
+              }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  {searchLoading ? (
+                    <>
+                      <LinearProgress sx={{ width: 20, height: 4, borderRadius: 1 }} />
+                      <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500 }}>
+                        Searching...
+                      </Typography>
+                    </>
+                  ) : (
+                    <>
+                      <Typography variant="body2" sx={{ fontWeight: 600, color: theme.palette.secondary.main }}>
+                        Found {searchResults.length} result{searchResults.length !== 1 ? 's' : ''}
+                      </Typography>
+                      {searchResults.length > 0 && (
+                        <Chip 
+                          label={`${searchResults.length} items`}
+                          size="small"
+                          color="secondary"
+                          sx={{ fontWeight: 500 }}
+                        />
+                      )}
+                    </>
+                  )}
+                </Box>
+                <IconButton 
+                  onClick={() => setShowSearchResults(!showSearchResults)}
+                  disabled={searchResults.length === 0}
+                  sx={{
+                    color: theme.palette.secondary.main,
+                    '&:hover': {
+                      backgroundColor: alpha(theme.palette.secondary.main, 0.1),
+                    }
+                  }}
+                >
+                  {showSearchResults ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                </IconButton>
+              </Box>
+            )}
+
+            <Collapse in={showSearchResults && searchResults.length > 0} timeout={300}>
+              <Paper 
+                variant="outlined" 
+                sx={{ 
+                  maxHeight: 350, 
+                  overflow: 'auto',
+                  borderRadius: 2,
+                  border: `1px solid ${alpha(theme.palette.secondary.main, 0.2)}`,
+                  mb: 2,
+                }}
+              >
+                <List dense>
+                  {searchResults.map((item, index) => (
+                    <Box key={item.id}>
+                      <ListItemButton
+                        onClick={() => handleSearchResultClick(item)}
+                        sx={{
+                          py: 1.5,
+                          transition: 'all 0.2s ease',
+                          '&:hover': {
+                            backgroundColor: alpha(theme.palette.secondary.main, 0.1),
+                            transform: 'translateX(4px)',
+                          }
+                        }}
+                      >
+                        <ListItemText
+                          primary={
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                              <Typography variant="subtitle2" component="span" sx={{ fontWeight: 600 }}>
+                                {item.name}
                               </Typography>
-                            )}
-                            <Box sx={{ display: 'flex', gap: 2, mt: 0.5 }}>
-                              {item.location && (
-                                <Typography variant="caption" color="text.secondary">
-                                  📍 {item.location}
-                                </Typography>
+                              {item.code && (
+                                <Chip 
+                                  label={item.code} 
+                                  size="small" 
+                                  variant="outlined"
+                                  color="secondary"
+                                  sx={{ fontSize: '0.7rem', fontWeight: 500 }}
+                                />
                               )}
-                              {item.currentInventory !== undefined && (
-                                <Typography variant="caption" color="text.secondary">
-                                  📦 Stock: {item.currentInventory}
-                                </Typography>
+                              {item.category && (
+                                <Chip 
+                                  label={`Cat ${item.category}`}
+                                  size="small"
+                                  color={item.category === 'A' ? 'error' : item.category === 'B' ? 'warning' : 'success'}
+                                  sx={{ fontSize: '0.7rem', fontWeight: 500 }}
+                                />
                               )}
                             </Box>
-                          </Box>
-                        }
-                      />
-                    </ListItemButton>
-                    {index < searchResults.length - 1 && <Divider />}
-                  </Box>
-                ))}
-              </List>
-            </Paper>
-          </Collapse>
+                          }
+                          secondary={
+                            <Box sx={{ mt: 1 }}>
+                              {item.description && (
+                                <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                                  {item.description}
+                                </Typography>
+                              )}
+                              <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                                {item.location && (
+                                  <Chip
+                                    label={`📍 ${item.location}`}
+                                    variant="outlined"
+                                    size="small"
+                                    sx={{ fontSize: '0.7rem' }}
+                                  />
+                                )}
+                                {item.currentInventory !== undefined && (
+                                  <Chip
+                                    label={`📦 Stock: ${item.currentInventory}`}
+                                    variant="outlined"
+                                    size="small"
+                                    color={item.currentInventory > 0 ? 'success' : 'error'}
+                                    sx={{ fontSize: '0.7rem' }}
+                                  />
+                                )}
+                              </Box>
+                            </Box>
+                          }
+                        />
+                      </ListItemButton>
+                      {index < searchResults.length - 1 && <Divider />}
+                    </Box>
+                  ))}
+                </List>
+              </Paper>
+            </Collapse>
 
-          <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-            Click on any search result to view item details and record usage, just like scanning a barcode.
-          </Typography>
-        </CardContent>
-      </Card>
+            <Alert 
+              severity="info"
+              icon={<SearchIcon />}
+              sx={{
+                borderRadius: 2,
+                border: `1px solid ${alpha(theme.palette.info.main, 0.3)}`,
+                background: `linear-gradient(135deg, ${alpha(theme.palette.info.light, 0.1)} 0%, ${alpha(theme.palette.info.light, 0.05)} 100%)`,
+                '& .MuiAlert-message': {
+                  fontWeight: 500,
+                }
+              }}
+            >
+              Click on any search result to view item details and record usage, just like scanning a barcode.
+            </Alert>
+          </CardContent>
+        </Card>
+        </Box>
+      </Slide>
 
-      {/* Scanner Controls */}
-      <Paper sx={{ p: 3, mb: 3 }}>
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {/* Camera Scanner */}
-          <Box>
-            <Typography variant="h6" gutterBottom>
-              Camera Scanner
-            </Typography>
-            <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', mb: 2 }}>
-              <Button
-                variant="contained"
-                startIcon={<ScannerIcon />}
-                onClick={isScanning ? stopScanning : startScanning}
-                disabled={!userName.trim()}
-              >
-                {isScanning ? 'Stop Scanning' : 'Start Camera Scan'}
-              </Button>
-              
-              {isScanning && (
-                <IconButton onClick={toggleTorch} color={torchEnabled ? 'warning' : 'default'}>
-                  {torchEnabled ? <FlashlightOnIcon /> : <FlashlightOffIcon />}
-                </IconButton>
-              )}
+      {/* Enhanced Scanner Controls */}
+      <Slide in direction="up" timeout={600} style={{ transitionDelay: '600ms' }}>
+        <Box>
+          <Card sx={{
+            mb: 4,
+            borderRadius: 3,
+            background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.08)} 0%, ${alpha(theme.palette.primary.light, 0.05)} 100%)`,
+            border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
+            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+            '&:hover': {
+              transform: 'translateY(-2px)',
+              boxShadow: `0 8px 25px ${alpha(theme.palette.primary.main, 0.15)}`,
+            }
+          }}>
+            <CardHeader
+              avatar={
+                <Avatar sx={{
+                  background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
+                  color: 'white',
+                }}>
+                  <ScannerIcon />
+                </Avatar>
+              }
+              title={
+                <Typography variant="h6" sx={{ fontWeight: 600, color: theme.palette.text.primary }}>
+                  Camera Scanner
+                </Typography>
+              }
+              subheader={
+                <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>
+                  Use your device camera to scan barcodes
+                </Typography>
+              }
+            />
+            <CardContent sx={{ pt: 0 }}>
+              <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', mb: 3, flexWrap: 'wrap' }}>
+                <Button
+                  variant="contained"
+                  size="large"
+                  startIcon={<ScannerIcon />}
+                  onClick={isScanning ? stopScanning : startScanning}
+                  disabled={!userName.trim()}
+                  sx={{
+                    px: 4,
+                    py: 1.5,
+                    borderRadius: 2,
+                    fontWeight: 600,
+                    fontSize: '1rem',
+                    background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
+                    boxShadow: `0 4px 12px ${alpha(theme.palette.primary.main, 0.3)}`,
+                    '&:hover': {
+                      background: `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.primary.main} 100%)`,
+                      transform: 'translateY(-2px)',
+                      boxShadow: `0 6px 20px ${alpha(theme.palette.primary.main, 0.4)}`,
+                    },
+                    '&:disabled': {
+                      background: theme.palette.action.disabledBackground,
+                      color: theme.palette.action.disabled,
+                    },
+                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                  }}
+                >
+                  {isScanning ? 'Stop Scanning' : 'Start Camera Scan'}
+                </Button>
+                
+                {isScanning && (
+                  <Zoom in>
+                    <IconButton 
+                      onClick={toggleTorch} 
+                      sx={{
+                        bgcolor: torchEnabled ? alpha(theme.palette.warning.main, 0.1) : alpha(theme.palette.grey[500], 0.1),
+                        border: `2px solid ${torchEnabled ? theme.palette.warning.main : theme.palette.grey[400]}`,
+                        color: torchEnabled ? theme.palette.warning.main : theme.palette.grey[600],
+                        '&:hover': {
+                          bgcolor: torchEnabled ? alpha(theme.palette.warning.main, 0.2) : alpha(theme.palette.grey[500], 0.2),
+                          transform: 'scale(1.1)',
+                        },
+                        transition: 'all 0.3s ease',
+                      }}
+                    >
+                      {torchEnabled ? <FlashlightOnIcon /> : <FlashlightOffIcon />}
+                    </IconButton>
+                  </Zoom>
+                )}
             </Box>
 
             {isScanning && (

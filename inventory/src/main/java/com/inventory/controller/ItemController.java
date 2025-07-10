@@ -266,9 +266,15 @@ public class ItemController {
     }
 
     @PostMapping("/import-csv")
-    public ResponseEntity<?> importItemsFromCSV(@RequestParam("file") MultipartFile file, Authentication authentication) {
+    public ResponseEntity<?> importItemsFromCSV(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "useDepartmentOverride", defaultValue = "false") boolean useDepartmentOverride,
+            @RequestParam(value = "overrideDepartment", required = false) String overrideDepartment,
+            Authentication authentication) {
         System.out.println("=== IMPORT DEBUG START ===");
         System.out.println("File received: " + (file != null ? "YES" : "NO"));
+        System.out.println("Use department override: " + useDepartmentOverride);
+        System.out.println("Override department: " + overrideDepartment);
         
         if (file != null) {
             System.out.println("File name: " + file.getOriginalFilename());
@@ -327,18 +333,33 @@ public class ItemController {
                         continue; // Skip duplicate instead of adding to errors
                     }
                     
-                    // Department filtering for ADMIN users
-                    if (currentUser != null && currentUser.getRole() == User.UserRole.ADMIN) {
-                        // Admin can only create items for their department or public items
-                        if (item.getDepartment() != null && !item.getDepartment().trim().isEmpty() 
-                            && !item.getDepartment().equals(currentUser.getDepartment())) {
-                            departmentFiltered++;
-                            continue; // Skip items not belonging to admin's department
+                    // Apply department override if requested
+                    if (useDepartmentOverride) {
+                        if (currentUser != null && currentUser.getRole() == User.UserRole.ADMIN) {
+                            // For ADMIN users, use their own department
+                            item.setDepartment(currentUser.getDepartment());
+                        } else if (currentUser != null && currentUser.getRole() == User.UserRole.OWNER) {
+                            // For OWNER users, use the specified department (can be null/empty for public)
+                            if (overrideDepartment != null && !overrideDepartment.trim().isEmpty()) {
+                                item.setDepartment(overrideDepartment);
+                            } else {
+                                item.setDepartment(null); // Public item
+                            }
                         }
-                        
-                        // If item has no department or is empty, keep it as public (don't auto-assign admin's department)
-                        if (item.getDepartment() == null || item.getDepartment().trim().isEmpty()) {
-                            item.setDepartment(null); // Explicitly set as public (no department)
+                    } else {
+                        // Original department filtering logic for ADMIN users when not using override
+                        if (currentUser != null && currentUser.getRole() == User.UserRole.ADMIN) {
+                            // Admin can only create items for their department or public items
+                            if (item.getDepartment() != null && !item.getDepartment().trim().isEmpty() 
+                                && !item.getDepartment().equals(currentUser.getDepartment())) {
+                                departmentFiltered++;
+                                continue; // Skip items not belonging to admin's department
+                            }
+                            
+                            // If item has no department or is empty, keep it as public (don't auto-assign admin's department)
+                            if (item.getDepartment() == null || item.getDepartment().trim().isEmpty()) {
+                                item.setDepartment(null); // Explicitly set as public (no department)
+                            }
                         }
                     }
                     

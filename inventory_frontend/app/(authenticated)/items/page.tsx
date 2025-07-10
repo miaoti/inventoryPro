@@ -27,6 +27,7 @@ import {
   CardContent,
   Divider,
   Checkbox,
+  FormControlLabel,
   CircularProgress,
   InputAdornment,
   Menu,
@@ -156,6 +157,10 @@ export default function ItemsPage() {
   // Department creation state
   const [showCreateDepartmentDialog, setShowCreateDepartmentDialog] = useState(false);
   const [newDepartmentName, setNewDepartmentName] = useState('');
+  
+  // Import department override state
+  const [importUseDepartmentOverride, setImportUseDepartmentOverride] = useState(false);
+  const [importSelectedDepartment, setImportSelectedDepartment] = useState('');
   
   // Snackbar state for error messages
   const [snackbar, setSnackbar] = useState({ 
@@ -713,7 +718,14 @@ export default function ItemsPage() {
     try {
       setImportLoading(true);
       setImportResult(null); // Clear previous results
-      const response = await itemsAPI.importCSV(importFile);
+      
+      // Prepare department override options
+      const departmentOverride = importUseDepartmentOverride ? {
+        useDepartmentOverride: true,
+        overrideDepartment: importSelectedDepartment
+      } : { useDepartmentOverride: false };
+      
+      const response = await itemsAPI.importCSV(importFile, departmentOverride);
       setImportResult(response.data);
       fetchItems(); // Refresh items after import
     } catch (error: any) {
@@ -759,6 +771,8 @@ export default function ItemsPage() {
     setImportFile(null);
     setImportResult(null);
     setImportLoading(false);
+    setImportUseDepartmentOverride(false);
+    setImportSelectedDepartment('');
   };
 
   const handleExportBarcodes = async () => {
@@ -2188,6 +2202,84 @@ export default function ItemsPage() {
                 </Typography>
               </Alert>
             )}
+
+            {/* Department Override Options */}
+            <Card sx={{ mb: 2, p: 2 }}>
+              <Typography variant="h6" gutterBottom>
+                📂 Department Assignment
+              </Typography>
+              
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={importUseDepartmentOverride}
+                    onChange={(e) => {
+                      setImportUseDepartmentOverride(e.target.checked);
+                      if (!e.target.checked) {
+                        setImportSelectedDepartment('');
+                      } else if (user?.role === 'ADMIN') {
+                        // Auto-select admin's department
+                        setImportSelectedDepartment(user?.department || '');
+                      }
+                    }}
+                  />
+                }
+                label={
+                  user?.role === 'ADMIN' 
+                    ? "Assign all imported items to my department" 
+                    : "Override department assignments from file"
+                }
+              />
+              
+              {importUseDepartmentOverride && (
+                <Box sx={{ mt: 2 }}>
+                  {user?.role === 'ADMIN' ? (
+                    <Alert severity="info">
+                      <Typography variant="body2">
+                        All imported items will be assigned to your department: <strong>{user?.department || 'None'}</strong>
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        This overrides any department values in the uploaded file.
+                      </Typography>
+                    </Alert>
+                  ) : user?.role === 'OWNER' ? (
+                    <>
+                      <FormControl fullWidth>
+                        <InputLabel>Select Department</InputLabel>
+                        <Select
+                          value={importSelectedDepartment}
+                          onChange={(e) => setImportSelectedDepartment(e.target.value)}
+                          label="Select Department"
+                        >
+                          <MenuItem value="">
+                            <em>Public (No Department)</em>
+                          </MenuItem>
+                          {departments.map((dept) => (
+                            <MenuItem key={dept} value={dept}>
+                              {dept}
+                            </MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                      <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                        All imported items will be assigned to the selected department, overriding values in the file.
+                      </Typography>
+                    </>
+                  ) : null}
+                </Box>
+              )}
+              
+              {!importUseDepartmentOverride && (
+                <Alert severity="info" sx={{ mt: 1 }}>
+                  <Typography variant="body2">
+                    Department assignments will be read from the file.
+                    {user?.role === 'ADMIN' && (
+                      <> Items not belonging to your department will be skipped.</>
+                    )}
+                  </Typography>
+                </Alert>
+              )}
+            </Card>
 
             {importLoading && (
               <Box sx={{ mb: 2 }}>

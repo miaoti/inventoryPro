@@ -366,9 +366,20 @@ export const itemsAPI = {
   update: (id: number, itemData: any) => api.put(`/items/${id}`, itemData),
   delete: (id: number) => api.delete(`/items/${id}`),
   bulkDelete: (itemIds: number[]) => api.delete('/items/bulk', { data: itemIds }),
-  importCSV: (file: File) => {
+  importCSV: (file: File, departmentOverride?: { useDepartmentOverride: boolean; overrideDepartment?: string }) => {
     const formData = new FormData();
     formData.append('file', file);
+    
+    // Add department override parameters if provided
+    if (departmentOverride?.useDepartmentOverride) {
+      formData.append('useDepartmentOverride', 'true');
+      if (departmentOverride.overrideDepartment) {
+        formData.append('overrideDepartment', departmentOverride.overrideDepartment);
+      }
+    } else {
+      formData.append('useDepartmentOverride', 'false');
+    }
+    
     return api.post('/items/import-csv', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
