@@ -616,18 +616,18 @@ export default function PurchaseOrderStatsPage() {
               <Zoom in timeout={600} style={{ transitionDelay: `${600 + index * 200}ms` }}>
                 <Card sx={{
                   borderRadius: 3,
-                  background: theme => `linear-gradient(135deg, ${alpha(theme.palette[stat.color].main, 0.08)} 0%, ${alpha(theme.palette[stat.color].light, 0.05)} 100%)`,
-                  border: theme => `1px solid ${alpha(theme.palette[stat.color].main, 0.2)}`,
+                  background: theme => `linear-gradient(135deg, ${alpha((theme.palette as any)[stat.color].main, 0.08)} 0%, ${alpha((theme.palette as any)[stat.color].light, 0.05)} 100%)`,
+                  border: theme => `1px solid ${alpha((theme.palette as any)[stat.color].main, 0.2)}`,
                   transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                   '&:hover': {
                     transform: 'translateY(-8px)',
-                    boxShadow: theme => `0 12px 40px ${alpha(theme.palette[stat.color].main, 0.15)}`,
+                    boxShadow: theme => `0 12px 40px ${alpha((theme.palette as any)[stat.color].main, 0.15)}`,
                   }
                 }}>
                   <CardContent sx={{ p: 3 }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                       <Avatar sx={{
-                        background: theme => `linear-gradient(135deg, ${theme.palette[stat.color].main} 0%, ${theme.palette[stat.color].dark} 100%)`,
+                        background: theme => `linear-gradient(135deg, ${(theme.palette as any)[stat.color].main} 0%, ${(theme.palette as any)[stat.color].dark} 100%)`,
                         width: 48,
                         height: 48,
                       }}>
@@ -637,7 +637,7 @@ export default function PurchaseOrderStatsPage() {
                         <Typography 
                           variant="h4" 
                           sx={{ 
-                            color: theme => theme.palette[stat.color].main,
+                            color: theme => (theme.palette as any)[stat.color].main,
                             fontWeight: 700,
                             mb: 0.5,
                           }}
