@@ -75,4 +75,14 @@ public interface ItemRepository extends JpaRepository<Item, Long> {
     @Query("SELECT i FROM Item i WHERE (i.department IS NULL OR i.department = '' OR i.department = :department) " +
            "AND i.currentInventory <= (i.safetyStockThreshold * :criticalThresholdPercent / 100.0) AND i.safetyStockThreshold > 0")
     List<Item> findCriticalStockItemsByDepartment(@Param("department") String department, @Param("criticalThresholdPercent") int criticalThresholdPercent);
+    
+    // Department-aware inventory statistics
+    @Query("SELECT COUNT(i), SUM(i.currentInventory), AVG(i.currentInventory), " +
+           "SUM(CASE WHEN i.currentInventory <= (i.safetyStockThreshold * :warningThresholdPercent / 100.0) THEN 1 ELSE 0 END), " +
+           "SUM(CASE WHEN i.currentInventory <= (i.safetyStockThreshold * :criticalThresholdPercent / 100.0) THEN 1 ELSE 0 END) " +
+           "FROM Item i WHERE i.safetyStockThreshold > 0 AND " +
+           "(:department IS NULL OR :department = '' OR i.department IS NULL OR i.department = '' OR i.department = :department)")
+    Object[] getInventoryStatisticsByDepartment(@Param("department") String department,
+                                               @Param("warningThresholdPercent") int warningThresholdPercent, 
+                                               @Param("criticalThresholdPercent") int criticalThresholdPercent);
 } 

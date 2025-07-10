@@ -117,4 +117,25 @@ public interface UsageRepository extends JpaRepository<Usage, Long> {
            "WHERE u.usedAt >= :startDate AND u.usedAt <= :endDate")
     Object[] getUsageStatistics(@Param("startDate") LocalDateTime startDate, 
                                @Param("endDate") LocalDateTime endDate);
+    
+    // Department-specific queries for filtering
+    
+    // Get daily usage aggregated by date filtered by department
+    @Query(value = "SELECT DATE(used_at) as usage_date, SUM(quantity_used) as total_usage " +
+                   "FROM item_usage " +
+                   "WHERE used_at >= :startDate AND " +
+                   "(:department IS NULL OR :department = '' OR department = :department) " +
+                   "GROUP BY DATE(used_at) " +
+                   "ORDER BY usage_date", 
+           nativeQuery = true)
+    List<Object[]> getDailyUsageByDepartment(@Param("startDate") LocalDateTime startDate,
+                                           @Param("department") String department);
+    
+    // Get top N most used items by total quantity used filtered by department
+    @Query("SELECT u.item.id, u.item.name, u.item.code, SUM(u.quantityUsed) as totalUsage " +
+           "FROM Usage u " +
+           "WHERE (:department IS NULL OR :department = '' OR u.department = :department) " +
+           "GROUP BY u.item.id, u.item.name, u.item.code " +
+           "ORDER BY totalUsage DESC")
+    List<Object[]> getTopUsageItemsByDepartment(Pageable pageable, @Param("department") String department);
 } 

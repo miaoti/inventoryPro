@@ -623,7 +623,11 @@ export const statsAPI = {
     api.get(`/stats/top-usage/filtered?limit=${limit}&startDate=${startDate}&endDate=${endDate}`),
   getLowStockItems: () => api.get('/stats/low-stock'),
   getStockAlerts: () => api.get('/stats/stock-alerts'),
-  getQuickStats: () => api.get('/stats/quick-stats'),
+  getQuickStats: (department?: string) => {
+    const params = department ? `?department=${encodeURIComponent(department)}` : '';
+    return api.get(`/stats/quick-stats${params}`);
+  },
+  getAvailableDepartments: () => api.get('/stats/departments'),
 };
 
 // User Management API (Owner only)

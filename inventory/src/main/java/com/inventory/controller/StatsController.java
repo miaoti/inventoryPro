@@ -1,13 +1,18 @@
 package com.inventory.controller;
 
 import com.inventory.dto.*;
+import com.inventory.entity.User;
 import com.inventory.service.StatsService;
+import com.inventory.service.UserService;
+import com.inventory.repository.ItemRepository;
+import com.inventory.util.JwtUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import jakarta.servlet.http.HttpServletRequest;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -19,6 +24,15 @@ public class StatsController {
 
     @Autowired
     private StatsService statsService;
+    
+    @Autowired
+    private UserService userService;
+    
+    @Autowired
+    private ItemRepository itemRepository;
+    
+    @Autowired
+    private JwtUtil jwtUtil;
 
     @GetMapping("/daily-usage")
     public ResponseEntity<List<DailyUsageDto>> getDailyUsage(
@@ -110,15 +124,95 @@ public class StatsController {
     }
 
     @GetMapping("/quick-stats")
-    public ResponseEntity<QuickStatsDto> getQuickStats() {
+    public ResponseEntity<QuickStatsDto> getQuickStats(
+            @RequestParam(required = false) String department,
+            HttpServletRequest request) {
         try {
-            logger.info("Getting quick stats");
-            QuickStatsDto quickStats = statsService.getQuickStats();
+            // Get current user from JWT token
+            String username = getCurrentUsername(request);
+            if (username == null) {
+                logger.warn("Authentication failed for quick stats");
+                return ResponseEntity.status(401).build();
+            }
+            
+            User user = userService.findByUsername(username);
+            if (user == null) {
+                logger.warn("User not found: {}", username);
+                return ResponseEntity.status(404).build();
+            }
+            
+            // Determine which department to filter by based on user role
+            String filterDepartment = null;
+            if (user.getRole() == User.UserRole.OWNER) {
+                // OWNER can optionally filter by department or see all
+                filterDepartment = department;
+                logger.info("Getting quick stats for OWNER user{}", 
+                    filterDepartment != null ? " filtered by department: " + filterDepartment : " (all departments)");
+            } else {
+                // ADMIN/USER can only see their own department
+                filterDepartment = user.getDepartment();
+                logger.info("Getting quick stats for {} user filtered by their department: {}", 
+                    user.getRole(), filterDepartment);
+            }
+            
+            QuickStatsDto quickStats = statsService.getQuickStatsByDepartment(filterDepartment);
             logger.info("Successfully retrieved quick stats");
             return ResponseEntity.ok(quickStats);
         } catch (Exception e) {
             logger.error("Error getting quick stats", e);
             return ResponseEntity.internalServerError().build();
         }
+    }
+    
+    /**
+     * Get available departments for filtering (OWNER only)
+     */
+    @GetMapping("/departments")
+    public ResponseEntity<List<String>> getAvailableDepartments(HttpServletRequest request) {
+        try {
+            // Get current user from JWT token
+            String username = getCurrentUsername(request);
+            if (username == null) {
+                logger.warn("Authentication failed for departments");
+                return ResponseEntity.status(401).build();
+            }
+            
+            User user = userService.findByUsername(username);
+            if (user == null) {
+                logger.warn("User not found: {}", username);
+                return ResponseEntity.status(404).build();
+            }
+            
+            // Only OWNER users can see all departments
+            if (user.getRole() != User.UserRole.OWNER) {
+                logger.warn("Access denied for departments - user is not OWNER: {}", username);
+                return ResponseEntity.status(403).build();
+            }
+            
+            List<String> departments = itemRepository.findDistinctDepartments();
+            logger.info("Successfully retrieved {} departments for OWNER user", departments.size());
+            return ResponseEntity.ok(departments);
+        } catch (Exception e) {
+            logger.error("Error getting available departments", e);
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+    
+    /**
+     * Extract username from JWT token
+     */
+    private String getCurrentUsername(HttpServletRequest request) {
+        String authHeader = request.getHeader("Authorization");
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            String token = authHeader.substring(7);
+            try {
+                if (!jwtUtil.isTokenExpired(token)) {
+                    return jwtUtil.getUsernameFromToken(token);
+                }
+            } catch (Exception e) {
+                logger.warn("Invalid JWT token: {}", e.getMessage());
+            }
+        }
+        return null;
     }
 } 

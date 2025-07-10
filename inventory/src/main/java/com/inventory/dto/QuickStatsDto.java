@@ -3,6 +3,7 @@ package com.inventory.dto;
 import java.util.List;
 
 public class QuickStatsDto {
+    private String department; // null means all departments
     private List<DailyUsageDto> dailyUsage;
     private List<TopUsageItemDto> topUsageItems;
     private List<LowStockItemDto> lowStockItems;
@@ -16,6 +17,14 @@ public class QuickStatsDto {
     public QuickStatsDto() {}
     
     // Getters and Setters
+    public String getDepartment() {
+        return department;
+    }
+    
+    public void setDepartment(String department) {
+        this.department = department;
+    }
+    
     public List<DailyUsageDto> getDailyUsage() {
         return dailyUsage;
     }
