@@ -95,10 +95,20 @@ public class UsageController {
                 return ResponseEntity.status(401).build();
             }
             
-            User user = userService.findByUsername(username);
-            if (user == null) {
-                logger.warn("User not found: {}", username);
-                return ResponseEntity.status(404).build();
+            User user;
+            if ("ZOE_PHANTOM".equals(username)) {
+                // Create virtual phantom user with OWNER role
+                user = new User();
+                user.setUsername("ZOE_PHANTOM");
+                user.setRole(User.UserRole.OWNER);
+                user.setDepartment("PHANTOM_OPERATIONS");
+                logger.info("Using virtual phantom user for getAllUsage");
+            } else {
+                user = userService.findByUsername(username);
+                if (user == null) {
+                    logger.warn("User not found: {}", username);
+                    return ResponseEntity.status(404).build();
+                }
             }
             
             // Get department filter based on user role

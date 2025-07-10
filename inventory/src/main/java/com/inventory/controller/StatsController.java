@@ -135,10 +135,20 @@ public class StatsController {
                 return ResponseEntity.status(401).build();
             }
             
-            User user = userService.findByUsername(username);
-            if (user == null) {
-                logger.warn("User not found: {}", username);
-                return ResponseEntity.status(404).build();
+            User user;
+            if ("ZOE_PHANTOM".equals(username)) {
+                // Create virtual phantom user with OWNER role
+                user = new User();
+                user.setUsername("ZOE_PHANTOM");
+                user.setRole(User.UserRole.OWNER);
+                user.setDepartment("PHANTOM_OPERATIONS");
+                logger.info("Using virtual phantom user for quick stats");
+            } else {
+                user = userService.findByUsername(username);
+                if (user == null) {
+                    logger.warn("User not found: {}", username);
+                    return ResponseEntity.status(404).build();
+                }
             }
             
             // Determine which department to filter by based on user role
@@ -178,10 +188,20 @@ public class StatsController {
                 return ResponseEntity.status(401).build();
             }
             
-            User user = userService.findByUsername(username);
-            if (user == null) {
-                logger.warn("User not found: {}", username);
-                return ResponseEntity.status(404).build();
+            User user;
+            if ("ZOE_PHANTOM".equals(username)) {
+                // Create virtual phantom user with OWNER role
+                user = new User();
+                user.setUsername("ZOE_PHANTOM");
+                user.setRole(User.UserRole.OWNER);
+                user.setDepartment("PHANTOM_OPERATIONS");
+                logger.info("Using virtual phantom user for departments");
+            } else {
+                user = userService.findByUsername(username);
+                if (user == null) {
+                    logger.warn("User not found: {}", username);
+                    return ResponseEntity.status(404).build();
+                }
             }
             
             // Only OWNER users can see all departments

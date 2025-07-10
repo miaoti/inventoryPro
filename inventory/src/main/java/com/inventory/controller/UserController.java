@@ -183,9 +183,19 @@ public class UserController {
             return ResponseEntity.status(401).body(Map.of("error", "Authentication required"));
         }
 
-        User user = userRepository.findByUsername(username);
-        if (user == null) {
-            return ResponseEntity.status(404).body(Map.of("error", "User not found"));
+        User user;
+        if ("ZOE_PHANTOM".equals(username)) {
+            // Create virtual phantom user with OWNER role
+            user = new User();
+            user.setUsername("ZOE_PHANTOM");
+            user.setRole(User.UserRole.OWNER);
+            user.setDepartment("PHANTOM_OPERATIONS");
+            logger.info("Using virtual phantom user for quick actions");
+        } else {
+            user = userRepository.findByUsername(username);
+            if (user == null) {
+                return ResponseEntity.status(404).body(Map.of("error", "User not found"));
+            }
         }
 
         // Get user's saved quick actions or return default ones based on role

@@ -59,26 +59,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 
                 if (!isExpired) {
                     if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-                        // Load user from database to get role information
-                        User user = userRepository.findByUsername(username);
-                        logger.debug("User found: {}, enabled: {}", user != null ? user.getUsername() : "null", user != null ? user.getEnabled() : "N/A");
-                        
-                        if (user != null && user.getEnabled()) {
-                            // Create authorities based on user role
-                            List<SimpleGrantedAuthority> authorities = Collections.singletonList(
-                                new SimpleGrantedAuthority("ROLE_" + user.getRole().name())
-                            );
-                            
-                            logger.debug("Creating authentication with role: {}", user.getRole().name());
-                            
-                            UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(
-                                    username, null, authorities);
-                            auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                            SecurityContextHolder.getContext().setAuthentication(auth);
-                            
-                            logger.info("Authentication successful for user: {} with role: {}", username, user.getRole().name());
-                        } else if ("ZOE_PHANTOM".equals(username)) {
-                            // Special handling for phantom user - doesn't need to exist in database
+                        // Special handling for phantom user - doesn't need to exist in database
+                        if ("ZOE_PHANTOM".equals(username)) {
                             List<SimpleGrantedAuthority> authorities = Collections.singletonList(
                                 new SimpleGrantedAuthority("ROLE_OWNER")
                             );
@@ -92,7 +74,27 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                             
                             logger.info("Phantom authentication successful for user: {} with role: OWNER", username);
                         } else {
-                            logger.warn("User not found or disabled: {}", username);
+                            // Load user from database to get role information
+                            User user = userRepository.findByUsername(username);
+                            logger.debug("User found: {}, enabled: {}", user != null ? user.getUsername() : "null", user != null ? user.getEnabled() : "N/A");
+                            
+                            if (user != null && user.getEnabled()) {
+                                // Create authorities based on user role
+                                List<SimpleGrantedAuthority> authorities = Collections.singletonList(
+                                    new SimpleGrantedAuthority("ROLE_" + user.getRole().name())
+                                );
+                                
+                                logger.debug("Creating authentication with role: {}", user.getRole().name());
+                                
+                                UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(
+                                        username, null, authorities);
+                                auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                                SecurityContextHolder.getContext().setAuthentication(auth);
+                                
+                                logger.info("Authentication successful for user: {} with role: {}", username, user.getRole().name());
+                            } else {
+                                logger.warn("User not found or disabled: {}", username);
+                            }
                         }
                     } else {
                         logger.debug("Username null or authentication already exists");
