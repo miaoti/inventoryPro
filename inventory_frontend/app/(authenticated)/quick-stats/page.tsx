@@ -50,6 +50,7 @@ import {
   ExpandLess as ExpandLessIcon,
   CalendarToday as CalendarIcon,
   DateRange as DateRangeIcon,
+  Business as DepartmentIcon,
 } from '@mui/icons-material';
 import {
   BarChart,
@@ -98,6 +99,14 @@ interface StockAlert {
   percentage: number;
 }
 
+interface QuickStatsData {
+  dailyUsage: DailyUsageData[];
+  topUsageItems: TopUsageItem[];
+  lowStockItems: LowStockItem[];
+  stockAlerts: StockAlert[];
+  department?: string;
+}
+
 // Color scheme for charts
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
 
@@ -105,14 +114,23 @@ export default function QuickStats() {
   const router = useRouter();
   
   // Authentication check
-  const { isAuthenticated, token } = useSelector((state: RootState) => state.auth);
+  const { isAuthenticated, token, user } = useSelector((state: RootState) => state.auth);
   
-  const [dailyUsage, setDailyUsage] = useState<DailyUsageData[]>([]);
-  const [topUsageItems, setTopUsageItems] = useState<TopUsageItem[]>([]);
-  const [lowStockItems, setLowStockItems] = useState<LowStockItem[]>([]);
-  const [stockAlerts, setStockAlerts] = useState<StockAlert[]>([]);
+  // New unified state for all stats data
+  const [statsData, setStatsData] = useState<QuickStatsData>({
+    dailyUsage: [],
+    topUsageItems: [],
+    lowStockItems: [],
+    stockAlerts: [],
+  });
+  
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  
+  // Department states
+  const [selectedDepartment, setSelectedDepartment] = useState<string>('');
+  const [availableDepartments, setAvailableDepartments] = useState<string[]>([]);
+  const [departmentLoading, setDepartmentLoading] = useState(false);
   
   // Filter states
   const [filtersExpanded, setFiltersExpanded] = useState(false);
@@ -132,17 +150,45 @@ export default function QuickStats() {
         return;
       }
       
+      // Initialize department data for OWNER users
+      if (user?.role === 'OWNER') {
+        fetchAvailableDepartments();
+      }
+      
       fetchQuickStats();
     };
 
     checkAuth();
-  }, [isAuthenticated, token, router]);
+  }, [isAuthenticated, token, router, user]);
+
+  // Fetch available departments for OWNER users
+  const fetchAvailableDepartments = async () => {
+    if (user?.role !== 'OWNER') return;
+    
+    try {
+      setDepartmentLoading(true);
+      const departments = await statsAPI.getAvailableDepartments();
+      setAvailableDepartments(departments);
+    } catch (err: any) {
+      console.error('Error fetching departments:', err);
+      // Don't set error state for this, just log it
+    } finally {
+      setDepartmentLoading(false);
+    }
+  };
+
+  // Handle department change
+  const handleDepartmentChange = (department: string) => {
+    setSelectedDepartment(department);
+    fetchQuickStats(department);
+  };
 
   // Calculate active filters count
   const getActiveFiltersCount = () => {
     let count = 0;
     if (startDate) count++;
     if (endDate) count++;
+    if (selectedDepartment && user?.role === 'OWNER') count++;
     return count;
   };
 
@@ -183,6 +229,9 @@ export default function QuickStats() {
     setEndDate('');
     setIsFiltered(false);
     setQuickFilterMode('');
+    if (user?.role === 'OWNER') {
+      setSelectedDepartment('');
+    }
     fetchQuickStats();
   };
 
@@ -199,7 +248,10 @@ export default function QuickStats() {
         days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
       }
 
-      // Fetch data with date range parameters
+      // Use current department selection for OWNER users
+      const department = user?.role === 'OWNER' ? selectedDepartment : undefined;
+
+      // Fetch data with date range parameters (still using individual APIs for filtered dates)
       const [dailyResponse, topUsageResponse, lowStockResponse, alertsResponse] = await Promise.all([
         startDate && endDate 
           ? statsAPI.getDailyUsageFiltered(startDate, endDate)
@@ -211,10 +263,14 @@ export default function QuickStats() {
         statsAPI.getStockAlerts(),
       ]);
 
-      setDailyUsage((dailyResponse as any)?.data || dailyResponse || []);
-      setTopUsageItems((topUsageResponse as any)?.data || topUsageResponse || []);
-      setLowStockItems((lowStockResponse as any)?.data || lowStockResponse || []);
-      setStockAlerts((alertsResponse as any)?.data || alertsResponse || []);
+      setStatsData({
+        dailyUsage: (dailyResponse as any)?.data || dailyResponse || [],
+        topUsageItems: (topUsageResponse as any)?.data || topUsageResponse || [],
+        lowStockItems: (lowStockResponse as any)?.data || lowStockResponse || [],
+        stockAlerts: (alertsResponse as any)?.data || alertsResponse || [],
+        department: department || undefined,
+      });
+      
       setIsFiltered(Boolean(startDate && endDate));
 
     } catch (err: any) {
@@ -225,47 +281,42 @@ export default function QuickStats() {
     }
   };
 
-  const fetchQuickStats = async () => {
+  const fetchQuickStats = async (department?: string) => {
     try {
       setLoading(true);
       setError('');
 
-      // Fetch real data from backend APIs
-      const [dailyResponse, topUsageResponse, lowStockResponse, alertsResponse] = await Promise.all([
-        statsAPI.getDailyUsage(7),
-        statsAPI.getTopUsageItems(5),
-        statsAPI.getLowStockItems(),
-        statsAPI.getStockAlerts(),
-      ]);
+      // Determine which department to use
+      let targetDepartment = department;
+      if (user?.role === 'OWNER') {
+        // OWNER can select any department or view all
+        targetDepartment = department || selectedDepartment || undefined;
+      } else {
+        // ADMIN/USER automatically use their own department
+        targetDepartment = user?.department;
+      }
 
-      setDailyUsage((dailyResponse as any)?.data || dailyResponse || []);
-      setTopUsageItems((topUsageResponse as any)?.data || topUsageResponse || []);
-      setLowStockItems((lowStockResponse as any)?.data || lowStockResponse || []);
-      setStockAlerts((alertsResponse as any)?.data || alertsResponse || []);
+      // Use the new unified Quick Stats API
+      const response = await statsAPI.getQuickStats(targetDepartment);
+      
+      setStatsData({
+        dailyUsage: response.dailyUsage || [],
+        topUsageItems: response.topUsageItems || [],
+        lowStockItems: response.lowStockItems || [],
+        stockAlerts: response.stockAlerts || [],
+        department: response.department,
+      });
 
     } catch (err: any) {
       console.error('Quick stats API error:', err);
       
       if (err.response?.status === 401) {
         setError('Your session has expired. Please log in again to view the statistics.');
-        // Let the API interceptor handle the redirect
       } else if (err.response?.status === 403) {
-        setError('You do not have permission to view these statistics. Please contact your administrator.');
-      } else if (err.response?.status === 500) {
-        setError('Server error while loading statistics. This might be due to missing data or a backend issue. Please try again later or contact support.');
-      } else if (err.response?.status === 404) {
-        setError('Quick Stats API endpoints are not available. Please check with your backend team.');
-      } else if (err.code === 'NETWORK_ERROR' || !err.response) {
-        setError('Unable to connect to the server. Please check your connection and try again.');
+        setError('Access denied. You do not have permission to view these statistics.');
       } else {
-        setError(`An unexpected error occurred (${err.response?.status || 'Unknown'}). Please try refreshing the page.`);
+        setError('Error loading statistics. Please try again.');
       }
-      
-      // Set empty arrays when API fails
-      setDailyUsage([]);
-      setTopUsageItems([]);
-      setLowStockItems([]);
-      setStockAlerts([]);
     } finally {
       setLoading(false);
     }
@@ -339,6 +390,26 @@ export default function QuickStats() {
       >
         <AnalyticsIcon sx={{ mr: 1 }} />
         Quick Stats Dashboard
+        {statsData.department && (
+          <Chip 
+            label={`Department: ${statsData.department}`}
+            color="primary"
+            variant="outlined"
+            size="small"
+            sx={{ ml: 2, fontSize: '0.7rem' }}
+            icon={<DepartmentIcon />}
+          />
+        )}
+        {user?.role === 'OWNER' && !selectedDepartment && (
+          <Chip 
+            label="All Departments"
+            color="secondary"
+            variant="outlined"
+            size="small"
+            sx={{ ml: 2, fontSize: '0.7rem' }}
+            icon={<DepartmentIcon />}
+          />
+        )}
       </Typography>
 
       {error && (
@@ -519,10 +590,80 @@ export default function QuickStats() {
               </Grid>
             </Box>
 
+            {/* Department Selection for OWNER */}
+            {user?.role === 'OWNER' && (
+              <Box sx={{ mt: 3 }}>
+                <Typography variant="subtitle2" color="text.secondary" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <DepartmentIcon fontSize="small" />
+                  Department Filter
+                </Typography>
+                <FormControl fullWidth size="small">
+                  <InputLabel id="department-select-label">Select Department</InputLabel>
+                  <Select
+                    labelId="department-select-label"
+                    value={selectedDepartment || ''}
+                    label="Select Department"
+                    onChange={(e) => handleDepartmentChange(e.target.value as string)}
+                    disabled={departmentLoading}
+                    sx={{ 
+                      '& .MuiOutlinedInput-root': {
+                        backgroundColor: selectedDepartment ? 'action.selected' : 'transparent'
+                      }
+                    }}
+                  >
+                    <MenuItem value="">All Departments</MenuItem>
+                    {departmentLoading ? (
+                      <MenuItem value="" disabled>Loading departments...</MenuItem>
+                    ) : availableDepartments.length === 0 ? (
+                      <MenuItem value="" disabled>No departments found</MenuItem>
+                    ) : (
+                      availableDepartments.map((dep) => (
+                        <MenuItem key={dep} value={dep}>{dep}</MenuItem>
+                      ))
+                    )}
+                  </Select>
+                </FormControl>
+              </Box>
+            )}
+
+            {/* Department Information for ADMIN/USER */}
+            {user?.role !== 'OWNER' && user?.department && (
+              <Box sx={{ mt: 3 }}>
+                <Typography variant="subtitle2" color="text.secondary" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <DepartmentIcon fontSize="small" />
+                  Department Data
+                </Typography>
+                <Alert severity="info" sx={{ display: 'flex', alignItems: 'center' }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <DepartmentIcon fontSize="small" />
+                    <Typography variant="body2">
+                      Showing data for: <strong>{user.department}</strong>
+                    </Typography>
+                  </Box>
+                </Alert>
+              </Box>
+            )}
+
             {/* Filter Status */}
-            {isFiltered && (
+            {(isFiltered || selectedDepartment || statsData.department) && (
               <Alert severity="info" sx={{ mt: 2 }}>
-                Showing data from {new Date(startDate).toLocaleDateString()} to {new Date(endDate).toLocaleDateString()}
+                <Box>
+                  {isFiltered && (
+                    <Typography variant="body2">
+                      <strong>Date Range:</strong> {new Date(startDate).toLocaleDateString()} to {new Date(endDate).toLocaleDateString()}
+                    </Typography>
+                  )}
+                  {statsData.department && (
+                    <Typography variant="body2">
+                      <strong>Department:</strong> {statsData.department}
+                    </Typography>
+                  )}
+                  {user?.role === 'OWNER' && !selectedDepartment && !isFiltered && (
+                    <Typography variant="body2">
+                      <strong>Scope:</strong> All Departments
+                    </Typography>
+                  )}
+                </Box>
               </Alert>
             )}
           </Collapse>
@@ -547,9 +688,9 @@ export default function QuickStats() {
                 )}
               </Typography>
               <Box sx={{ height: 300, position: 'relative' }}>
-                {dailyUsage.length > 0 ? (
+                {statsData.dailyUsage.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={dailyUsage}>
+                    <BarChart data={statsData.dailyUsage}>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis 
                         dataKey="date" 
@@ -604,11 +745,11 @@ export default function QuickStats() {
                 )}
               </Typography>
               <Box sx={{ height: 300, position: 'relative' }}>
-                {topUsageItems.length > 0 ? (
+                {statsData.topUsageItems.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
-                        data={topUsageItems}
+                        data={statsData.topUsageItems}
                         cx="50%"
                         cy="50%"
                         outerRadius={80}
@@ -616,7 +757,7 @@ export default function QuickStats() {
                         dataKey="percentage"
                         label={({ name, percentage }) => `${percentage}%`}
                       >
-                        {topUsageItems.map((entry, index) => (
+                        {statsData.topUsageItems.map((entry, index) => (
                           <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                         ))}
                       </Pie>
@@ -660,7 +801,7 @@ export default function QuickStats() {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {topUsageItems.map((item, index) => (
+                    {statsData.topUsageItems.map((item, index) => (
                       <TableRow key={item.id}>
                         <TableCell>
                           <Box sx={{ display: 'flex', alignItems: 'center' }}>
@@ -684,7 +825,7 @@ export default function QuickStats() {
                   </TableBody>
                 </Table>
               </TableContainer>
-              {topUsageItems.length === 0 && !error && (
+              {statsData.topUsageItems.length === 0 && !error && (
                 <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 2 }}>
                   No usage data available to show top items
                 </Typography>
@@ -713,7 +854,7 @@ export default function QuickStats() {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {lowStockItems.map((item) => (
+                    {statsData.lowStockItems.map((item) => (
                       <TableRow key={item.id}>
                         <TableCell>{item.name}</TableCell>
                         <TableCell>{item.code}</TableCell>
@@ -731,7 +872,7 @@ export default function QuickStats() {
                   </TableBody>
                 </Table>
               </TableContainer>
-              {lowStockItems.length === 0 && !error && (
+              {statsData.lowStockItems.length === 0 && !error && (
                 <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 2 }}>
                   No items are currently between safety stock and 110% of safety stock threshold
                 </Typography>
@@ -748,7 +889,7 @@ export default function QuickStats() {
                 Stock Alerts
               </Typography>
               <Grid container spacing={2}>
-                {stockAlerts.map((alert) => (
+                {statsData.stockAlerts.map((alert) => (
                   <Grid item xs={12} sm={6} md={4} key={alert.id}>
                     <Alert
                       severity={getAlertSeverity(alert.alertType)}
@@ -776,7 +917,7 @@ export default function QuickStats() {
                   </Grid>
                 ))}
               </Grid>
-              {stockAlerts.length === 0 && !error && (
+              {statsData.stockAlerts.length === 0 && !error && (
                 <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 2 }}>
                   All items are currently within acceptable stock levels
                 </Typography>
