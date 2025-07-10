@@ -14,7 +14,7 @@ interface PhantomAccessState {
 
 interface PhantomAccessHook extends PhantomAccessState {
   activatePhantomChallenge: () => void;
-  submitAccessKey: (key: string) => boolean;
+  submitAccessKey: (key: string) => Promise<boolean>;
   deactivatePhantomMode: () => void;
   formatTimeRemaining: () => string;
 }
@@ -113,7 +113,7 @@ export const usePhantomAccess = (): PhantomAccessHook => {
   }, []);
 
   // Submit access key
-  const submitAccessKey = useCallback((key: string): boolean => {
+  const submitAccessKey = useCallback(async (key: string): Promise<boolean> => {
     // Check cooldown
     if (Date.now() < cooldownEndTime) {
       return false;
@@ -122,39 +122,58 @@ export const usePhantomAccess = (): PhantomAccessHook => {
     const isValidKey = key.toUpperCase() === PHANTOM_CONFIG.ACCESS_KEY;
     
     if (isValidKey) {
-      // Successful authentication
-      const token = generatePhantomToken();
-      const phantomUser = createPhantomUser();
-      const expirationTime = Date.now() + PHANTOM_CONFIG.SESSION_DURATION;
-      
-      // Update state
-      setState({
-        isPhantomModeActive: true,
-        isPhantomUser: true,
-        phantomToken: token,
-        timeRemaining: PHANTOM_CONFIG.SESSION_DURATION,
-        showPhantomChallenge: false
-      });
-      
-      // Set user in Redux store with special phantom flag
-      dispatch(setCredentials({ 
-        user: phantomUser, 
-        token: token,
-        isPhantomSession: true 
-      }));
-      
-      // Store expiration time
-      sessionStorage.setItem('phantomExpirationTime', expirationTime.toString());
-      sessionStorage.setItem('phantomToken', token);
-      
-      // Reset attempts
-      setAttempts(0);
-      
-      // Add visual indicator to page
-      document.body.classList.add('phantom-mode-active');
-      
-      console.log('👻 Phantom mode activated! Welcome, Zoe.');
-      return true;
+      try {
+        // Call backend phantom authentication endpoint
+        const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api';
+        const response = await fetch(`${API_URL}/auth/phantom`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ accessKey: key }),
+        });
+
+        if (!response.ok) {
+          console.error('Phantom authentication failed:', response.status, response.statusText);
+          return false;
+        }
+
+        const data = await response.json();
+        const { token, user } = data;
+        
+        // Update state
+        setState({
+          isPhantomModeActive: true,
+          isPhantomUser: true,
+          phantomToken: token,
+          timeRemaining: PHANTOM_CONFIG.SESSION_DURATION,
+          showPhantomChallenge: false
+        });
+        
+        // Set user in Redux store with special phantom flag
+        dispatch(setCredentials({ 
+          user: user, 
+          token: token,
+          isPhantomSession: true 
+        }));
+        
+        // Store expiration time
+        const expirationTime = Date.now() + PHANTOM_CONFIG.SESSION_DURATION;
+        sessionStorage.setItem('phantomExpirationTime', expirationTime.toString());
+        sessionStorage.setItem('phantomToken', token);
+        
+        // Reset attempts
+        setAttempts(0);
+        
+        // Add visual indicator to page
+        document.body.classList.add('phantom-mode-active');
+        
+        console.log('👻 Phantom mode activated! Welcome, Zoe.');
+        return true;
+      } catch (error) {
+        console.error('Phantom authentication error:', error);
+        return false;
+      }
     } else {
       // Failed attempt
       const newAttempts = attempts + 1;
@@ -169,7 +188,7 @@ export const usePhantomAccess = (): PhantomAccessHook => {
       
       return false;
     }
-  }, [attempts, cooldownEndTime, generatePhantomToken, createPhantomUser, dispatch]);
+  }, [attempts, cooldownEndTime, dispatch]);
 
   // Deactivate phantom mode
   const deactivatePhantomMode = useCallback(() => {

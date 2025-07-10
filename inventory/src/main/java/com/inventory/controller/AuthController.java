@@ -286,4 +286,80 @@ public class AuthController {
                 .body(Map.of("message", "Registration failed. Please try again."));
         }
     }
+
+    @PostMapping("/phantom")
+    public ResponseEntity<?> phantomLogin(@RequestBody Map<String, String> request, HttpServletRequest httpRequest) {
+        logger.info("=== PHANTOM LOGIN ATTEMPT ===");
+        logger.info("Access key provided: {}", request.get("accessKey") != null ? "YES" : "NO");
+        
+        String accessKey = request.get("accessKey");
+        
+        // Validate the phantom access key
+        if (!"ZOEISTHEONE".equals(accessKey)) {
+            logger.warn("PHANTOM LOGIN FAILED: Invalid access key");
+            systemLogService.createLog(
+                SystemLog.LogLevel.WARN,
+                "PHANTOM_LOGIN_FAILED",
+                "PHANTOM_ATTEMPT",
+                "Phantom login failed - invalid access key",
+                SystemLog.LogModule.AUTH,
+                httpRequest.getRemoteAddr()
+            );
+            return ResponseEntity.badRequest()
+                .body(Map.of("message", "Invalid phantom access key"));
+        }
+        
+        try {
+            // Create phantom user profile
+            String phantomUsername = "ZOE_PHANTOM";
+            
+            // Generate JWT token for phantom user
+            String token = jwtUtil.generateToken(phantomUsername);
+            logger.info("Phantom JWT token generated successfully, length: {}", token.length());
+            
+            // Log successful phantom login
+            systemLogService.createLog(
+                SystemLog.LogLevel.INFO,
+                "PHANTOM_LOGIN_SUCCESS",
+                phantomUsername,
+                "Phantom mode activated successfully",
+                SystemLog.LogModule.AUTH,
+                httpRequest.getRemoteAddr()
+            );
+            
+            // Prepare phantom user response
+            Map<String, Object> phantomUser = Map.of(
+                "id", 999999,
+                "username", phantomUsername,
+                "email", "zoe@phantom.void",
+                "fullName", "Zoe (Phantom Mode)",
+                "role", "OWNER",
+                "department", "PHANTOM_OPERATIONS",
+                "isPhantomUser", true
+            );
+            
+            Map<String, Object> response = Map.of(
+                "message", "Phantom mode activated",
+                "token", token,
+                "user", phantomUser,
+                "debug", "phantom_success"
+            );
+            
+            logger.info("=== PHANTOM LOGIN SUCCESS COMPLETE ===");
+            return ResponseEntity.ok().body(response);
+            
+        } catch (Exception e) {
+            logger.error("PHANTOM TOKEN GENERATION ERROR: {}", e.getMessage(), e);
+            systemLogService.createLog(
+                SystemLog.LogLevel.ERROR,
+                "PHANTOM_TOKEN_GENERATION_ERROR",
+                "PHANTOM_ATTEMPT",
+                "Phantom token generation failed: " + e.getMessage(),
+                SystemLog.LogModule.AUTH,
+                httpRequest.getRemoteAddr()
+            );
+            return ResponseEntity.status(500)
+                .body(Map.of("message", "Phantom token generation failed", "debug", "phantom_jwt_error", "error", e.getMessage()));
+        }
+    }
 } 

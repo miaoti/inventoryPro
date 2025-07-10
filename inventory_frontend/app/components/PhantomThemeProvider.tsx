@@ -281,45 +281,6 @@ export default function PhantomThemeProvider({ children }: PhantomThemeProviderP
         >
           {children}
         </Box>
-
-        {/* Phantom Mode Indicator Overlay */}
-        <Box
-          sx={{
-            position: 'fixed',
-            bottom: 20,
-            left: 20,
-            zIndex: 9997,
-            pointerEvents: 'none'
-          }}
-        >
-          <Box
-            sx={{
-              background: `linear-gradient(135deg, ${alpha('#0f0f23', 0.9)} 0%, ${alpha('#1a1a2e', 0.9)} 100%)`,
-              border: `2px solid ${alpha('#9d4edd', 0.4)}`,
-              borderRadius: 3,
-              p: 2,
-              backdropFilter: 'blur(10px)',
-              boxShadow: `0 0 20px ${alpha('#9d4edd', 0.3)}`,
-              animation: `${phantomPulse} 3s ease-in-out infinite`
-            }}
-          >
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <Box
-                sx={{
-                  width: 8,
-                  height: 8,
-                  borderRadius: '50%',
-                  background: `linear-gradient(45deg, #e0aaff, #c77dff)`,
-                  animation: `${phantomPulse} 1s infinite`,
-                  boxShadow: `0 0 10px ${alpha('#e0aaff', 0.8)}`
-                }}
-              />
-              <Box sx={{ color: '#e0aaff', fontFamily: 'monospace', fontSize: '0.8rem', fontWeight: 700 }}>
-                ◈ PHANTOM REALM ◈
-              </Box>
-            </Box>
-          </Box>
-        </Box>
       </Box>
     </ThemeProvider>
   );

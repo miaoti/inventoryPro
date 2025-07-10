@@ -30,7 +30,7 @@ import {
 interface PhantomAccessDialogProps {
   open: boolean;
   onClose: () => void;
-  onSubmit: (key: string) => boolean;
+  onSubmit: (key: string) => Promise<boolean>;
   attempts: number;
   maxAttempts: number;
 }
@@ -97,7 +97,7 @@ export default function PhantomAccessDialog({
     // Dramatic processing delay
     await new Promise(resolve => setTimeout(resolve, 1500));
 
-    const isValid = onSubmit(accessKey.trim());
+    const isValid = await onSubmit(accessKey.trim());
 
     if (isValid) {
       setSuccess(true);
