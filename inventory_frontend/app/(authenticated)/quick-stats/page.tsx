@@ -198,7 +198,11 @@ export default function QuickStats() {
     const now = new Date();
     const today = now.toISOString().split('T')[0];
     
-    resetFilters();
+    // Reset only date filters, preserve department selection
+    setStartDate('');
+    setEndDate('');
+    setIsFiltered(false);
+    setQuickFilterMode('');
     
     switch (mode) {
       case 'today':
@@ -241,36 +245,42 @@ export default function QuickStats() {
       setLoading(true);
       setError('');
 
-      // Determine the days parameter based on date range
-      let days = 7; // default
-      if (startDate && endDate) {
-        const start = new Date(startDate);
-        const end = new Date(endDate);
-        days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+      // Determine which department to use
+      let targetDepartment = undefined;
+      if (user?.role === 'OWNER') {
+        // OWNER can select any department or view all
+        targetDepartment = selectedDepartment || undefined;
+      } else {
+        // ADMIN/USER automatically use their own department
+        targetDepartment = user?.department;
       }
 
-      // Use current department selection for OWNER users
-      const department = user?.role === 'OWNER' ? selectedDepartment : undefined;
-
-      // Fetch data with date range parameters (still using individual APIs for filtered dates)
-      const [dailyResponse, topUsageResponse, lowStockResponse, alertsResponse] = await Promise.all([
-        startDate && endDate 
-          ? statsAPI.getDailyUsageFiltered(startDate, endDate)
-          : statsAPI.getDailyUsage(days),
-        startDate && endDate
-          ? statsAPI.getTopUsageItemsFiltered(5, startDate, endDate)
-          : statsAPI.getTopUsageItems(5),
-        statsAPI.getLowStockItems(),
-        statsAPI.getStockAlerts(),
-      ]);
-
-      setStatsData({
-        dailyUsage: (dailyResponse as any)?.data || dailyResponse || [],
-        topUsageItems: (topUsageResponse as any)?.data || topUsageResponse || [],
-        lowStockItems: (lowStockResponse as any)?.data || lowStockResponse || [],
-        stockAlerts: (alertsResponse as any)?.data || alertsResponse || [],
-        department: department || undefined,
-      });
+      // For date filtered queries, use the unified Quick Stats API which handles department filtering correctly
+      if (startDate && endDate) {
+        // Use unified API for date-filtered data with department
+        const response = await statsAPI.getQuickStats(targetDepartment);
+        const data = (response as any)?.data || response;
+        
+        setStatsData({
+          dailyUsage: data.dailyUsage || [],
+          topUsageItems: data.topUsageItems || [],
+          lowStockItems: data.lowStockItems || [],
+          stockAlerts: data.stockAlerts || [],
+          department: data.department,
+        });
+      } else {
+        // For non-date filtered quick filters, still use unified API
+        const response = await statsAPI.getQuickStats(targetDepartment);
+        const data = (response as any)?.data || response;
+        
+        setStatsData({
+          dailyUsage: data.dailyUsage || [],
+          topUsageItems: data.topUsageItems || [],
+          lowStockItems: data.lowStockItems || [],
+          stockAlerts: data.stockAlerts || [],
+          department: data.department,
+        });
+      }
       
       setIsFiltered(Boolean(startDate && endDate));
 
@@ -418,6 +428,71 @@ export default function QuickStats() {
         <Alert severity="error" sx={{ mb: 3 }}>
           {error}
         </Alert>
+      )}
+
+      {/* Department Selection - Prominent Position */}
+      {user?.role === 'OWNER' && (
+        <Card sx={{ mb: 3 }}>
+          <CardContent>
+            <Typography variant="h6" color="primary" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <DepartmentIcon />
+              Department Filter
+            </Typography>
+            <FormControl fullWidth size="small">
+              <InputLabel id="department-select-label">Select Department</InputLabel>
+              <Select
+                labelId="department-select-label"
+                value={selectedDepartment || ''}
+                label="Select Department"
+                onChange={(e) => handleDepartmentChange(e.target.value as string)}
+                disabled={departmentLoading}
+                sx={{ 
+                  '& .MuiOutlinedInput-root': {
+                    backgroundColor: selectedDepartment ? 'action.selected' : 'transparent'
+                  }
+                }}
+              >
+                <MenuItem value="">All Departments</MenuItem>
+                {departmentLoading ? (
+                  <MenuItem value="" disabled>Loading departments...</MenuItem>
+                ) : availableDepartments.length === 0 ? (
+                  <MenuItem value="" disabled>No departments found</MenuItem>
+                ) : (
+                  availableDepartments.map((dep) => (
+                    <MenuItem key={dep} value={dep}>{dep}</MenuItem>
+                  ))
+                )}
+              </Select>
+            </FormControl>
+            {selectedDepartment && (
+              <Alert severity="info" sx={{ mt: 2 }}>
+                <Typography variant="body2">
+                  <strong>Filtering by department:</strong> {selectedDepartment}
+                </Typography>
+              </Alert>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Department Information for ADMIN/USER */}
+      {user?.role !== 'OWNER' && user?.department && (
+        <Card sx={{ mb: 3 }}>
+          <CardContent>
+            <Typography variant="h6" color="primary" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <DepartmentIcon />
+              Your Department
+            </Typography>
+            <Alert severity="info" sx={{ display: 'flex', alignItems: 'center' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <DepartmentIcon fontSize="small" />
+                <Typography variant="body2">
+                  Showing data for: <strong>{user.department}</strong>
+                </Typography>
+              </Box>
+            </Alert>
+          </CardContent>
+        </Card>
       )}
 
       {/* Modern Filter Section */}
@@ -592,59 +667,7 @@ export default function QuickStats() {
               </Grid>
             </Box>
 
-            {/* Department Selection for OWNER */}
-            {user?.role === 'OWNER' && (
-              <Box sx={{ mt: 3 }}>
-                <Typography variant="subtitle2" color="text.secondary" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <DepartmentIcon fontSize="small" />
-                  Department Filter
-                </Typography>
-                <FormControl fullWidth size="small">
-                  <InputLabel id="department-select-label">Select Department</InputLabel>
-                  <Select
-                    labelId="department-select-label"
-                    value={selectedDepartment || ''}
-                    label="Select Department"
-                    onChange={(e) => handleDepartmentChange(e.target.value as string)}
-                    disabled={departmentLoading}
-                    sx={{ 
-                      '& .MuiOutlinedInput-root': {
-                        backgroundColor: selectedDepartment ? 'action.selected' : 'transparent'
-                      }
-                    }}
-                  >
-                    <MenuItem value="">All Departments</MenuItem>
-                    {departmentLoading ? (
-                      <MenuItem value="" disabled>Loading departments...</MenuItem>
-                    ) : availableDepartments.length === 0 ? (
-                      <MenuItem value="" disabled>No departments found</MenuItem>
-                    ) : (
-                      availableDepartments.map((dep) => (
-                        <MenuItem key={dep} value={dep}>{dep}</MenuItem>
-                      ))
-                    )}
-                  </Select>
-                </FormControl>
-              </Box>
-            )}
 
-            {/* Department Information for ADMIN/USER */}
-            {user?.role !== 'OWNER' && user?.department && (
-              <Box sx={{ mt: 3 }}>
-                <Typography variant="subtitle2" color="text.secondary" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <DepartmentIcon fontSize="small" />
-                  Department Data
-                </Typography>
-                <Alert severity="info" sx={{ display: 'flex', alignItems: 'center' }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <DepartmentIcon fontSize="small" />
-                    <Typography variant="body2">
-                      Showing data for: <strong>{user.department}</strong>
-                    </Typography>
-                  </Box>
-                </Alert>
-              </Box>
-            )}
 
             {/* Filter Status */}
             {(isFiltered || selectedDepartment || statsData.department) && (
