@@ -21,7 +21,7 @@ import java.util.List;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/system-logs")
+@RequestMapping("/system-logs")
 @PreAuthorize("hasRole('OWNER')")
 public class SystemLogController {
     
