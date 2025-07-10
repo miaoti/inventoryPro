@@ -244,7 +244,7 @@ public class UserController {
     private List<String> getDefaultQuickActionsForRole(User.UserRole role) {
         switch (role) {
             case OWNER:
-                return Arrays.asList("view_items", "manage_users", "view_alerts", "admin_settings", "usage_reports");
+                return Arrays.asList("view_items", "manage_users", "view_alerts", "admin_settings", "usage_reports", "system_logs");
             case ADMIN:
                 return Arrays.asList("view_items", "add_item", "view_alerts", "purchase_orders", "scanner");
             case USER:

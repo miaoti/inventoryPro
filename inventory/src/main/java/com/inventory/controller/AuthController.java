@@ -5,6 +5,8 @@ import com.inventory.dto.RegisterRequest;
 import com.inventory.entity.User;
 import com.inventory.service.UserService;
 import com.inventory.service.EmailService;
+import com.inventory.service.SystemLogService;
+import com.inventory.entity.SystemLog;
 import com.inventory.util.JwtUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -13,6 +15,7 @@ import org.springframework.web.bind.annotation.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import java.util.Map;
 
@@ -34,8 +37,11 @@ public class AuthController {
     @Autowired
     private EmailService emailService;
 
+    @Autowired
+    private SystemLogService systemLogService;
+
     @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody LoginRequest loginRequest) {
+    public ResponseEntity<?> login(@RequestBody LoginRequest loginRequest, HttpServletRequest request) {
         logger.info("=== LOGIN ATTEMPT START ===");
         logger.info("Username: {}", loginRequest.getUsername());
         logger.info("SessionId: {}", loginRequest.getSessionId());
@@ -63,6 +69,13 @@ public class AuthController {
         
         if (user == null) {
                 logger.warn("LOGIN FAILED: User not found: {}", loginRequest.getUsername());
+                systemLogService.logAsync(
+                    SystemLog.LogLevel.WARN,
+                    SystemLog.LogModule.AUTH,
+                    "Login failed - user not found",
+                    loginRequest.getUsername(),
+                    request.getRemoteAddr()
+                );
                 return ResponseEntity.badRequest()
                     .body(Map.of("message", "Invalid username or password", "debug", "user_not_found"));
             }
@@ -83,6 +96,13 @@ public class AuthController {
             // Check if user is enabled
             if (!user.getEnabled()) {
                 logger.warn("LOGIN FAILED: User account is disabled: {}", user.getUsername());
+                systemLogService.logAsync(
+                    SystemLog.LogLevel.WARN,
+                    SystemLog.LogModule.AUTH,
+                    "Login failed - account disabled",
+                    user.getUsername(),
+                    request.getRemoteAddr()
+                );
             return ResponseEntity.badRequest()
                     .body(Map.of("message", "Account is disabled", "debug", "account_disabled"));
             }
@@ -109,8 +129,17 @@ public class AuthController {
                     .body(Map.of("message", "Authentication error", "debug", "password_encoding_error", "error", e.getMessage()));
             }
         
-        if (passwordMatches) {
+                    if (passwordMatches) {
                 logger.info("LOGIN SUCCESS for user: {}", user.getUsername());
+                
+                // Log successful login
+                systemLogService.logAsync(
+                    SystemLog.LogLevel.INFO,
+                    SystemLog.LogModule.AUTH,
+                    "User login successful",
+                    user.getUsername(),
+                    request.getRemoteAddr()
+                );
                 
                 // Generate JWT token
                 String token;
@@ -119,6 +148,13 @@ public class AuthController {
                     logger.info("JWT token generated successfully, length: {}", token.length());
                 } catch (Exception e) {
                     logger.error("JWT TOKEN GENERATION ERROR for user {}: {}", user.getUsername(), e.getMessage(), e);
+                    systemLogService.logAsync(
+                        SystemLog.LogLevel.ERROR,
+                        SystemLog.LogModule.AUTH,
+                        "JWT token generation failed: " + e.getMessage(),
+                        user.getUsername(),
+                        request.getRemoteAddr()
+                    );
                     return ResponseEntity.status(500)
                         .body(Map.of("message", "Token generation failed", "debug", "jwt_error", "error", e.getMessage()));
                 }
@@ -147,6 +183,15 @@ public class AuthController {
                 logger.warn("  2. Password hash corruption");
                 logger.warn("  3. Password encoder configuration issue");
                 
+                // Log failed login attempt
+                systemLogService.logAsync(
+                    SystemLog.LogLevel.WARN,
+                    SystemLog.LogModule.AUTH,
+                    "Login failed - invalid credentials",
+                    loginRequest.getUsername(),
+                    request.getRemoteAddr()
+                );
+                
                 return ResponseEntity.badRequest()
                     .body(Map.of("message", "Invalid username or password", "debug", "password_mismatch"));
             }
@@ -165,11 +210,18 @@ public class AuthController {
     }
     
     @PostMapping("/register")
-    public ResponseEntity<?> register(@Valid @RequestBody RegisterRequest registerRequest) {
+    public ResponseEntity<?> register(@Valid @RequestBody RegisterRequest registerRequest, HttpServletRequest request) {
         logger.info("Registration attempt for username: {}", registerRequest.getUsername());
         
         // Check if username already exists
         if (userService.findByUsername(registerRequest.getUsername()) != null) {
+            systemLogService.logAsync(
+                SystemLog.LogLevel.WARN,
+                SystemLog.LogModule.AUTH,
+                "Registration failed - username already exists",
+                registerRequest.getUsername(),
+                request.getRemoteAddr()
+            );
             return ResponseEntity.badRequest()
                 .body(Map.of("message", "Username already exists"));
         }
@@ -193,6 +245,15 @@ public class AuthController {
             
             // Save user (assuming UserService has a save method)
             User savedUser = userService.save(newUser);
+            
+            // Log successful registration
+            systemLogService.logAsync(
+                SystemLog.LogLevel.INFO,
+                SystemLog.LogModule.AUTH,
+                "User registration successful",
+                savedUser.getUsername(),
+                request.getRemoteAddr()
+            );
             
             // Send welcome email
             try {

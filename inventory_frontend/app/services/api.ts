@@ -523,6 +523,68 @@ export const publicQRAPI = {
   }) => api.post(`/public/qr/use/${qrCodeId}`, usageData),
 };
 
+export const systemLogsAPI = {
+  getLogs: (params: {
+    page?: number;
+    size?: number;
+    level?: string;
+    module?: string;
+    username?: string;
+    sortBy?: string;
+    sortDir?: string;
+  }) => {
+    if (!ensureAuthenticated()) {
+      return Promise.reject(new Error('Authentication required'));
+    }
+    const queryParams = new URLSearchParams();
+    if (params.page !== undefined) queryParams.append('page', params.page.toString());
+    if (params.size !== undefined) queryParams.append('size', params.size.toString());
+    if (params.level) queryParams.append('level', params.level);
+    if (params.module) queryParams.append('module', params.module);
+    if (params.username) queryParams.append('username', params.username);
+    if (params.sortBy) queryParams.append('sortBy', params.sortBy);
+    if (params.sortDir) queryParams.append('sortDir', params.sortDir);
+    
+    return api.get(`/system-logs?${queryParams.toString()}`);
+  },
+  getStatistics: () => {
+    if (!ensureAuthenticated()) {
+      return Promise.reject(new Error('Authentication required'));
+    }
+    return api.get('/system-logs/statistics');
+  },
+  getRecentLogs: () => {
+    if (!ensureAuthenticated()) {
+      return Promise.reject(new Error('Authentication required'));
+    }
+    return api.get('/system-logs/recent');
+  },
+  getLogById: (id: number) => {
+    if (!ensureAuthenticated()) {
+      return Promise.reject(new Error('Authentication required'));
+    }
+    return api.get(`/system-logs/${id}`);
+  },
+  deleteLogs: (logIds: number[]) => {
+    if (!ensureAuthenticated()) {
+      return Promise.reject(new Error('Authentication required'));
+    }
+    return api.delete('/system-logs/bulk', { data: logIds });
+  },
+  deleteOldLogs: (days: number) => {
+    if (!ensureAuthenticated()) {
+      return Promise.reject(new Error('Authentication required'));
+    }
+    return api.delete(`/system-logs/cleanup?days=${days}`);
+  },
+  getAvailableFilters: () => {
+    if (!ensureAuthenticated()) {
+      return Promise.reject(new Error('Authentication required'));
+    }
+    return api.get('/system-logs/filters');
+  },
+};
+
 export const adminAPI = {
   getItemDisplaySettings: () => api.get('/admin/settings/item-display'),
   updateItemDisplaySettings: (fields: string[]) => 

@@ -7,14 +7,6 @@ import {
   CardContent,
   Box,
   Typography,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Button,
-  TextField,
-  Alert,
-  CircularProgress,
 } from '@mui/material';
 import {
   Inventory as InventoryIcon,
@@ -34,6 +26,10 @@ import {
 } from '@mui/icons-material';
 import { useSelector } from 'react-redux';
 import { RootState } from '@/store';
+import BulkOperationsDialog from './BulkOperationsDialog';
+import AddItemDialog from './AddItemDialog';
+import DepartmentManagementDialog from './DepartmentManagementDialog';
+import SystemLogsDialog from './SystemLogsDialog';
 
 interface QuickActionCardProps {
   actionId: string;
@@ -63,10 +59,12 @@ const iconMap: Record<string, React.ReactNode> = {
 export default function QuickActionCard({ actionId, title, description, color, bgColor }: QuickActionCardProps) {
   const router = useRouter();
   const { user } = useSelector((state: RootState) => state.auth);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [departmentName, setDepartmentName] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  
+  // Dialog states
+  const [bulkOperationsOpen, setBulkOperationsOpen] = useState(false);
+  const [addItemOpen, setAddItemOpen] = useState(false);
+  const [departmentManagementOpen, setDepartmentManagementOpen] = useState(false);
+  const [systemLogsOpen, setSystemLogsOpen] = useState(false);
 
   const getIconForAction = (actionId: string): React.ReactNode => {
     const iconMappings: Record<string, string> = {
@@ -97,8 +95,7 @@ export default function QuickActionCard({ actionId, title, description, color, b
         break;
       
       case 'add_item':
-        router.push('/items');
-        // Could add a query parameter to auto-open the add dialog
+        setAddItemOpen(true);
         break;
       
       case 'scanner':
@@ -126,11 +123,11 @@ export default function QuickActionCard({ actionId, title, description, color, b
         break;
       
       case 'manage_departments':
-        setDialogOpen(true);
+        setDepartmentManagementOpen(true);
         break;
       
       case 'admin_settings':
-        router.push('/admin-settings');
+        router.push('/settings');
         break;
       
       case 'export_data':
@@ -138,7 +135,7 @@ export default function QuickActionCard({ actionId, title, description, color, b
         break;
       
       case 'bulk_operations':
-        router.push('/items?bulk=true');
+        setBulkOperationsOpen(true);
         break;
       
       case 'purchase_order_stats':
@@ -146,7 +143,12 @@ export default function QuickActionCard({ actionId, title, description, color, b
         break;
       
       case 'system_logs':
-        router.push('/owner/logs');
+        // Only OWNER users can access system logs
+        if (user?.role === 'OWNER') {
+          setSystemLogsOpen(true);
+        } else {
+          console.warn('System logs access denied - OWNER role required');
+        }
         break;
       
       default:
@@ -180,133 +182,63 @@ export default function QuickActionCard({ actionId, title, description, color, b
     }
   };
 
-  const handleCreateDepartment = async () => {
-    if (!departmentName.trim()) {
-      setError('Department name is required');
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-    
-    try {
-      const response = await fetch('/api/items/departments', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
-        body: JSON.stringify({ name: departmentName.trim() }),
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to create department');
-      }
-      
-      setDepartmentName('');
-      setDialogOpen(false);
-      // Could add a success notification here
-      router.push('/admin/users'); // Redirect to user management to see the new department
-    } catch (error) {
-      console.error('Error creating department:', error);
-      setError(error instanceof Error ? error.message : 'Failed to create department');
-    } finally {
-      setLoading(false);
-    }
+  const handleSuccess = () => {
+    // Optional: Refresh data or show success message
+    console.log('Action completed successfully');
   };
 
   return (
     <>
-      <Card
-        sx={{
-          height: '100%',
-          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-          cursor: 'pointer',
-          borderRadius: 3,
-          border: '1px solid',
-          borderColor: 'transparent',
-          '&:hover': {
-            transform: 'translateY(-8px)',
-            boxShadow: '0 12px 24px rgba(0,0,0,0.15)',
-            borderColor: color,
-          },
-        }}
+      <Card 
         onClick={handleActionClick}
+        sx={{
+          cursor: 'pointer',
+          height: '100%',
+          backgroundColor: bgColor,
+          '&:hover': {
+            backgroundColor: `${bgColor}dd`,
+            transform: 'translateY(-2px)',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
+          },
+          transition: 'all 0.3s ease',
+        }}
       >
-        <CardContent sx={{ p: 4, textAlign: 'center' }}>
-          <Box 
-            sx={{ 
-              mb: 3,
-              p: 2,
-              borderRadius: '50%',
-              bgcolor: bgColor,
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: 80,
-              height: 80,
-            }}
-          >
-            <Box sx={{ color }}>
-              {getIconForAction(actionId)}
-            </Box>
+        <CardContent sx={{ textAlign: 'center', py: 3 }}>
+          <Box sx={{ color: color, mb: 2 }}>
+            {getIconForAction(actionId)}
           </Box>
-          <Typography 
-            variant="h6" 
-            gutterBottom 
-            sx={{ fontWeight: 'bold', color: 'text.primary' }}
-          >
+          <Typography variant="h6" component="h2" gutterBottom>
             {title}
           </Typography>
-          <Typography 
-            variant="body2" 
-            color="text.secondary"
-            sx={{ lineHeight: 1.6 }}
-          >
+          <Typography variant="body2" color="text.secondary">
             {description}
           </Typography>
         </CardContent>
       </Card>
 
-      {/* Department Creation Dialog */}
-      <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Create New Department</DialogTitle>
-        <DialogContent>
-          {error && (
-            <Alert severity="error" sx={{ mb: 2 }}>
-              {error}
-            </Alert>
-          )}
-          <TextField
-            autoFocus
-            margin="dense"
-            label="Department Name"
-            fullWidth
-            value={departmentName}
-            onChange={(e) => setDepartmentName(e.target.value)}
-            disabled={loading}
-            onKeyPress={(e) => {
-              if (e.key === 'Enter') {
-                handleCreateDepartment();
-              }
-            }}
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDialogOpen(false)} disabled={loading}>
-            Cancel
-          </Button>
-          <Button
-            onClick={handleCreateDepartment}
-            variant="contained"
-            disabled={loading || !departmentName.trim()}
-            startIcon={loading ? <CircularProgress size={20} /> : null}
-          >
-            {loading ? 'Creating...' : 'Create Department'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+      {/* Dialogs */}
+      <BulkOperationsDialog
+        open={bulkOperationsOpen}
+        onClose={() => setBulkOperationsOpen(false)}
+        onSuccess={handleSuccess}
+      />
+      
+      <AddItemDialog
+        open={addItemOpen}
+        onClose={() => setAddItemOpen(false)}
+        onSuccess={handleSuccess}
+      />
+      
+      <DepartmentManagementDialog
+        open={departmentManagementOpen}
+        onClose={() => setDepartmentManagementOpen(false)}
+        onSuccess={handleSuccess}
+      />
+      
+      <SystemLogsDialog
+        open={systemLogsOpen}
+        onClose={() => setSystemLogsOpen(false)}
+      />
     </>
   );
 } 
