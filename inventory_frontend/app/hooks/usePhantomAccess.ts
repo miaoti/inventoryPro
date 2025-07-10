@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useDispatch } from 'react-redux';
 import { setCredentials } from '../store/slices/authSlice';
+import Cookies from 'js-cookie';
 
 interface PhantomAccessState {
   isPhantomModeActive: boolean;
@@ -157,6 +158,10 @@ export const usePhantomAccess = (): PhantomAccessHook => {
           isPhantomSession: true 
         }));
         
+        // Store token in cookies for API interceptor
+        Cookies.set('token', token, { expires: 7 });
+        Cookies.set('user', JSON.stringify(user), { expires: 7 });
+        
         // Store expiration time
         const expirationTime = Date.now() + PHANTOM_CONFIG.SESSION_DURATION;
         sessionStorage.setItem('phantomExpirationTime', expirationTime.toString());
@@ -204,6 +209,15 @@ export const usePhantomAccess = (): PhantomAccessHook => {
     sessionStorage.removeItem('phantomExpirationTime');
     sessionStorage.removeItem('phantomToken');
     
+    // Clear cookies if they contain phantom data
+    const currentToken = Cookies.get('token');
+    const currentUser = Cookies.get('user');
+    
+    if (currentUser && currentUser.includes('ZOE_PHANTOM')) {
+      Cookies.remove('token');
+      Cookies.remove('user');
+    }
+    
     // Remove visual indicator
     document.body.classList.remove('phantom-mode-active');
     
@@ -244,7 +258,17 @@ export const usePhantomAccess = (): PhantomAccessHook => {
     const expirationTime = parseInt(sessionStorage.getItem('phantomExpirationTime') || '0');
     
     if (phantomToken && Date.now() < expirationTime) {
-      const phantomUser = createPhantomUser();
+      // Create proper phantom user object for restoration
+      const phantomUser = {
+        id: 999999,
+        username: 'ZOE_PHANTOM',
+        fullName: 'Zoe (Phantom Mode)',
+        email: 'zoe@phantom.void',
+        role: 'OWNER' as const,
+        department: 'PHANTOM_OPERATIONS',
+        isPhantomUser: true
+      };
+      
       const remaining = expirationTime - Date.now();
       
       setState({
@@ -261,9 +285,13 @@ export const usePhantomAccess = (): PhantomAccessHook => {
         isPhantomSession: true 
       }));
       
+      // Set cookies for API interceptor
+      Cookies.set('token', phantomToken, { expires: 7 });
+      Cookies.set('user', JSON.stringify(phantomUser), { expires: 7 });
+      
       document.body.classList.add('phantom-mode-active');
     }
-  }, [createPhantomUser, dispatch]);
+  }, [dispatch]);
 
   // Keyboard event listener
   useEffect(() => {

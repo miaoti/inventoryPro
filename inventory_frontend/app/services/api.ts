@@ -28,7 +28,7 @@ api.interceptors.request.use(
     const token = Cookies.get('token');
     
     // Skip token validation for public endpoints
-    const publicEndpoints = ['/auth/login', '/auth/register', '/public/'];
+    const publicEndpoints = ['/auth/login', '/auth/register', '/auth/phantom', '/public/'];
     const isPublicEndpoint = publicEndpoints.some(endpoint => 
       config.url?.includes(endpoint)
     );
