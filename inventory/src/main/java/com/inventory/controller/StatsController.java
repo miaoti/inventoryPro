@@ -155,7 +155,30 @@ public class StatsController {
                     user.getRole(), filterDepartment);
             }
             
+            // Add debug logging for the specific case
+            if ("BBB".equals(filterDepartment)) {
+                logger.info("=== DEBUG: Processing quick stats for department BBB ===");
+                logger.info("User: {}, Role: {}, Requested dept: {}, Filter dept: {}", 
+                        username, user.getRole(), department, filterDepartment);
+            }
+            
             QuickStatsDto quickStats = statsService.getQuickStatsByDepartment(filterDepartment);
+            
+            // Add more debug logging for BBB department
+            if ("BBB".equals(filterDepartment)) {
+                logger.info("BBB Quick Stats Result:");
+                logger.info("- Daily Usage count: {}", quickStats.getDailyUsage() != null ? quickStats.getDailyUsage().size() : 0);
+                logger.info("- Top Usage Items count: {}", quickStats.getTopUsageItems() != null ? quickStats.getTopUsageItems().size() : 0);
+                if (quickStats.getDailyUsage() != null) {
+                    quickStats.getDailyUsage().forEach(usage -> 
+                        logger.info("  Daily Usage: {} = {}", usage.getDate(), usage.getUsage()));
+                }
+                if (quickStats.getTopUsageItems() != null) {
+                    quickStats.getTopUsageItems().forEach(item -> 
+                        logger.info("  Top Item: {} (ID: {}) = {}", item.getName(), item.getId(), item.getTotalUsage()));
+                }
+            }
+            
             logger.info("Successfully retrieved quick stats");
             return ResponseEntity.ok(quickStats);
         } catch (Exception e) {
