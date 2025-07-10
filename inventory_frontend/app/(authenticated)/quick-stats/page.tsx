@@ -167,7 +167,8 @@ export default function QuickStats() {
     
     try {
       setDepartmentLoading(true);
-      const departments = await statsAPI.getAvailableDepartments();
+      const response = await statsAPI.getAvailableDepartments();
+      const departments = (response as any)?.data || response || [];
       setAvailableDepartments(departments);
     } catch (err: any) {
       console.error('Error fetching departments:', err);
@@ -298,13 +299,14 @@ export default function QuickStats() {
 
       // Use the new unified Quick Stats API
       const response = await statsAPI.getQuickStats(targetDepartment);
+      const data = (response as any)?.data || response;
       
       setStatsData({
-        dailyUsage: response.dailyUsage || [],
-        topUsageItems: response.topUsageItems || [],
-        lowStockItems: response.lowStockItems || [],
-        stockAlerts: response.stockAlerts || [],
-        department: response.department,
+        dailyUsage: data.dailyUsage || [],
+        topUsageItems: data.topUsageItems || [],
+        lowStockItems: data.lowStockItems || [],
+        stockAlerts: data.stockAlerts || [],
+        department: data.department,
       });
 
     } catch (err: any) {
