@@ -403,7 +403,7 @@ export default function QuickStats() {
       maxWidth: '100vw',
       overflow: 'hidden'
     }}>
-      {/* Enhanced Header Section */}
+      {/*  Header Section */}
       <Paper 
         elevation={0}
         sx={{ 
@@ -457,9 +457,10 @@ export default function QuickStats() {
         
         {/* Status Chips */}
         <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-          {statsData.department && (
+          {/* Only show department chip for OWNER users when they have selected a specific department */}
+          {user?.role === 'OWNER' && selectedDepartment && (
             <Chip 
-              label={`Department: ${statsData.department}`}
+              label={`Department: ${selectedDepartment}`}
               color="primary"
               variant="filled"
               size="small"
@@ -511,7 +512,7 @@ export default function QuickStats() {
         </Alert>
       )}
 
-      {/* Enhanced Department Selection */}
+      {/*  Department Selection */}
       {user?.role === 'OWNER' && (
         <Fade in timeout={800}>
           <Card 
@@ -617,7 +618,7 @@ export default function QuickStats() {
         </Fade>
       )}
 
-      {/* Enhanced Department Information for ADMIN/USER */}
+      {/*  Department Information for ADMIN/USER */}
       {user?.role !== 'OWNER' && user?.department && (
         <Fade in timeout={800}>
           <Card 
@@ -876,7 +877,7 @@ export default function QuickStats() {
       </Card>
 
       <Grid container spacing={3}>
-        {/* Enhanced Daily Usage Overview */}
+        {/*  Daily Usage Overview */}
         <Grid item xs={12} lg={8}>
           <Fade in timeout={1000}>
             <Card 
@@ -972,7 +973,7 @@ export default function QuickStats() {
           </Fade>
         </Grid>
 
-        {/* Enhanced Top 5 Usage Items - Pie Chart */}
+        {/*  Top 5 Usage Items - Pie Chart */}
         <Grid item xs={12} lg={4}>
           <Fade in timeout={1200}>
             <Card 
@@ -1065,7 +1066,7 @@ export default function QuickStats() {
           </Fade>
         </Grid>
 
-        {/* Enhanced Top 5 Usage Items - List */}
+        {/*  Top 5 Usage Items - List */}
         <Grid item xs={12} lg={6}>
           <Fade in timeout={1400}>
             <Card 
@@ -1147,7 +1148,7 @@ export default function QuickStats() {
           </Fade>
         </Grid>
 
-        {/* Enhanced Low Stock Overview */}
+        {/*  Low Stock Overview */}
         <Grid item xs={12} lg={6}>
           <Fade in timeout={1600}>
             <Card 
@@ -1224,7 +1225,7 @@ export default function QuickStats() {
           </Fade>
         </Grid>
 
-        {/* Enhanced Stock Alerts */}
+        {/*  Stock Alerts */}
         <Grid item xs={12}>
           <Fade in timeout={1800}>
             <Card 

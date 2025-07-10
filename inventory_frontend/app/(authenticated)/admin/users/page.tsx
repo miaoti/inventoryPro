@@ -361,7 +361,7 @@ export default function UserManagementPage() {
       minHeight: '100vh',
       background: theme => `linear-gradient(135deg, ${alpha(theme.palette.primary.light, 0.1)} 0%, ${alpha(theme.palette.secondary.light, 0.05)} 100%)`,
     }}>
-      {/* Enhanced Header Section */}
+      {/*  Header Section */}
       <Fade in timeout={800}>
         <Paper 
           elevation={0}
@@ -471,7 +471,7 @@ export default function UserManagementPage() {
         </Paper>
       </Fade>
 
-      {/* Enhanced User Statistics */}
+      {/*  User Statistics */}
       <Slide in direction="up" timeout={600} style={{ transitionDelay: '200ms' }}>
         <Grid container spacing={3} sx={{ mb: 4 }}>
           {getUserStats().map((stat, index) => (
@@ -526,7 +526,7 @@ export default function UserManagementPage() {
         </Grid>
       </Slide>
 
-      {/* Enhanced Users Table */}
+      {/*  Users Table */}
       <Slide in direction="up" timeout={600} style={{ transitionDelay: '600ms' }}>
         <TableContainer 
           component={Paper} 
@@ -733,7 +733,7 @@ export default function UserManagementPage() {
         </TableContainer>
       </Slide>
 
-      {/* Enhanced Create User Dialog */}
+      {/*  Create User Dialog */}
       <Dialog 
         open={createDialogOpen} 
         onClose={() => setCreateDialogOpen(false)} 

@@ -41,6 +41,7 @@ import {
   CardHeader,
   Avatar,
   alpha,
+  CssBaseline,
 } from '@mui/material';
 import {
   QrCodeScanner as ScannerIcon,
@@ -1339,10 +1340,11 @@ export default function BarcodeScanner() {
   const scannerContent = (
     <Box sx={{ 
       minHeight: '100vh',
-      background: theme => `linear-gradient(135deg, ${alpha(theme.palette.primary.light, 0.1)} 0%, ${alpha(theme.palette.secondary.light, 0.05)} 100%)`,
+      background: '#ffffff', // Consistent white background
+      backgroundColor: '#ffffff', // Ensure white background
       p: { xs: 2, sm: 3, md: 4 },
     }}>
-      {/* Enhanced Header Section */}
+      {/*  Header Section */}
       <Fade in timeout={800}>
         <Paper 
           elevation={0}
@@ -1448,7 +1450,7 @@ export default function BarcodeScanner() {
         </Paper>
       </Fade>
 
-      {/* Enhanced User Name Display */}
+      {/*  User Name Display */}
       <Slide in direction="up" timeout={600} style={{ transitionDelay: '200ms' }}>
         <Card sx={{
           mb: 4,
@@ -1576,7 +1578,7 @@ export default function BarcodeScanner() {
         </Card>
       </Slide>
 
-      {/* Enhanced Smart Search */}
+      {/*  Smart Search */}
       <Slide in direction="up" timeout={600} style={{ transitionDelay: '400ms' }}>
         <Box>
           <Card sx={{
@@ -1822,7 +1824,7 @@ export default function BarcodeScanner() {
         </Box>
       </Slide>
 
-      {/* Enhanced Scanner Controls */}
+      {/*  Scanner Controls */}
       <Slide in direction="up" timeout={600} style={{ transitionDelay: '600ms' }}>
         <Box>
           <Card sx={{
@@ -3136,6 +3138,11 @@ export default function BarcodeScanner() {
     return <Layout>{scannerContent}</Layout>;
   }
 
-  // Return content without layout for non-authenticated users
-  return scannerContent;
+  // Return content without layout for non-authenticated users with CssBaseline
+  return (
+    <>
+      <CssBaseline />
+      {scannerContent}
+    </>
+  );
 } 

@@ -146,7 +146,7 @@ const authSlice = createSlice({
       })
       .addCase(login.rejected, (state, action) => {
         state.loading = false;
-        // Handle enhanced error information
+        // Handle  error information
         if (action.payload && typeof action.payload === 'object' && 'message' in action.payload) {
           state.error = action.payload.message as string;
         } else {

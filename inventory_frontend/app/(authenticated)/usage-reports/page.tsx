@@ -470,7 +470,7 @@ export default function UsageReportsPage() {
       background: `linear-gradient(135deg, ${alpha(theme.palette.primary.light, 0.1)} 0%, ${alpha(theme.palette.secondary.light, 0.05)} 100%)`,
       p: { xs: 2, sm: 3, md: 4 },
     }}>
-      {/* Enhanced Header Section */}
+      {/*  Header Section */}
       <Fade in timeout={800}>
         <Paper 
           elevation={0}
@@ -565,7 +565,7 @@ export default function UsageReportsPage() {
         </Paper>
       </Fade>
 
-      {/* Enhanced Summary Cards */}
+      {/*  Summary Cards */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
         <Grid item xs={12} md={4}>
           <Zoom in timeout={600} style={{ transitionDelay: '100ms' }}>
@@ -958,7 +958,7 @@ export default function UsageReportsPage() {
         </Card>
       </Slide>
 
-      {/* Enhanced Tabs and Data Display */}
+      {/*  Tabs and Data Display */}
       <Slide in direction="up" timeout={1000} style={{ transitionDelay: '600ms' }}>
         <Paper sx={{ 
           borderRadius: 3,

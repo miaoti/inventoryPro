@@ -421,7 +421,7 @@ export default function PurchaseOrderStatsPage() {
       minHeight: '100vh',
       background: theme => `linear-gradient(135deg, ${alpha(theme.palette.primary.light, 0.1)} 0%, ${alpha(theme.palette.secondary.light, 0.05)} 100%)`,
     }}>
-      {/* Enhanced Header Section */}
+      {/*Header Section */}
       <Fade in timeout={800}>
         <Paper 
           elevation={0}
@@ -491,7 +491,7 @@ export default function PurchaseOrderStatsPage() {
         </Paper>
       </Fade>
 
-      {/* Enhanced Filters */}
+      {/*  Filters */}
       <Slide in direction="up" timeout={600} style={{ transitionDelay: '200ms' }}>
         <Accordion 
           sx={{ 
@@ -608,7 +608,7 @@ export default function PurchaseOrderStatsPage() {
         </Accordion>
       </Slide>
 
-      {/* Enhanced Statistics Cards */}
+      {/*  Statistics Cards */}
       <Slide in direction="up" timeout={600} style={{ transitionDelay: '400ms' }}>
         <Grid container spacing={3} sx={{ mb: 4 }}>
           {getPOStats().map((stat, index) => (
@@ -673,7 +673,7 @@ export default function PurchaseOrderStatsPage() {
         </Grid>
       </Slide>
 
-      {/* Enhanced Tabs */}
+      {/*  Tabs */}
       <Slide in direction="up" timeout={600} style={{ transitionDelay: '600ms' }}>
         <Paper sx={{ 
           mb: 4, 
@@ -732,7 +732,7 @@ export default function PurchaseOrderStatsPage() {
         {renderPOTable(filteredArrivedPOs)}
       </TabPanel>
 
-      {/* Enhanced PO Detail Dialog */}
+      {/*  PO Detail Dialog */}
       <Dialog
         open={detailDialogOpen}
         onClose={() => setDetailDialogOpen(false)}
@@ -866,7 +866,7 @@ export default function PurchaseOrderStatsPage() {
                 </Grid>
               </Grid>
               
-              {/* Enhanced Tracking Information */}
+              {/*  Tracking Information */}
               {selectedPO.trackingNumber && (
                 <Box sx={{ mt: 4 }}>
                   <Divider sx={{ mb: 3 }} />

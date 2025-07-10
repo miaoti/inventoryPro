@@ -44,6 +44,10 @@ import {
 } from '@mui/icons-material';
 import Cookies from 'js-cookie';
 import { alertsAPI } from '../services/api';
+import { usePhantomAccess } from '../hooks/usePhantomAccess';
+import PhantomAccessDialog from './PhantomAccessDialog';
+import PhantomStatusIndicator from './PhantomStatusIndicator';
+import PhantomThemeProvider from './PhantomThemeProvider';
 
 const drawerWidth = 240;
 
@@ -60,6 +64,17 @@ export default function Layout({ children }: LayoutProps) {
   const dispatch = useDispatch();
   const { unreadAlerts } = useSelector((state: RootState) => state.alerts);
   const { isAuthenticated: authIsAuthenticated, token, user } = useSelector((state: RootState) => state.auth);
+  
+  // Phantom access system
+  const {
+    isPhantomModeActive,
+    isPhantomUser,
+    showPhantomChallenge,
+    timeRemaining,
+    submitAccessKey,
+    deactivatePhantomMode,
+    formatTimeRemaining
+  } = usePhantomAccess();
 
   // Check authentication status on component mount and when auth state changes
   useEffect(() => {
@@ -164,7 +179,7 @@ export default function Layout({ children }: LayoutProps) {
     window.location.href = '/login';
   };
 
-  // Modern drawer with enhanced styling
+  // Modern drawer with  styling
   const drawer = (
     <Box sx={{ 
       height: '100%',
@@ -601,12 +616,13 @@ export default function Layout({ children }: LayoutProps) {
 
   // Use conditional rendering instead of early returns to avoid hooks issues
   return (
-    <Box sx={{ 
-      display: 'flex', 
-      width: '100%', 
-      maxWidth: '100vw',
-      overflow: 'hidden'
-    }}>
+    <PhantomThemeProvider>
+      <Box sx={{ 
+        display: 'flex', 
+        width: '100%', 
+        maxWidth: '100vw',
+        overflow: 'hidden'
+      }}>
       <CssBaseline />
       
       {/* Only render AppBar and Drawer for authenticated users */}
@@ -716,6 +732,22 @@ export default function Layout({ children }: LayoutProps) {
         {isAuthenticated && <Toolbar sx={{ display: { xs: 'block', sm: 'none' } }} />}
         {children}
       </Box>
-    </Box>
+
+      {/* Phantom Access Components */}
+      <PhantomAccessDialog
+        open={showPhantomChallenge}
+        onClose={() => {}} // Close is handled by the hook
+        onSubmit={submitAccessKey}
+        attempts={0} // This could be passed from the hook if needed
+        maxAttempts={3}
+      />
+      
+      <PhantomStatusIndicator
+        isActive={isPhantomModeActive}
+        timeRemaining={formatTimeRemaining()}
+        onDeactivate={deactivatePhantomMode}
+      />
+      </Box>
+    </PhantomThemeProvider>
   );
 } 

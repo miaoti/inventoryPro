@@ -530,7 +530,7 @@ export default function AlertsPage() {
     }
   };
 
-  // Enhanced DataGrid columns with better formatting
+  //  DataGrid columns with better formatting
   const columns: GridColDef[] = [
     {
       field: 'urgencyLevel',
@@ -1104,7 +1104,7 @@ export default function AlertsPage() {
         </Box>
       </Paper>
 
-      {/* Enhanced Alert Detail Dialog */}
+      {/*  Alert Detail Dialog */}
       <Dialog 
         open={dialogOpen} 
         onClose={() => setDialogOpen(false)} 
